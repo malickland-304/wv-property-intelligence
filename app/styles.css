@@ -1,0 +1,240 @@
+/* styles.css - WV Property Intelligence */
+
+/* ── Reset & Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --primary:    #1a5276;
+  --accent:     #2e86c1;
+  --bg:         #f4f6f8;
+  --surface:    #ffffff;
+  --text:       #1c2833;
+  --muted:      #717d7e;
+  --border:     #d5d8dc;
+  --radius:     8px;
+  --shadow:     0 2px 8px rgba(0,0,0,.08);
+  --transition: 0.2s ease;
+}
+
+html { font-size: 16px; scroll-behavior: smooth; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ── Navbar ── */
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--primary);
+  padding: 0.75rem 2rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 6px rgba(0,0,0,.2);
+}
+
+.navbar .logo {
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.nav-links {
+  list-style: none;
+  display: flex;
+  gap: 1.5rem;
+}
+
+.nav-links a {
+  color: rgba(255,255,255,.85);
+  font-size: 0.95rem;
+  transition: color var(--transition);
+}
+
+.nav-links a:hover { color: #fff; text-decoration: none; }
+
+/* ── Hero ── */
+#hero {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+  color: #fff;
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+#hero h1 { font-size: 2.2rem; margin-bottom: 0.5rem; }
+#hero p  { font-size: 1.1rem; opacity: 0.9; margin-bottom: 1.5rem; }
+
+/* ── Search Bar ── */
+.search-bar {
+  display: flex;
+  max-width: 600px;
+  margin: 0 auto;
+  gap: 0.5rem;
+}
+
+.search-bar input {
+  flex: 1;
+  padding: 0.65rem 1rem;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+  outline: none;
+}
+
+.search-bar button,
+.filter-bar button {
+  padding: 0.65rem 1.2rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background var(--transition);
+}
+
+.search-bar button:hover,
+.filter-bar button:hover { background: var(--primary); }
+
+/* ── Sections ── */
+section { padding: 3rem 2rem; max-width: 1200px; margin: 0 auto; }
+section h2 { font-size: 1.6rem; margin-bottom: 1.5rem; color: var(--primary); }
+
+/* ── Filters ── */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  align-items: center;
+}
+
+.filter-bar select,
+.filter-bar input[type="number"] {
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.filter-bar select:focus,
+.filter-bar input:focus { border-color: var(--accent); }
+
+/* ── Listings Grid ── */
+.listings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.property-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+
+.property-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 18px rgba(0,0,0,.12);
+}
+
+.property-card img {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+}
+
+.card-body { padding: 1rem; }
+.card-address  { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.2rem; }
+.card-county   { font-size: 0.82rem; color: var(--muted); margin-bottom: 0.2rem; }
+.card-type     { font-size: 0.8rem; color: var(--accent); font-weight: 500; text-transform: uppercase; margin-bottom: 0.4rem; }
+.card-price    { font-size: 1.15rem; font-weight: 700; color: var(--primary); margin-bottom: 0.3rem; }
+.card-details  { font-size: 0.82rem; color: var(--muted); margin-bottom: 0.8rem; }
+
+.btn-detail {
+  display: inline-block;
+  padding: 0.4rem 0.9rem;
+  background: var(--accent);
+  color: #fff;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  transition: background var(--transition);
+}
+
+.btn-detail:hover { background: var(--primary); text-decoration: none; }
+
+/* ── Pagination ── */
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  justify-content: center;
+}
+
+.page-btn {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all var(--transition);
+}
+
+.page-btn:hover, .page-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* ── Analytics ── */
+.analytics-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1.25rem;
+}
+
+.stat-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.25rem 1.5rem;
+  border-left: 4px solid var(--accent);
+  text-align: center;
+}
+
+.stat-card h3 { font-size: 0.85rem; color: var(--muted); text-transform: uppercase; margin-bottom: 0.4rem; }
+.stat-card p  { font-size: 1.5rem; font-weight: 700; color: var(--primary); }
+
+/* ── Messages ── */
+.error       { color: #c0392b; text-align: center; padding: 2rem; }
+.no-results  { color: var(--muted); text-align: center; padding: 2rem; }
+
+/* ── Footer ── */
+footer {
+  background: var(--primary);
+  color: rgba(255,255,255,.7);
+  text-align: center;
+  padding: 1.5rem;
+  font-size: 0.85rem;
+  margin-top: 3rem;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .navbar { flex-direction: column; gap: 0.5rem; }
+  #hero h1 { font-size: 1.6rem; }
+  .search-bar { flex-direction: column; }
+  .filter-bar { flex-direction: column; }
+  section { padding: 2rem 1rem; }
+}
