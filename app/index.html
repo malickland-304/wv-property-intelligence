@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WV Property Intelligence</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <nav class="navbar">
+      <div class="logo">WV Property Intelligence</div>
+      <ul class="nav-links">
+        <li><a href="#search">Search</a></li>
+        <li><a href="#listings">Listings</a></li>
+        <li><a href="#analytics">Analytics</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <section id="hero">
+      <h1>West Virginia Property Intelligence</h1>
+      <p>Search, analyze, and track real estate across West Virginia</p>
+      <div id="search" class="search-bar">
+        <input type="text" id="searchInput" placeholder="Search by address, county, or ZIP..." />
+        <button id="searchBtn">Search</button>
+      </div>
+    </section>
+
+    <section id="listings">
+      <h2>Property Listings</h2>
+      <div id="filters" class="filter-bar">
+        <select id="countyFilter"><option value="">All Counties</option></select>
+        <select id="typeFilter">
+          <option value="">All Types</option>
+          <option value="residential">Residential</option>
+          <option value="commercial">Commercial</option>
+          <option value="land">Land</option>
+        </select>
+        <input type="number" id="minPrice" placeholder="Min Price" />
+        <input type="number" id="maxPrice" placeholder="Max Price" />
+        <button id="applyFilters">Apply Filters</button>
+      </div>
+      <div id="listingsGrid" class="listings-grid">
+        <!-- Properties injected by app.js -->
+      </div>
+      <div id="pagination" class="pagination"></div>
+    </section>
+
+    <section id="analytics">
+      <h2>Market Analytics</h2>
+      <div id="analyticsPanel" class="analytics-panel">
+        <div class="stat-card" id="avgPrice"><h3>Avg Price</h3><p>--</p></div>
+        <div class="stat-card" id="totalListings"><h3>Total Listings</h3><p>--</p></div>
+        <div class="stat-card" id="medianDom"><h3>Median DOM</h3><p>--</p></div>
+        <div class="stat-card" id="pricePerSqft"><h3>Price / Sqft</h3><p>--</p></div>
+      </div>
+    </section>
+  </main>
+
+  <footer id="contact">
+    <p>&copy; 2026 Malickland | WV Property Intelligence</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
