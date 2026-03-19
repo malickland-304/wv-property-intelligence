@@ -1,0 +1,16 @@
+# Dependencies
+api/node_modules/
+
+# Environment secrets
+.env
+api/.env
+
+# SQLite WAL files
+*.db-shm
+*.db-wal
+
+# macOS
+.DS_Store
+
+# Uploaded/generated listing assets
+listings/
