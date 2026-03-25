@@ -171,12 +171,12 @@ Central hub to create, manage, and analyze property listings focused on WV Easte
 
 ### API Endpoints
 
-| Method | Endpoint          | Action                         |
-|--------|-------------------|--------------------------------|
-| POST   | /api/listings     | Create listing + upload photos |
-| GET    | /api/listings     | Get all listings               |
-| GET    | /api/listings/:id | Get single listing             |
-| DELETE | /api/listings/:id | Remove listing                 |
+| Method | Endpoint             | Action                         |
+|--------|----------------------|--------------------------------|
+| POST   | /api/properties      | Create listing + upload photos |
+| GET    | /api/properties      | Get all listings               |
+| GET    | /api/properties/:id  | Get single listing             |
+| DELETE | /api/properties/:id  | Remove listing                 |
 
 ### Public Listing Page Displays
 

@@ -23,6 +23,7 @@ Before generating code, prompts, workflows, architecture notes, or implementatio
 
 - `CONTEXT.md`: master business and system context
 - `copilot-instructions.md`: Copilot-specific repo instructions
+
 # AI Assistant Guidance
 
 ## Must-read files (in order)

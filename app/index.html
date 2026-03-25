@@ -3,17 +3,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WV Property Intelligence</title>
+  <title>Malickland | WV Property Intelligence</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header>
     <nav class="navbar">
-      <div class="logo">WV Property Intelligence</div>
+      <a href="#hero" class="logo">
+        <img src="logo.png" alt="Malickland" class="nav-logo" />
+        <span>Malickland</span>
+      </a>
       <ul class="nav-links">
         <li><a href="#search">Search</a></li>
         <li><a href="#listings">Listings</a></li>
         <li><a href="#analytics">Analytics</a></li>
+        <li><a href="#agent">About</a></li>
         <li><a href="#contact">Contact</a></li>
       </ul>
     </nav>
@@ -38,6 +42,8 @@
           <option value="residential">Residential</option>
           <option value="commercial">Commercial</option>
           <option value="land">Land</option>
+          <option value="multi-family">Multi-Family</option>
+          <option value="industrial">Industrial</option>
         </select>
         <input type="number" id="minPrice" placeholder="Min Price" />
         <input type="number" id="maxPrice" placeholder="Max Price" />
@@ -47,6 +53,18 @@
         <!-- Properties injected by app.js -->
       </div>
       <div id="pagination" class="pagination"></div>
+    </section>
+
+    <section id="agent">
+      <div class="agent-inner">
+        <img src="agent.jpg" alt="Phil Malick" class="agent-photo" />
+        <div class="agent-bio">
+          <h2>Phil Malick</h2>
+          <p class="agent-title">West Virginia Real Estate Agent</p>
+          <p>With deep knowledge of West Virginia's 55 counties, Phil specializes in land, residential, and rural properties across the Mountain State. Whether you're buying, selling, or just exploring — he's here to help.</p>
+          <a href="#contact" class="agent-cta">Get In Touch</a>
+        </div>
+      </div>
     </section>
 
     <section id="analytics">
