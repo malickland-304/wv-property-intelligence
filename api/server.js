@@ -10,7 +10,10 @@ const fs         = require('fs');
 const crypto     = require('crypto');
 const multer     = require('multer');
 const session    = require('express-session');
+const rateLimit  = require('express-rate-limit');
 require('dotenv').config();
+
+const { sendContactEmail, uploadPhotoToDrive } = require('./google');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -189,6 +192,15 @@ function requireAuth(req, res, next) {
   if (req.session && req.session.admin) return next();
   res.redirect('/admin/login');
 }
+
+// ── Rate limiter – public contact form ───────────────────
+const contactsRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many inquiries. Please wait a moment.' },
+});
 
 // ── Admin login ───────────────────────────────────────────
 app.get('/admin/login', (_req, res) => {
@@ -503,6 +515,11 @@ app.post('/admin/upload/:slug', requireAuth, upload.single('photo'), async (req,
       } else {
         db.prepare('UPDATE properties SET photos_uploaded=1 WHERE listing_slug=?').run(slug);
       }
+
+      // Upload compressed photo to Google Drive (fire-and-forget)
+      const driveSource = fs.existsSync(compPath) ? compPath : rawPath;
+      uploadPhotoToDrive(driveSource, filename, slug).catch(() => {});
+
       res.json({ ok:true, filename });
     });
   });
@@ -611,6 +628,74 @@ app.post('/admin/report/:id/dd', requireAuth, (req, res) => {
   res.json({ ok:true });
 });
 
+// ── Integrations status page ──────────────────────────────
+app.get('/admin/integrations', requireAuth, (_req, res) => {
+  const gmailUser    = process.env.GOOGLE_GMAIL_USER    || '';
+  const notifyEmail  = process.env.NOTIFICATION_EMAIL   || '';
+  const driveFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID || '';
+  const clientId     = process.env.GOOGLE_CLIENT_ID     || '';
+
+  const configured = clientId && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REFRESH_TOKEN;
+  const statusBadge = (ok) => ok
+    ? '<span style="background:#d4edda;color:#155724;padding:.2rem .6rem;border-radius:4px;font-size:.8rem;font-weight:700">✓ Configured</span>'
+    : '<span style="background:#fff3cd;color:#856404;padding:.2rem .6rem;border-radius:4px;font-size:.8rem;font-weight:700">⚠ Not Set</span>';
+
+  res.send(adminShell('Integrations', `
+    <div class="dash-header">
+      <h1>🔗 Google Integrations</h1>
+    </div>
+    <div style="max-width:680px">
+      <div style="background:#fff;border-radius:10px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:1.5rem">
+        <h3 style="color:#1a3a2a;margin-bottom:1rem">OAuth2 Credentials</h3>
+        <table class="detail-table">
+          <tr><td>Client ID</td><td>${clientId ? clientId.slice(0,20)+'…' : '—'} ${statusBadge(clientId)}</td></tr>
+          <tr><td>Client Secret</td><td>${process.env.GOOGLE_CLIENT_SECRET ? '••••••••' : '—'} ${statusBadge(process.env.GOOGLE_CLIENT_SECRET)}</td></tr>
+          <tr><td>Refresh Token</td><td>${process.env.GOOGLE_REFRESH_TOKEN ? '••••••••' : '—'} ${statusBadge(process.env.GOOGLE_REFRESH_TOKEN)}</td></tr>
+        </table>
+      </div>
+
+      <div style="background:#fff;border-radius:10px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:1.5rem">
+        <h3 style="color:#1a3a2a;margin-bottom:1rem">📧 Gmail – Inquiry Notifications</h3>
+        <table class="detail-table">
+          <tr><td>Send From</td><td>${gmailUser || '—'} ${statusBadge(gmailUser)}</td></tr>
+          <tr><td>Send To</td><td>${notifyEmail || '—'} ${statusBadge(notifyEmail)}</td></tr>
+        </table>
+        <p style="margin-top:.75rem;font-size:.85rem;color:#666">
+          When a visitor submits a contact inquiry on the public site, a notification email will
+          be sent from your Gmail account to the address above.
+        </p>
+      </div>
+
+      <div style="background:#fff;border-radius:10px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:1.5rem">
+        <h3 style="color:#1a3a2a;margin-bottom:1rem">📁 Google Drive – Photo Backup</h3>
+        <table class="detail-table">
+          <tr><td>Root Folder ID</td><td>${driveFolderId || '—'} ${statusBadge(driveFolderId)}</td></tr>
+        </table>
+        <p style="margin-top:.75rem;font-size:.85rem;color:#666">
+          Every photo uploaded through the admin panel is automatically backed up to Google Drive
+          inside a subfolder named after the property slug.
+          ${driveFolderId ? `<br><a href="https://drive.google.com/drive/folders/${driveFolderId}" target="_blank" rel="noopener noreferrer">Open root folder in Drive →</a>` : ''}
+        </p>
+      </div>
+
+      <div style="background:#fffdf5;border:1px solid #c9a84c;border-radius:10px;padding:1.5rem">
+        <h3 style="color:#1a3a2a;margin-bottom:.75rem">🛠 Setup Instructions</h3>
+        <ol style="padding-left:1.25rem;font-size:.9rem;line-height:1.8">
+          <li>Go to <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer">Google Cloud Console</a> and create a project.</li>
+          <li>Enable the <strong>Gmail API</strong> and <strong>Google Drive API</strong>.</li>
+          <li>Create an <strong>OAuth 2.0 Client ID</strong> (Desktop application type).</li>
+          <li>Visit the <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener noreferrer">OAuth Playground</a>, authorise with scopes<br>
+            <code>https://www.googleapis.com/auth/gmail.send</code> and
+            <code>https://www.googleapis.com/auth/drive.file</code>.<br>
+            Exchange the authorisation code for a <strong>refresh token</strong>.</li>
+          <li>Copy the values into <code>api/.env</code> (see <code>api/.env.example</code> for all keys).</li>
+          <li>Restart the server — the integrations activate automatically.</li>
+        </ol>
+      </div>
+    </div>
+  `));
+});
+
 // ── Public API ────────────────────────────────────────────
 app.get('/api/health', (_req, res) => res.json({ status:'ok', ts:new Date() }));
 
@@ -631,6 +716,7 @@ app.get('/api/properties', (req, res) => {
     const where  = 'WHERE ' + conditions.join(' AND ');
     const offset = (Number(page)-1) * Number(limit);
     const total  = db.prepare(`SELECT COUNT(*) as c FROM properties p ${where}`).get(...values).c;
+    // DB stores `acreage`; the public API exposes `lot_acres` (aliased) for the UI
     const properties = db.prepare(`
       SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
              p.bedrooms, p.bathrooms, p.sqft, p.lot_acres,
@@ -667,12 +753,21 @@ app.get('/api/analytics', (_req, res) => {
   res.json(row);
 });
 
-app.post('/api/contacts', (req, res) => {
+app.post('/api/contacts', contactsRateLimit, (req, res) => {
   const { property_id,name,email,phone,message } = req.body;
   if (!name||!email) return res.status(400).json({ error:'Name and email required' });
   const result = db.prepare(
     `INSERT INTO contacts (property_id,name,email,phone,message) VALUES (?,?,?,?,?)`
   ).run(property_id||null,name,email,phone,message);
+
+  // Send Gmail notification (fire-and-forget; never blocks the API response)
+  const property = property_id
+    ? db.prepare(`SELECT p.id, p.address, p.city, c.name AS county
+                  FROM properties p LEFT JOIN counties c ON c.id=p.county_id
+                  WHERE p.id=?`).get(property_id)
+    : null;
+  sendContactEmail({ name, email, phone, message }, property).catch(() => {});
+
   res.status(201).json({ id:result.lastInsertRowid });
 });
 
@@ -755,6 +850,7 @@ function adminShell(title, body) {
     <span class="logo">🏡 WVREA Admin</span>
     <a href="/admin">📋 Listings</a>
     <a href="/admin/new">➕ New Listing</a>
+    <a href="/admin/integrations">🔗 Integrations</a>
     <a href="/" target="_blank">🌐 Public Site</a>
     <a href="/admin/logout" class="logout" style="color:#ffaaaa">🚪 Logout</a>
   </div>
