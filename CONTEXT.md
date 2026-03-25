@@ -61,7 +61,8 @@ West Virginia real estate platform covering all 55 WV counties. Provides public 
 - Each property row currently includes:
   `id`, `address`, `city`, `zip`, `price`, `property_type`, `bedrooms`, `bathrooms`,
   `sqft`, `lot_acres`, `acreage`, `year_built`, `image_url`, `listed_at`, `status`,
-  `price_reduced`, `road_access`, `flood_zone`, `listing_slug`, `county`
+  `price_reduced`, `county`
+- Description field: use `marketing_description` (preferred) or `property_description` as fallback — there is no bare `description` field
 
 `GET /api/properties/:id`
 
