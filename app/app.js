@@ -1,6 +1,6 @@
 // app.js - WV Property Intelligence Frontend
 
-const API = 'http://localhost:3000/api';
+const API = '/api';
 let currentPage = 1;
 let currentFilters = {};
 
@@ -175,7 +175,8 @@ async function submitContact(propertyId) {
     message: document.getElementById('cMsg').value,
   };
   if (!body.name || !body.email) { alert('Name and email are required.'); return; }
-  await fetch(`${API}/contacts`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const res = await fetch(`${API}/contacts`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if (!res.ok) { alert('Failed to send inquiry. Please try again.'); return; }
   alert('Inquiry sent! We\'ll be in touch.');
   closeModal();
 }

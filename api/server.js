@@ -650,7 +650,8 @@ app.get('/api/properties/:id', (req, res) => {
            p.bedrooms, p.bathrooms, p.sqft,
            COALESCE(p.acreage, p.lot_acres) AS lot_acres, p.acreage,
            p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
-           p.county_id, c.name AS county
+           p.county_id, c.name AS county,
+           p.marketing_description, p.property_description
     FROM properties p JOIN counties c ON c.id=p.county_id WHERE p.id=?
   `).get(req.params.id);
   if (!row) return res.status(404).json({ error:'Not found' });
