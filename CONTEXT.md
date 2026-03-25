@@ -36,9 +36,14 @@ West Virginia real estate platform covering all 55 WV counties. Provides public 
 
 `GET /api/properties` query params: `q`, `county`, `type`, `minPrice`, `maxPrice`, `page`, `limit`
 
+- Returns only properties with `status = 'active'` (admin-only routes see all statuses)
+- Pagination: `page` (default 1), `limit` (default 12); response includes `{ total, page, properties }`
+- `property_type` values: `residential` | `commercial` | `land` | `multi-family` | `industrial`
+- `status` values: `active` | `pending` | `sold` | `withdrawn` | `draft`
+
 ## Admin routes (authenticated, not public API)
 
-All admin routes require session auth (`requireAuth` middleware).
+Session-based auth via `express-session` (`requireAuth` middleware). Unauthenticated requests redirect to `/admin/login`.
 
 | Method | Route                          | Purpose |
 |-------:|--------------------------------|---------|
