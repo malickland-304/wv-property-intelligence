@@ -1,6 +1,6 @@
 // app.js - WV Property Intelligence Frontend
 
-const API = 'http://localhost:3000/api';
+const API = '/api';
 let currentPage = 1;
 let currentFilters = {};
 
@@ -91,7 +91,7 @@ function renderListings({ properties, total, page }) {
           ${p.bedrooms ? `<span>🛏 ${p.bedrooms} bd</span>` : ''}
           ${p.bathrooms ? `<span>🚿 ${p.bathrooms} ba</span>` : ''}
           ${p.sqft ? `<span>📐 ${Number(p.sqft).toLocaleString()} sqft</span>` : ''}
-          ${p.acreage ? `<span>🌿 ${p.acreage} ac</span>` : ''}
+          ${p.lot_acres ? `<span>🌿 ${p.lot_acres} ac</span>` : ''}
         </div>
         <div class="card-listed">Listed ${timeAgo(p.listed_at)}</div>
       </div>
@@ -132,12 +132,12 @@ async function openDetail(id) {
           ${p.bedrooms   ? `<span>🛏 ${p.bedrooms} Bedrooms</span>` : ''}
           ${p.bathrooms  ? `<span>🚿 ${p.bathrooms} Bathrooms</span>` : ''}
           ${p.sqft       ? `<span>📐 ${Number(p.sqft).toLocaleString()} sqft</span>` : ''}
-          ${p.acreage  ? `<span>🌿 ${p.acreage} Acres</span>` : ''}
+          ${p.lot_acres ? `<span>🌿 ${p.lot_acres} Acres</span>` : ''}
           ${p.year_built ? `<span>🏗 Built ${p.year_built}</span>` : ''}
           <span>📋 ${p.property_type}</span>
           <span>🏷 ${p.status}</span>
         </div>
-        ${(p.marketing_description || p.property_description) ? `<p class="modal-desc">${p.marketing_description || p.property_description}</p>` : ''}
+        ${p.description ? `<p class="modal-desc">${p.description}</p>` : ''}
         <div class="modal-contact">
           <h3>Inquire About This Property</h3>
           <input id="cName"  type="text"  placeholder="Your Name" />
@@ -175,7 +175,8 @@ async function submitContact(propertyId) {
     message: document.getElementById('cMsg').value,
   };
   if (!body.name || !body.email) { alert('Name and email are required.'); return; }
-  await fetch(`${API}/contacts`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const res = await fetch(`${API}/contacts`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if (!res.ok) { alert('Failed to send inquiry. Please try again.'); return; }
   alert('Inquiry sent! We\'ll be in touch.');
   closeModal();
 }

@@ -633,8 +633,7 @@ app.get('/api/properties', (req, res) => {
     const total  = db.prepare(`SELECT COUNT(*) as c FROM properties p ${where}`).get(...values).c;
     const properties = db.prepare(`
       SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
-             p.bedrooms, p.bathrooms, p.sqft,
-             COALESCE(p.acreage, p.lot_acres) AS lot_acres, p.acreage,
+             p.bedrooms, p.bathrooms, p.sqft, p.lot_acres,
              p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
              c.name AS county
       FROM properties p JOIN counties c ON c.id=p.county_id
@@ -647,10 +646,9 @@ app.get('/api/properties', (req, res) => {
 app.get('/api/properties/:id', (req, res) => {
   const row = db.prepare(`
     SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
-           p.bedrooms, p.bathrooms, p.sqft,
-           COALESCE(p.acreage, p.lot_acres) AS lot_acres, p.acreage,
+           p.bedrooms, p.bathrooms, p.sqft, p.lot_acres,
            p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
-           p.county_id, c.name AS county
+           p.county_id, c.name AS county, p.description
     FROM properties p JOIN counties c ON c.id=p.county_id WHERE p.id=?
   `).get(req.params.id);
   if (!row) return res.status(404).json({ error:'Not found' });
