@@ -41,6 +41,46 @@ West Virginia real estate platform covering all 55 WV counties. Provides public 
 - `property_type` values: `residential` | `commercial` | `land` | `multi-family` | `industrial`
 - `status` values: `active` | `pending` | `sold` | `withdrawn` | `draft`
 
+### Public API contract
+
+`GET /api/health`
+
+- Returns JSON: `{ status, ts }`
+- Example: `{ "status": "ok", "ts": "2026-03-25T12:00:00.000Z" }`
+
+`GET /api/counties`
+
+- Returns an array ordered by county name
+- Each item includes: `id`, `name`
+
+`GET /api/properties`
+
+- `county` is the numeric `counties.id`, not a county name string
+- `type` maps to `property_type`
+- `minPrice` and `maxPrice` are numeric filters
+- Each property row currently includes:
+  `id`, `address`, `city`, `zip`, `price`, `property_type`, `bedrooms`, `bathrooms`,
+  `sqft`, `lot_acres`, `acreage`, `year_built`, `image_url`, `listed_at`, `status`,
+  `price_reduced`, `road_access`, `flood_zone`, `listing_slug`, `county`
+
+`GET /api/properties/:id`
+
+- Returns one property row by `properties.id`
+- Current code does not filter by `status`, so this route can return non-`active` records if the ID exists
+- Returns `404` with `{ error: 'Not found' }` when no property matches
+
+`GET /api/analytics`
+
+- Returns JSON with: `avgPrice`, `totalListings`, `medianDom`, `pricePerSqft`
+- Values are computed from `status='active'` properties only
+
+`POST /api/contacts`
+
+- Accepts JSON body fields: `property_id`, `name`, `email`, `phone`, `message`
+- `name` and `email` are required
+- Success response: `201 { id }`
+- Validation failure: `400 { error: 'Name and email required' }`
+
 ## Admin routes (authenticated, not public API)
 
 Session-based auth via `express-session` (`requireAuth` middleware). Unauthenticated requests redirect to `/admin/login`.
@@ -73,3 +113,4 @@ Defined in `api/server.js`:
 1. Before generating any API call, confirm the route exists in `api/server.js`.
 2. Use `/api/properties` (do not invent a "listings" endpoint name).
 3. If this file disagrees with `api/server.js`, follow the code and propose a docs fix.
+4. Treat `/api/properties` and `/api/properties/:id` differently: the collection route is filtered to `active`, but the detail route currently is not.
