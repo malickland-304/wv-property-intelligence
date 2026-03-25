@@ -629,7 +629,7 @@ app.get('/api/properties', (req, res) => {
     const total  = db.prepare(`SELECT COUNT(*) as c FROM properties p ${where}`).get(...values).c;
     const properties = db.prepare(`
       SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
-             p.bedrooms, p.bathrooms, p.sqft, p.lot_acres, p.acreage,
+             p.bedrooms, p.bathrooms, p.sqft, p.acreage, p.acreage AS lot_acres,
              p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
              p.road_access, p.flood_zone, p.listing_slug,
              c.name AS county
