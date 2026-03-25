@@ -298,6 +298,10 @@ app.get('/admin/new', requireAuth, (req, res) => {
   res.send(adminShell('New Listing', listingForm(null, counties)));
 });
 
+function normalizeAcreage(body) {
+  return body.acreage ?? body.lot_acres ?? null;
+}
+
 app.post('/admin/new', requireAuth, (req, res) => {
   const f = req.body;
   const id   = crypto.randomBytes(16).toString('hex');
@@ -321,7 +325,7 @@ app.post('/admin/new', requireAuth, (req, res) => {
   `).run(
     id, f.county_id||1, f.address, f.city, f.state||'WV', f.zip,
     f.parcel_id, f.subdivision, f.property_type||'land', f.status||'draft',
-    f.acreage||null, f.lot_size, f.road_access, f.utilities_available,
+    normalizeAcreage(f), f.lot_size, f.road_access, f.utilities_available,
     f.septic?1:0, f.well?1:0, f.electric?1:0, f.internet?1:0,
     f.price||null, f.recommended_list_price||null, f.price_per_acre||null,
     f.tax_assessed||null, f.annual_tax||null,
@@ -368,7 +372,7 @@ app.post('/admin/edit/:id', requireAuth, (req, res) => {
   `).run(
     f.county_id||1, f.address, f.city, f.state||'WV', f.zip,
     f.parcel_id, f.subdivision, f.property_type||'land', f.status||'draft',
-    f.acreage||null, f.lot_size, f.road_access, f.utilities_available,
+    normalizeAcreage(f), f.lot_size, f.road_access, f.utilities_available,
     f.septic?1:0, f.well?1:0, f.electric?1:0, f.internet?1:0,
     f.price||null, f.recommended_list_price||null, f.price_per_acre||null,
     f.tax_assessed||null, f.annual_tax||null,
@@ -629,9 +633,9 @@ app.get('/api/properties', (req, res) => {
     const total  = db.prepare(`SELECT COUNT(*) as c FROM properties p ${where}`).get(...values).c;
     const properties = db.prepare(`
       SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
-             p.bedrooms, p.bathrooms, p.sqft, p.acreage, p.acreage AS lot_acres,
+             p.bedrooms, p.bathrooms, p.sqft,
+             COALESCE(p.acreage, p.lot_acres) AS lot_acres, p.acreage,
              p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
-             p.road_access, p.flood_zone, p.listing_slug,
              c.name AS county
       FROM properties p JOIN counties c ON c.id=p.county_id
       ${where} ORDER BY p.listed_at DESC LIMIT ? OFFSET ?
@@ -642,8 +646,12 @@ app.get('/api/properties', (req, res) => {
 
 app.get('/api/properties/:id', (req, res) => {
   const row = db.prepare(`
-    SELECT p.*, c.name AS county FROM properties p
-    JOIN counties c ON c.id=p.county_id WHERE p.id=?
+    SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
+           p.bedrooms, p.bathrooms, p.sqft,
+           COALESCE(p.acreage, p.lot_acres) AS lot_acres, p.acreage,
+           p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
+           p.county_id, c.name AS county
+    FROM properties p JOIN counties c ON c.id=p.county_id WHERE p.id=?
   `).get(req.params.id);
   if (!row) return res.status(404).json({ error:'Not found' });
   res.json(row);
