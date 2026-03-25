@@ -19,7 +19,7 @@ West Virginia real estate platform covering all 55 WV counties. Provides public 
 | `api/server.js` | **Source of truth for all routes** |
 | `app/app.js` | Frontend logic, listings, filters, analytics |
 | `app/styles.css` | Responsive UI styling |
-| `database/schema.sql` | PostgreSQL schema (55 WV counties, properties, users, analytics views) |
+| `database/schema.sql` | Legacy schema reference (runtime schema is created in `api/server.js` / SQLite) |
 
 ## API routes (source of truth: api/server.js)
 
@@ -33,6 +33,8 @@ West Virginia real estate platform covering all 55 WV counties. Provides public 
 | GET    | /api/properties/:id  | Get one property by ID         |
 | GET    | /api/analytics       | Basic analytics summary        |
 | POST   | /api/contacts        | Public inquiry submission      |
+
+`GET /api/properties` query params: `q`, `county`, `type`, `minPrice`, `maxPrice`, `page`, `limit`
 
 ## Admin routes (authenticated, not public API)
 
@@ -53,8 +55,16 @@ All admin routes require session auth (`requireAuth` middleware).
 | POST   | /admin/report/:id/comps        | Add comps to report |
 | POST   | /admin/report/:id/dd           | Add due-diligence notes |
 
+## Static routes (non-API)
+
+Defined in `api/server.js`:
+
+- `/images/*` — listing photos
+- `/admin-assets/*` — admin panel assets
+- `/` and other paths — served via `app/` (frontend); unmatched routes return JSON 404
+
 ## Rules for AI assistants
 
 1. Before generating any API call, confirm the route exists in `api/server.js`.
-2. There is no `/api/listings` route — use `/api/properties`.
+2. Use `/api/properties` (do not invent a "listings" endpoint name).
 3. If this file disagrees with `api/server.js`, follow the code and propose a docs fix.

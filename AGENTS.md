@@ -4,7 +4,7 @@
 
 1. `CONTEXT.md` — business intent, stack, and API route table
 2. `api/server.js` — **final source of truth for all routes and middleware**
-3. `database/schema.sql` — data model (55 WV counties, properties, users)
+3. `database/schema.sql` — legacy schema reference (runtime schema lives in `api/server.js`)
 
 ## Before generating any API code
 
@@ -20,6 +20,7 @@ Verify the route exists verbatim in `api/server.js`. If it is not there, do not 
 
 ## Common mistakes to avoid
 
-- Using `/api/listings` — this route does not exist; use `/api/properties`
+- Using the old "listings" endpoint name — use `/api/properties`
 - Assuming unauthenticated access to `/admin/*` routes
 - Reading `copilot-instructions.md` from the repo root — it does not exist there; see `.github/copilot-instructions.md`
+- Forgetting `GET /api/properties` accepts these query params: `q`, `county`, `type`, `minPrice`, `maxPrice`, `page`, `limit`
