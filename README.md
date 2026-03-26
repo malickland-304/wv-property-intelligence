@@ -1,5 +1,7 @@
 # wv-property-intelligence
 
+[![Open with GitLens](https://img.shields.io/badge/Open%20with-GitLens-blue?logo=gitkraken&logoColor=white)](https://gitkraken.com/gitlens)
+
 WV Property Intelligence - Full-stack real estate platform with app, API, and database layers
 
 ## Project Context
