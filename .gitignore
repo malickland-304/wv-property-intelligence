@@ -14,3 +14,6 @@ api/.env
 
 # Uploaded/generated listing assets
 listings/
+listings/*/photos/raw/
+*.sqlite-wal
+*.sqlite-shm
