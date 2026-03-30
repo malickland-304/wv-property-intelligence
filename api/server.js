@@ -12,6 +12,9 @@ const multer     = require('multer');
 const session    = require('express-session');
 const rateLimit  = require('express-rate-limit');
 require('dotenv').config();
+const { exec }    = require('child_process');
+const { promisify } = require('util');
+const execAsync     = promisify(exec);
 
 const { sendContactEmail, uploadPhotoToDrive } = require('./google');
 
@@ -25,6 +28,13 @@ const DB_PATH = path.join(PROJECT_ROOT, 'database', 'wv_property.db');
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+db.pragma('cache_size = -32000');   // 32MB SQLite cache cap
+db.pragma('mmap_size = 67108864');  // 64MB mmap cap
+
+// Periodic WAL checkpoint every 5 minutes
+setInterval(() => {
+  try { db.pragma('wal_checkpoint(PASSIVE)'); } catch (_) {}
+}, 5 * 60 * 1000);
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS counties (
@@ -163,7 +173,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: 15 * 1024 * 1024, files: 20, fieldSize: 1 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     cb(null, /\.(jpg|jpeg|png|webp|heic)$/i.test(file.originalname));
   }
@@ -172,7 +182,7 @@ const upload = multer({
 // ── Middleware ────────────────────────────────────────────
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
-app.use(morgan('dev'));
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'tiny' : 'dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended:true }));
 app.use(session({
@@ -502,7 +512,7 @@ app.post('/admin/upload/:slug', requireAuth, upload.single('photo'), async (req,
   const compPath    = path.join(compDir, filename);
   const mlsPath     = path.join(mlsDir,  filename);
 
-  const { exec } = require('child_process');
+  // child_process moved to top of file
   // Compressed: max 1200px wide
   exec(`sips -Z 1200 "${rawPath}" --out "${compPath}"`, () => {
     // MLS: max 1024px wide
