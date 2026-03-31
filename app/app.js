@@ -91,7 +91,7 @@ function renderListings({ properties, total, page }) {
           ${p.bedrooms ? `<span>🛏 ${p.bedrooms} bd</span>` : ''}
           ${p.bathrooms ? `<span>🚿 ${p.bathrooms} ba</span>` : ''}
           ${p.sqft ? `<span>📐 ${Number(p.sqft).toLocaleString()} sqft</span>` : ''}
-          ${p.acreage ? `<span>🌿 ${p.acreage} ac</span>` : ''}
+          ${p.lot_acres ? `<span>🌿 ${p.lot_acres} ac</span>` : ''}
         </div>
         <div class="card-listed">Listed ${timeAgo(p.listed_at)}</div>
       </div>
