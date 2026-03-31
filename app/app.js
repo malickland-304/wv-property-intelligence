@@ -120,6 +120,7 @@ async function openDetail(id) {
   const res  = await fetch(`${API}/properties/${id}`);
   const p    = await res.json();
 
+  const desc  = p.marketing_description || p.property_description || '';
   const modal = document.getElementById('modal') || createModal();
   modal.innerHTML = `
     <div class="modal-content">
@@ -137,7 +138,7 @@ async function openDetail(id) {
           <span>📋 ${p.property_type}</span>
           <span>🏷 ${p.status}</span>
         </div>
-        ${p.description ? `<p class="modal-desc">${p.description}</p>` : ''}
+        ${desc ? `<p class="modal-desc">${desc}</p>` : ''}
         <div class="modal-contact">
           <h3>Inquire About This Property</h3>
           <input id="cName"  type="text"  placeholder="Your Name" />
