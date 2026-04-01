@@ -144,7 +144,7 @@ OUTPUT FORMAT — Return this exact JSON structure:
   "instagram_caption": "60-80 words. Visual storytelling. 5-8 relevant hashtags at end.",
   "video_script": "30-45 second walkthrough script. Start with the best visual hook. 3-4 scenes. End with contact CTA for Phil Malick at MalickLand.",
   "email_subject": "Email subject line, max 50 chars",
-  "email_blast": "150-200 words. Open with the best feature. Cover price, acreage, utilities, access. CTA to call or visit malickland.net. Sign off from Phil Malick.",
+  "email_blast": "150-200 words. Open with the best feature. Cover price, acreage, utilities, access. CTA to call or visit malickland.sale. Sign off from Phil Malick.",
   "sms_blast": "max 160 chars. Include price and a short URL placeholder.",
   "landing_page_hero": "1-2 sentences for the hero section of a landing page",
   "landing_page_sections": ["3-4 short sections: Why This Property / Location / Terms / Contact - each as a paragraph of 2-3 sentences"],
