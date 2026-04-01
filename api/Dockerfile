@@ -8,8 +8,6 @@ RUN cd api && npm ci --omit=dev && npm cache clean --force
 # ---- Runtime Stage ----
 FROM node:20-bookworm-slim AS runtime
 
-# Patch all OS packages to remediate known CVEs (high/critical vulnerabilities
-# reported against the base image ship as unpatched Debian packages).
 RUN apt-get update \
     && apt-get upgrade -y \
     && apt-get autoremove -y \
@@ -17,17 +15,15 @@ RUN apt-get update \
 
 WORKDIR /workspace
 
-# Copy production node_modules built in the builder stage (includes native
-# better-sqlite3 binaries compiled against the same glibc).
+# Copy production node_modules (includes native better-sqlite3 binaries)
 COPY --from=builder /workspace/api/node_modules ./api/node_modules
 
-# Copy application source (host node_modules excluded via .dockerignore).
+# Copy application source
 COPY api ./api
-COPY database ./database
 COPY app ./app
 
-# Create runtime directories, then drop to a non-root user.
-RUN mkdir -p listings uploads reports data admin \
+# Create runtime directories and drop to non-root user
+RUN mkdir -p data uploads \
     && groupadd --system --gid 1001 appgroup \
     && useradd --system --uid 1001 --gid appgroup --no-create-home appuser \
     && chown -R appuser:appgroup /workspace
