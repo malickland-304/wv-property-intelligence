@@ -781,6 +781,64 @@ app.post('/api/contacts', contactsRateLimit, (req, res) => {
   res.status(201).json({ id:result.lastInsertRowid });
 });
 
+// ── Sitemap & Robots ─────────────────────────────────────
+app.get('/robots.txt', (_req, res) => {
+  res.type('text/plain');
+  res.send(
+`User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Sitemap: https://malickland.net/sitemap.xml`
+  );
+});
+
+app.get('/sitemap.xml', (_req, res) => {
+  const SITE = 'https://malickland.net';
+  const now  = new Date().toISOString().split('T')[0];
+
+  // Static pages
+  const staticPages = [
+    { loc: SITE + '/',        changefreq: 'weekly',  priority: '1.0' },
+    { loc: SITE + '/admin',   changefreq: 'never',   priority: '0.1' },
+  ];
+
+  // Dynamic property pages
+  let propertyPages = [];
+  try {
+    const props = db.prepare(`
+      SELECT listing_slug, id, updated_at
+      FROM properties
+      WHERE status = 'active'
+    `).all();
+    propertyPages = props.map(p => ({
+      loc: `${SITE}/properties/${p.listing_slug || p.id}`,
+      lastmod: (p.updated_at || now).split(' ')[0],
+      changefreq: 'weekly',
+      priority: '0.8',
+    }));
+  } catch (_) {}
+
+  const allPages = [...staticPages, ...propertyPages];
+
+  const xml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ...allPages.map(p => [
+      '  <url>',
+      `    <loc>${p.loc}</loc>`,
+      p.lastmod ? `    <lastmod>${p.lastmod}</lastmod>` : `    <lastmod>${now}</lastmod>`,
+      `    <changefreq>${p.changefreq}</changefreq>`,
+      `    <priority>${p.priority}</priority>`,
+      '  </url>',
+    ].join('\n')),
+    '</urlset>',
+  ].join('\n');
+
+  res.type('application/xml');
+  res.send(xml);
+});
+
 app.use(express.static(path.join(PROJECT_ROOT, 'app')));
 app.use((_req,res) => res.status(404).json({ error:'Not found' }));
 app.use((err,_req,res,_next) => { console.error(err); res.status(500).json({ error:'Server error' }); });
