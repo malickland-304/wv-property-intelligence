@@ -1,0 +1,19 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    image: wv-property-intelligence-api:local
+    container_name: wv-property-intelligence-api
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: "3000"
+      SESSION_SECRET: "change-me-session-secret"
+      ADMIN_PASSWORD: "change-me-admin-password"
+    volumes:
+      - ./database:/workspace/database
+      - ./listings:/workspace/listings
+      - ./uploads:/workspace/uploads
+      - ./reports:/workspace/reports
+    restart: unless-stopped
