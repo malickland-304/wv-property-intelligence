@@ -20,11 +20,17 @@ const { sendContactEmail, uploadPhotoToDrive } = require('./google');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+
+// Trust one proxy hop (Cloudflare → Railway). Required for correct req.ip,
+// X-Forwarded-For in logs, and rate-limiter keying.
+app.set('trust proxy', 1);
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'wvrea2026';
 const PROJECT_ROOT   = path.join(__dirname, '..');
 
 // ── DB ────────────────────────────────────────────────────
-const DB_PATH = path.join(PROJECT_ROOT, 'database', 'wv_property.db');
+// DATABASE_PATH env var must point to the Railway persistent volume (/data/wv_property.db).
+// Without it, Railway redeploys wipe the database silently.
+const DB_PATH = process.env.DATABASE_PATH || path.join(PROJECT_ROOT, 'database', 'wv_property.db');
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
@@ -199,7 +205,11 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'wvrea-secret-2026',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 8 * 60 * 60 * 1000 }
+  cookie: {
+    maxAge: 8 * 60 * 60 * 1000,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+  },
 }));
 
 // Static files
@@ -213,13 +223,22 @@ function requireAuth(req, res, next) {
   res.redirect('/admin/login');
 }
 
-// ── Rate limiter – public contact form ───────────────────
+// ── Rate limiters ─────────────────────────────────────────
 const contactsRateLimit = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many inquiries. Please wait a moment.' },
+});
+
+// 10 login attempts per 15 minutes per IP — brute-force guard
+const adminLoginRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
 });
 
 // ── Admin login ───────────────────────────────────────────
@@ -247,7 +266,7 @@ app.get('/admin/login', (_req, res) => {
   </div></body></html>`);
 });
 
-app.post('/admin/login', (req, res) => {
+app.post('/admin/login', adminLoginRateLimit, (req, res) => {
   if (req.body.password === ADMIN_PASSWORD) {
     req.session.admin = true;
     res.redirect('/admin');
@@ -511,38 +530,40 @@ app.post('/admin/upload/:slug', requireAuth, upload.single('photo'), async (req,
   const slug = req.params.slug;
   if (!req.file) return res.status(400).json({ error: 'No file' });
 
-  // Compress using sips (macOS built-in)
-  const rawPath  = req.file.path;
-  const compDir  = path.join(PROJECT_ROOT,'listings',slug,'photos','compressed');
-  const mlsDir   = path.join(PROJECT_ROOT,'listings',slug,'photos','mls');
+  const rawPath = req.file.path;
+  const compDir = path.join(PROJECT_ROOT,'listings',slug,'photos','compressed');
+  const mlsDir  = path.join(PROJECT_ROOT,'listings',slug,'photos','mls');
   fs.mkdirSync(compDir, { recursive:true });
   fs.mkdirSync(mlsDir,  { recursive:true });
 
-  const filename    = req.file.filename;
-  const compPath    = path.join(compDir, filename);
-  const mlsPath     = path.join(mlsDir,  filename);
+  const filename = req.file.filename;
+  const compPath = path.join(compDir, filename);
+  const mlsPath  = path.join(mlsDir,  filename);
 
-  // child_process moved to top of file
-  // Compressed: max 1200px wide
-  exec(`sips -Z 1200 "${rawPath}" --out "${compPath}"`, () => {
-    // MLS: max 1024px wide
-    exec(`sips -Z 1024 "${rawPath}" --out "${mlsPath}"`, () => {
-      // Set as primary if first photo
-      const p = db.prepare('SELECT image_url, listing_slug FROM properties WHERE listing_slug=?').get(slug);
-      if (p && !p.image_url) {
-        db.prepare('UPDATE properties SET image_url=?, photos_uploaded=1 WHERE listing_slug=?')
-          .run(`/images/${slug}/photos/compressed/${filename}`, slug);
-      } else {
-        db.prepare('UPDATE properties SET photos_uploaded=1 WHERE listing_slug=?').run(slug);
-      }
+  function afterCompress() {
+    const p = db.prepare('SELECT image_url, listing_slug FROM properties WHERE listing_slug=?').get(slug);
+    if (p && !p.image_url) {
+      db.prepare('UPDATE properties SET image_url=?, photos_uploaded=1 WHERE listing_slug=?')
+        .run(`/images/${slug}/photos/compressed/${filename}`, slug);
+    } else {
+      db.prepare('UPDATE properties SET photos_uploaded=1 WHERE listing_slug=?').run(slug);
+    }
+    const driveSource = fs.existsSync(compPath) ? compPath : rawPath;
+    uploadPhotoToDrive(driveSource, filename, slug).catch(() => {});
+    res.json({ ok:true, filename });
+  }
 
-      // Upload compressed photo to Google Drive (fire-and-forget)
-      const driveSource = fs.existsSync(compPath) ? compPath : rawPath;
-      uploadPhotoToDrive(driveSource, filename, slug).catch(() => {});
-
-      res.json({ ok:true, filename });
+  if (process.platform === 'darwin') {
+    // sips is macOS-only — use it when available for lossless resize
+    exec(`sips -Z 1200 "${rawPath}" --out "${compPath}"`, () => {
+      exec(`sips -Z 1024 "${rawPath}" --out "${mlsPath}"`, afterCompress);
     });
-  });
+  } else {
+    // Linux/Railway: copy raw file as-is; compression can be added via sharp later
+    fs.copyFileSync(rawPath, compPath);
+    fs.copyFileSync(rawPath, mlsPath);
+    afterCompress();
+  }
 });
 
 // Set primary photo
@@ -739,7 +760,7 @@ app.get('/api/properties', (req, res) => {
     // DB stores `acreage`; the public API exposes `lot_acres` (aliased) for the UI
     const properties = db.prepare(`
       SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
-             p.bedrooms, p.bathrooms, p.sqft, p.lot_acres,
+             p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
              p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
              c.name AS county
       FROM properties p JOIN counties c ON c.id=p.county_id
@@ -752,9 +773,9 @@ app.get('/api/properties', (req, res) => {
 app.get('/api/properties/:id', (req, res) => {
   const row = db.prepare(`
     SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
-           p.bedrooms, p.bathrooms, p.sqft, p.lot_acres,
+           p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
            p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
-           p.county_id, c.name AS county, p.description
+           p.county_id, c.name AS county, p.property_description AS description
     FROM properties p JOIN counties c ON c.id=p.county_id WHERE p.id=?
   `).get(req.params.id);
   if (!row) return res.status(404).json({ error:'Not found' });
@@ -856,20 +877,42 @@ app.use((err,_req,res,_next) => { console.error(err); res.status(500).json({ err
 app.listen(PORT, () => console.log(`✅ WV Property API → http://localhost:${PORT}\n   Admin Panel  → http://localhost:${PORT}/admin`));
 module.exports = app;
 
-// ── DB Backup (daily at 2am ET via setInterval) ───────────
-const BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+// ── DB Backup (daily, keep last 7) ───────────────────────
+const BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const BACKUP_KEEP = 7; // days of backups to retain
+
 function runDbBackup() {
   try {
-    const DB_PATH_LIVE = process.env.DATABASE_PATH || path.join(PROJECT_ROOT, 'database', 'wv_property.db');
-    const backupPath = DB_PATH_LIVE.replace(/\.db$/, `_backup_${new Date().toISOString().slice(0,10)}.db`);
-    const dbLive = new Database(DB_PATH_LIVE);
+    const backupPath = DB_PATH.replace(/\.db$/, `_backup_${new Date().toISOString().slice(0,10)}.db`);
+    const dbLive = new Database(DB_PATH);
     dbLive.backup(backupPath)
-      .then(() => { console.log(`✅ DB backup → ${backupPath}`); dbLive.close(); })
+      .then(() => {
+        console.log(`✅ DB backup → ${backupPath}`);
+        dbLive.close();
+        pruneOldBackups();
+      })
       .catch(err => { console.error('DB backup failed:', err); dbLive.close(); });
   } catch (err) {
     console.error('DB backup error:', err);
   }
 }
+
+function pruneOldBackups() {
+  try {
+    const dir = path.dirname(DB_PATH);
+    const backups = fs.readdirSync(dir)
+      .filter(f => /wv_property_backup_\d{4}-\d{2}-\d{2}\.db$/.test(f))
+      .sort(); // lexicographic = chronological for ISO dates
+    const toDelete = backups.slice(0, Math.max(0, backups.length - BACKUP_KEEP));
+    toDelete.forEach(f => {
+      try { fs.unlinkSync(path.join(dir, f)); console.log(`🗑 Pruned old backup: ${f}`); }
+      catch (_) {}
+    });
+  } catch (err) {
+    console.error('Backup pruning error:', err);
+  }
+}
+
 // Run once 10 min after startup, then every 24h
 setTimeout(runDbBackup, 10 * 60 * 1000);
 setInterval(runDbBackup, BACKUP_INTERVAL_MS);
