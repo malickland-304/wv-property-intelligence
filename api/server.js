@@ -788,6 +788,24 @@ app.use((err,_req,res,_next) => { console.error(err); res.status(500).json({ err
 app.listen(PORT, () => console.log(`✅ WV Property API → http://localhost:${PORT}\n   Admin Panel  → http://localhost:${PORT}/admin`));
 module.exports = app;
 
+// ── DB Backup (daily at 2am ET via setInterval) ───────────
+const BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+function runDbBackup() {
+  try {
+    const DB_PATH_LIVE = process.env.DATABASE_PATH || path.join(PROJECT_ROOT, 'database', 'wv_property.db');
+    const backupPath = DB_PATH_LIVE.replace(/\.db$/, `_backup_${new Date().toISOString().slice(0,10)}.db`);
+    const dbLive = new Database(DB_PATH_LIVE);
+    dbLive.backup(backupPath)
+      .then(() => { console.log(`✅ DB backup → ${backupPath}`); dbLive.close(); })
+      .catch(err => { console.error('DB backup failed:', err); dbLive.close(); });
+  } catch (err) {
+    console.error('DB backup error:', err);
+  }
+}
+// Run once 10 min after startup, then every 24h
+setTimeout(runDbBackup, 10 * 60 * 1000);
+setInterval(runDbBackup, BACKUP_INTERVAL_MS);
+
 // ── Admin HTML shell ──────────────────────────────────────
 function adminShell(title, body) {
   return `<!DOCTYPE html><html lang="en"><head>
