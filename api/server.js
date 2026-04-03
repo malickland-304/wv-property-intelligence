@@ -182,6 +182,16 @@ const upload = multer({
 // ── Middleware ────────────────────────────────────────────
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
+
+// ── www → apex canonical redirect ───────────────────────
+app.use((req, res, next) => {
+  const host = req.hostname || '';
+  if (host.startsWith('www.')) {
+    const target = 'https://malickland.net' + req.originalUrl;
+    return res.redirect(301, target);
+  }
+  next();
+});
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'tiny' : 'dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended:true }));
