@@ -999,3 +999,32 @@ function listingForm(p, counties) {
     </div>
   </form>`;
 }
+
+app.get('/advent-drive-land-hampshire-county-wv', (req, res) => {
+  res.send(`
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <title>Land for Sale Hampshire County WV | Advent Dr</title>
+    <meta name="description" content="Land for sale in Hampshire County WV on Advent Drive. Hunting, recreation, or build opportunity near VA/DC.">
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "RealEstateListing",
+      "name": "Land for Sale – Advent Drive, Hampshire County WV",
+      "description": "Land for sale in Hampshire County West Virginia on Advent Drive.",
+      "url": "https://malickland.net/advent-drive-land-hampshire-county-wv"
+    }
+    </script>
+  </head>
+  <body>
+    <h1>Land for Sale – Advent Drive, Hampshire County WV</h1>
+    <p>This property offers privacy, usable acreage, and strong long-term value.</p>
+    <p><strong>Contact now to walk the property.</strong></p>
+    <a href="https://malickland.net">Back to MalickLand</a>
+  </body>
+  </html>
+  `);
+});
+
