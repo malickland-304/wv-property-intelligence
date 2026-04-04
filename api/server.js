@@ -139,6 +139,59 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
   console.log('Seeded 55 WV counties');
 }
 
+// ── Schema migrations (add missing columns to pre-existing DBs) ──────────────
+{
+  const cols = db.prepare("PRAGMA table_info(properties)").all().map(r => r.name);
+  const add  = (col, def) => {
+    if (!cols.includes(col)) {
+      try { db.exec(`ALTER TABLE properties ADD COLUMN ${col} ${def}`); } catch (_) {}
+    }
+  };
+  add('property_description', 'TEXT');
+  add('marketing_description','TEXT');
+  add('seller_notes',         'TEXT');
+  add('internal_notes',       'TEXT');
+  add('listing_slug',         'TEXT');
+  add('mls_number',           'TEXT');
+  add('mls_status',           'TEXT DEFAULT "draft"');
+  add('listing_agent',        'TEXT');
+  add('listing_office',       'TEXT');
+  add('acreage',              'REAL');
+  add('lot_size',             'TEXT');
+  add('road_access',          'TEXT');
+  add('utilities_available',  'TEXT');
+  add('septic',               'INTEGER DEFAULT 0');
+  add('well',                 'INTEGER DEFAULT 0');
+  add('electric',             'INTEGER DEFAULT 0');
+  add('internet',             'INTEGER DEFAULT 0');
+  add('price_reduced',        'INTEGER DEFAULT 0');
+  add('recommended_list_price','REAL');
+  add('price_per_acre',       'REAL');
+  add('tax_assessed',         'REAL');
+  add('annual_tax',           'REAL');
+  add('latitude',             'REAL');
+  add('longitude',            'REAL');
+  add('flood_zone',           'TEXT');
+  add('school_district',      'TEXT');
+  add('bedrooms',             'INTEGER');
+  add('bathrooms',            'REAL');
+  add('sqft',                 'INTEGER');
+  add('year_built',           'INTEGER');
+  add('subdivision',          'TEXT');
+  add('parcel_id',            'TEXT');
+  add('image_url',            'TEXT');
+  add('due_diligence_complete','INTEGER DEFAULT 0');
+  add('photos_uploaded',      'INTEGER DEFAULT 0');
+  add('comps_complete',       'INTEGER DEFAULT 0');
+  add('sold_at',              'TEXT');
+  add('ai_content',           'TEXT');
+  add('ai_generated_at',      'TEXT');
+  add('state',                "TEXT DEFAULT 'WV'");
+  add('zip',                  'TEXT');
+  add('city',                 'TEXT');
+  add('price',                'REAL');
+}
+
 // ── Advent Dr listing migration ───────────────────────────
 {
   const hampshire = db.prepare("SELECT id FROM counties WHERE name='Hampshire'").get();
