@@ -139,6 +139,46 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
   console.log('Seeded 55 WV counties');
 }
 
+// ── Advent Dr listing migration ───────────────────────────
+{
+  const hampshire = db.prepare("SELECT id FROM counties WHERE name='Hampshire'").get();
+  if (hampshire) {
+    const existing = db.prepare(
+      "SELECT id, property_description FROM properties WHERE mls_number='WVHS2007442' OR (address LIKE '%Advent%' AND county_id=?)"
+    ).get(hampshire.id);
+    const descSuffix = 'MLS# WVHS2007442 | 37 Advent Dr, Romney, WV 26757 | Hampshire County | Listed at $219,900 | Contact Phil Malick for details.';
+    if (existing) {
+      const cur = existing.property_description || '';
+      const newDesc = cur.includes('WVHS2007442') ? cur : (cur ? cur + '\n\n' + descSuffix : descSuffix);
+      db.prepare(`
+        UPDATE properties SET
+          listing_slug='advent-dr-hampshire-wv',
+          property_type='land',
+          status='active',
+          mls_number='WVHS2007442',
+          price=219900,
+          property_description=?,
+          updated_at=datetime('now')
+        WHERE id=?
+      `).run(newDesc, existing.id);
+      console.log('Updated Advent Dr listing →', existing.id);
+    } else {
+      const newId = crypto.randomBytes(16).toString('hex');
+      db.prepare(`
+        INSERT INTO properties
+          (id,county_id,address,city,state,zip,property_type,status,price,
+           mls_number,listing_agent,listing_slug,property_description)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+      `).run(
+        newId, hampshire.id, '37 Advent Dr', 'Romney', 'WV', '26757',
+        'land', 'active', 219900,
+        'WVHS2007442', 'Phil Malick', 'advent-dr-hampshire-wv', descSuffix
+      );
+      console.log('Inserted Advent Dr listing →', newId);
+    }
+  }
+}
+
 // ── Helpers ───────────────────────────────────────────────
 function slugify(str) {
   return str.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
@@ -812,6 +852,22 @@ app.post('/api/contacts', contactsRateLimit, (req, res) => {
   res.status(201).json({ id:result.lastInsertRowid });
 });
 
+app.post('/api/listings/generate-description', (req, res) => {
+  const { acreage, county, property_type, features } = req.body;
+  if (!county) return res.status(400).json({ error: 'county is required' });
+  const type = (property_type || 'land').toLowerCase();
+  const featureList = Array.isArray(features) ? features.filter(Boolean) : [];
+  const featStr = featureList.length
+    ? featureList.join('. ') + '.'
+    : 'Excellent opportunity in a sought-after area.';
+  const description = [
+    acreage ? `${acreage} acres of ${type} land in ${county} County, West Virginia.` : `${type.charAt(0).toUpperCase() + type.slice(1)} land in ${county} County, West Virginia.`,
+    featStr,
+    'Contact MalickLand for details.',
+  ].join(' ');
+  res.json({ description });
+});
+
 // ── Sitemap & Robots ─────────────────────────────────────
 app.get('/robots.txt', (_req, res) => {
   res.type('text/plain');
@@ -994,6 +1050,30 @@ function adminShell(title, body) {
     <a href="/admin/logout" class="logout" style="color:#ffaaaa">🚪 Logout</a>
   </div>
   <div class="main">${body}</div>
+  <script>
+  async function generateDescription() {
+    const acreage = document.querySelector('[name=acreage]')?.value || '';
+    const county = document.querySelector('[name=county_id] option:checked')?.textContent?.trim() || '';
+    const property_type = document.querySelector('[name=property_type]')?.value || 'land';
+    const features = [
+      document.querySelector('[name=road_access]')?.value ? 'Road access: ' + document.querySelector('[name=road_access]').value : '',
+      document.querySelector('[name=utilities_available]')?.value ? 'Utilities: ' + document.querySelector('[name=utilities_available]').value : '',
+      document.querySelector('[name=flood_zone]')?.value ? 'Flood zone: ' + document.querySelector('[name=flood_zone]').value : '',
+    ].filter(Boolean);
+    const btn = event.target;
+    btn.disabled = true; btn.textContent = '...';
+    try {
+      const res = await fetch('/api/listings/generate-description', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ acreage: acreage ? Number(acreage) : undefined, county, property_type, features })
+      });
+      const data = await res.json();
+      if (data.description) document.getElementById('propertyDescField').value = data.description;
+    } catch(e) { alert('Generate failed: ' + e.message); }
+    btn.disabled = false; btn.textContent = '✨ Generate Description';
+  }
+  </script>
   </body></html>`;
 }
 
@@ -1094,8 +1174,10 @@ function listingForm(p, counties) {
 
       <div class="form-section"><h3>📝 Descriptions</h3></div>
 
-      <div class="full"><label>Property Description</label>
-        <textarea name="property_description" rows="4">${v('property_description')}</textarea></div>
+      <div class="full"><label>Property Description
+        <button type="button" class="btn-sm" style="margin-left:.75rem;vertical-align:middle;" onclick="generateDescription()">✨ Generate Description</button>
+      </label>
+        <textarea id="propertyDescField" name="property_description" rows="4">${v('property_description')}</textarea></div>
       <div class="full"><label>Marketing Description (public-facing)</label>
         <textarea name="marketing_description" rows="4">${v('marketing_description')}</textarea></div>
       <div class="full"><label>Seller Notes (internal)</label>
