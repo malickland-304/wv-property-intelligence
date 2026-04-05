@@ -502,7 +502,7 @@ function normalizeAcreage(body) {
   return body.acreage ?? body.lot_acres ?? null;
 }
 
-app.post('/admin/new', requireAuth, requireCsrf, (req, res) => {
+app.post('/admin/new', requireAuth, requireCsrf, adminWriteRateLimit, (req, res) => {
   const f = req.body;
   const id   = crypto.randomBytes(16).toString('hex');
   const slug = slugify((f.address||'listing') + '-' + (f.city||'wv'));
@@ -555,7 +555,7 @@ app.get('/admin/edit/:id', requireAuth, (req, res) => {
   res.send(adminShell('Edit Listing', listingForm(p, counties, csrfToken(req)), csrfToken(req)));
 });
 
-app.post('/admin/edit/:id', requireAuth, requireCsrf, (req, res) => {
+app.post('/admin/edit/:id', requireAuth, requireCsrf, adminWriteRateLimit, (req, res) => {
   const f = req.body;
   db.prepare(`
     UPDATE properties SET
@@ -718,7 +718,7 @@ app.post('/admin/upload/:slug', requireAuth, requireCsrf, uploadRateLimit, uploa
 });
 
 // Set primary photo
-app.post('/admin/photos/:slug/primary', requireAuth, requireCsrf, (req, res) => {
+app.post('/admin/photos/:slug/primary', requireAuth, requireCsrf, adminWriteRateLimit, (req, res) => {
   const slug = req.params.slug;
   const { filename } = req.body;
   if (!isSafePathComponent(slug) || !isSafePathComponent(filename)) {
@@ -1103,7 +1103,7 @@ function adminShell(title, body, csrf = '') {
   return `<!DOCTYPE html><html lang="en"><head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="csrf-token" content="${escapeHtml(csrf)}">
-  <title>${title} — WVREA Admin</title>
+  <title>${escapeHtml(title)} — WVREA Admin</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Segoe UI',sans-serif;background:#f5f2eb;color:#222}
