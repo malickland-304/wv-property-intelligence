@@ -40,6 +40,12 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+// ── Path component safety helper ─────────────────────────
+// Allows only slug/hex-style strings safe to use as directory names.
+function isSafePathComponent(str) {
+  return typeof str === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_-]*(\.[a-zA-Z0-9]+)?$/.test(str);
+}
+
 // ── DB ────────────────────────────────────────────────────
 // DATABASE_PATH env var must point to the Railway persistent volume (/data/wv_property.db).
 // Without it, Railway redeploys wipe the database silently.
@@ -347,6 +353,15 @@ const adminLoginRateLimit = rateLimit({
   skipSuccessfulRequests: true,
 });
 
+// 30 photo uploads per 5 minutes per IP — prevent file-system DoS
+const uploadRateLimit = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many uploads. Please wait a moment.' },
+});
+
 // ── Admin login ───────────────────────────────────────────
 app.get('/admin/login', (_req, res) => {
   res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -425,7 +440,7 @@ app.get('/admin', requireAuth, (_req, res) => {
       <td>${escapeHtml(p.property_type)}</td>
       <td>${p.price ? '$'+Number(p.price).toLocaleString() : '--'}</td>
       <td>${p.acreage ? p.acreage+' ac' : '--'}</td>
-      <td><span class="badge ${escapeHtml(p.status)}">${escapeHtml(p.status)}</span></td>
+      <td><span class="badge ${['active','pending','sold','withdrawn','draft'].includes(p.status) ? p.status : 'draft'}">${escapeHtml(p.status)}</span></td>
       <td>${escapeHtml(p.mls_status||'draft')}</td>
       <td>
         <a href="/admin/edit/${p.id}" class="btn-sm">Edit</a>
@@ -545,6 +560,7 @@ app.post('/admin/edit/:id', requireAuth, (req, res) => {
 // ── Photo upload page ─────────────────────────────────────
 app.get('/admin/photos/:slug', requireAuth, (req, res) => {
   const slug = req.params.slug;
+  if (!isSafePathComponent(slug)) return res.redirect('/admin');
   const p = db.prepare('SELECT * FROM properties WHERE listing_slug=?').get(slug);
   const photoDir = path.join(PROJECT_ROOT,'listings',slug,'photos','compressed');
   let photos = [];
@@ -632,8 +648,9 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
 });
 
 // Upload handler
-app.post('/admin/upload/:slug', requireAuth, upload.single('photo'), async (req, res) => {
+app.post('/admin/upload/:slug', requireAuth, uploadRateLimit, upload.single('photo'), async (req, res) => {
   const slug = req.params.slug;
+  if (!isSafePathComponent(slug)) return res.status(400).json({ error: 'Invalid slug' });
   if (!req.file) return res.status(400).json({ error: 'No file' });
 
   const rawPath = req.file.path;
@@ -674,15 +691,22 @@ app.post('/admin/upload/:slug', requireAuth, upload.single('photo'), async (req,
 
 // Set primary photo
 app.post('/admin/photos/:slug/primary', requireAuth, (req, res) => {
+  const slug = req.params.slug;
   const { filename } = req.body;
+  if (!isSafePathComponent(slug) || !isSafePathComponent(filename)) {
+    return res.status(400).json({ error: 'Invalid slug or filename' });
+  }
   db.prepare('UPDATE properties SET image_url=? WHERE listing_slug=?')
-    .run(`/images/${req.params.slug}/photos/compressed/${filename}`, req.params.slug);
+    .run(`/images/${slug}/photos/compressed/${filename}`, slug);
   res.json({ ok:true });
 });
 
 // Delete photo
 app.delete('/admin/photos/:slug/:filename', requireAuth, (req, res) => {
   const { slug, filename } = req.params;
+  if (!isSafePathComponent(slug) || !isSafePathComponent(filename)) {
+    return res.status(400).json({ error: 'Invalid slug or filename' });
+  }
   ['raw','compressed','mls'].forEach(dir => {
     const fp = path.join(PROJECT_ROOT,'listings',slug,'photos',dir,filename);
     if (fs.existsSync(fp)) fs.unlinkSync(fp);
@@ -766,6 +790,7 @@ app.post('/admin/report/:id/comps', requireAuth, (req, res) => {
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
   const slug = p.listing_slug || req.params.id;
+  if (!isSafePathComponent(slug)) return res.status(400).json({ error: 'Invalid listing slug' });
   fs.mkdirSync(path.join(PROJECT_ROOT,'listings',slug), { recursive:true });
   fs.writeFileSync(path.join(PROJECT_ROOT,'listings',slug,'comps.csv'), content);
   res.json({ ok:true });
@@ -778,6 +803,7 @@ app.post('/admin/report/:id/dd', requireAuth, (req, res) => {
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
   const slug = p.listing_slug || req.params.id;
+  if (!isSafePathComponent(slug)) return res.status(400).json({ error: 'Invalid listing slug' });
   fs.mkdirSync(path.join(PROJECT_ROOT,'listings',slug), { recursive:true });
   fs.writeFileSync(path.join(PROJECT_ROOT,'listings',slug,'due_diligence.md'), content);
   res.json({ ok:true });
