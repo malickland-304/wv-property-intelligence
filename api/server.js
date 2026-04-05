@@ -1289,11 +1289,12 @@ app.get('/wv/:slug', (req, res) => {
   if (!county) return res.status(404).json({ error: 'County not found' });
 
   const listings = db.prepare(`
-    SELECT id, listing_slug, address, city, price, property_type, lot_acres, bedrooms, image_url, description
+    SELECT id, listing_slug, address, city, price, property_type, acreage, bedrooms, image_url, description, features
     FROM properties
     WHERE county_id = ? AND status = 'active'
     ORDER BY price ASC
   `).all(county.id);
+  const countyDt = getDriveTimes(county.name);
 
   const SITE = 'https://malickland.net';
   const title = `Land & Property for Sale in ${county.name} County, WV | MalickLand`;
@@ -1308,7 +1309,7 @@ app.get('/wv/:slug', (req, res) => {
       <div class="lcard-body">
         <div class="lcard-price">${price}</div>
         <div class="lcard-addr">${p.address}${p.city ? ', ' + p.city : ''}</div>
-        <div class="lcard-type">${p.property_type}${p.lot_acres ? ' · ' + p.lot_acres + ' ac' : ''}${p.bedrooms ? ' · ' + p.bedrooms + ' bd' : ''}</div>
+        <div class="lcard-type">${p.property_type}${p.acreage ? ' · ' + p.acreage + ' ac' : ''}${p.bedrooms ? ' · ' + p.bedrooms + ' bd' : ''}</div>
         ${p.description ? `<p class="lcard-desc">${p.description.slice(0,160)}…</p>` : ''}
         <a href="${url}" class="lcard-btn">View Listing →</a>
       </div>
@@ -1365,10 +1366,14 @@ app.get('/wv/:slug', (req, res) => {
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Segoe UI',sans-serif;background:#f9f6f0;color:#1a1a1a}
-    .nav{background:#0a0a0a;border-bottom:2px solid #D4AF37;padding:.75rem 2rem;display:flex;justify-content:space-between;align-items:center}
-    .nav a{color:#D4AF37;text-decoration:none;font-weight:700;font-size:1.1rem}
-    .nav-links a{color:#fff;font-size:.9rem;margin-left:1.5rem;font-weight:400}
-    .hero{background:linear-gradient(135deg,#0a0a0a 0%,#1B4332 100%);color:#fff;padding:3rem 2rem;text-align:center}
+    .nav{background:#1B4332;border-bottom:2px solid #D4AF37;padding:.75rem 2rem;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:50}
+    .nav-brand{color:#D4AF37;text-decoration:none;font-weight:800;font-size:1.1rem}
+    .nav-right{display:flex;gap:1rem;align-items:center}
+    .nav-link{color:rgba(255,255,255,.85);font-size:.85rem;text-decoration:none}
+    .nav-link:hover{color:#D4AF37}
+    .nav-cta{background:#D4AF37;color:#1B4332;padding:.45rem 1rem;border-radius:6px;font-weight:700;font-size:.82rem;text-decoration:none}
+    .drive-strip{background:#f0fdf4;border-bottom:1px solid #bbf7d0;padding:.65rem 2rem;font-size:.85rem;text-align:center;color:#166534}
+    .hero{background:linear-gradient(135deg,#1B4332 0%,#2d5c42 100%);color:#fff;padding:3rem 2rem;text-align:center}
     .hero h1{font-size:2rem;color:#D4AF37;margin-bottom:.5rem}
     .hero p{opacity:.85;max-width:600px;margin:0 auto}
     .main{max-width:1100px;margin:2.5rem auto;padding:0 1.5rem}
@@ -1392,19 +1397,21 @@ app.get('/wv/:slug', (req, res) => {
     .nearby-links{display:flex;flex-wrap:wrap;gap:.5rem}
     .nearby-links a{background:#fff;border:1px solid #ddd;border-radius:6px;padding:.4rem .8rem;font-size:.85rem;color:#1B4332;text-decoration:none;font-weight:600}
     .nearby-links a:hover{background:#1B4332;color:#D4AF37}
-    footer{background:#0a0a0a;color:#aaa;text-align:center;padding:1.5rem;font-size:.82rem}
-    @media(max-width:600px){.hero h1{font-size:1.4rem}.nav-links{display:none}}
+    footer{background:#1B4332;color:rgba(255,255,255,.6);text-align:center;padding:1.5rem;font-size:.82rem}
+    footer a{color:#D4AF37}
+    @media(max-width:600px){.hero h1{font-size:1.4rem}.nav-right .nav-link:not(.nav-cta){display:none}}
   </style>
   ${gaSnippet()}
 </head>
 <body>
 <nav class="nav">
-  <a href="/">MalickLand</a>
-  <div>
-    <a href="/#listings" class="nav-links">All Listings</a>
-    <a href="/#contact" class="nav-links">Contact</a>
+  <a href="/" class="nav-brand">MalickLand</a>
+  <div class="nav-right">
+    <a href="/listings" class="nav-link">← Search</a>
+    <a href="tel:+15402461421" class="nav-cta">📞 Call Phil</a>
   </div>
 </nav>
+${countyDt ? `<div class="drive-strip">🚗 <strong>${countyDt.dc}</strong> from DC &nbsp;·&nbsp; <strong>${countyDt.balt}</strong> from Baltimore &nbsp;·&nbsp; <strong>${countyDt.pit}</strong> from Pittsburgh</div>` : ''}
 <div class="hero">
   <h1>Land &amp; Property for Sale in ${county.name} County, WV</h1>
   <p>${listings.length ? `${listings.length} active listing${listings.length > 1 ? 's' : ''} · Updated daily · Local agent Phil Malick` : `Be notified when listings come available in ${county.name} County`}</p>
@@ -1415,9 +1422,11 @@ app.get('/wv/:slug', (req, res) => {
 
   <div class="contact-box">
     <h2>Work With a Local ${county.name} County Specialist</h2>
-    <p>Phil Malick knows WV land — from timber and hunting tracts to rural homesites. Call or email for a free property consultation.</p>
+    <p>Phil Malick knows WV land — from timber and hunting tracts to rural homesites. Call or text for a free property consultation.</p>
     <p>
       <a href="tel:+15402461421">(540) 246-1421</a>
+      &nbsp;·&nbsp;
+      <a href="sms:+15402461421">💬 Text Phil</a>
       &nbsp;·&nbsp;
       <a href="mailto:phil@malickland.net">phil@malickland.net</a>
     </p>
@@ -1426,13 +1435,14 @@ app.get('/wv/:slug', (req, res) => {
   <div class="nearby">
     <h2>Explore Nearby Counties</h2>
     <div class="nearby-links">
-      ${['Hampshire','Hardy','Morgan','Grant','Pendleton','Mineral','Tucker','Berkeley'].filter(n=>n!==county.name).map(n=>`<a href="/wv/${n.toLowerCase()}-county">${n} County</a>`).join('')}
+      ${['Hampshire','Hardy','Morgan','Grant','Pendleton','Mineral','Tucker','Berkeley','Jefferson'].filter(n=>n!==county.name).map(n=>`<a href="/wv/${n.toLowerCase()}-county">${n} County</a>`).join('')}
+      <a href="/listings" style="background:#1B4332;color:#D4AF37;border-color:#1B4332">All Counties →</a>
     </div>
   </div>
 </div>
 <footer>
   &copy; ${new Date().getFullYear()} MalickLand Real Estate &middot; Phil Malick, WV Licensed REALTOR&reg;
-  &middot; Broker: Sheila Judy &middot; <a href="/" style="color:#D4AF37">malickland.net</a>
+  &middot; Broker: Sheila Judy &middot; <a href="/">malickland.net</a>
 </footer>
 </body>
 </html>`);
