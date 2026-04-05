@@ -113,17 +113,34 @@
     }
 
     .nav-logo-img {
-      height: 40px;
-      width: auto;
+      height: 44px;
+      width: 44px;
       display: block;
+      object-fit: contain;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.1);
     }
 
-    .sr-only {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-      clip: rect(0,0,0,0);
+    .footer-logo-img {
+      height: 72px;
+      width: 72px;
+      object-fit: contain;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.08);
+      display: block;
+      margin-bottom: 0.75rem;
+    }
+
+    .nav-logo-wordmark {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: var(--white);
+      letter-spacing: -0.3px;
+    }
+
+    .nav-logo-wordmark em {
+      color: var(--gold);
+      font-style: normal;
     }
 
     .nav-links {
@@ -1058,7 +1075,7 @@
   <a href="/" class="nav-logo">
     <img src="/public/brand/logo-primary.png" alt="MalickLand" class="nav-logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
     <span class="nav-logo-fallback" style="display:none"><div class="nav-logo-icon">🏡</div><span>Malick<em>Land</em></span></span>
-    <span class="nav-logo-text sr-only">MalickLand</span>
+    <span class="nav-logo-wordmark">Malick<em>Land</em></span>
   </a>
   <ul class="nav-links">
     <li><a href="#listings">Listings</a></li>
@@ -1306,7 +1323,7 @@
 <footer>
   <div class="footer-inner">
     <div class="footer-brand">
-      <img src="/public/brand/logo-secondary.png" alt="MalickLand" style="height:36px;width:auto;margin-bottom:0.75rem;opacity:0.9;" onerror="this.outerHTML='<h4>🏡 MalickLand</h4>'" />
+      <img src="/public/brand/logo-primary.png" alt="MalickLand" class="footer-logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
       <h4 style="display:none">🏡 MalickLand</h4>
       <p>West Virginia's land &amp; home specialist. Land, acreage, rural homes, and investment property across all 55 WV counties.</p>
     </div>
@@ -1326,11 +1343,11 @@
       <p>✉️ <a href="mailto:phil@malickland.net">phil@malickland.net</a></p>
       <p>📘 <a href="https://www.facebook.com/malickland.phil" target="_blank" rel="noopener">Facebook</a></p>
       <p>📷 <a href="https://www.instagram.com/malickland_wvrea" target="_blank" rel="noopener">@malickland_wvrea</a></p>
-      <p style="margin-top:0.75rem;font-size:0.82rem;color:rgba(255,255,255,0.4);">Licensed in West Virginia<br/>Romney, West Virginia</p>
+      <p style="margin-top:0.75rem;font-size:0.82rem;color:rgba(255,255,255,0.4);">Licensed in West Virginia<br/>Broker: Sheila Judy<br/>Romney, West Virginia</p>
     </div>
   </div>
   <div class="footer-bottom">
-    <p>MalickLand WV Real Estate | Phil Malick, Agent | <a href="tel:+15402461421">(540) 246-1421</a> | <a href="mailto:phil@malickland.net">phil@malickland.net</a> | Licensed in West Virginia &nbsp;·&nbsp; © 2026 MalickLand.</p>
+    <p>MalickLand WV Real Estate | Phil Malick, Agent | Broker: Sheila Judy | <a href="tel:+15402461421">(540) 246-1421</a> | <a href="mailto:phil@malickland.net">phil@malickland.net</a> | Licensed in West Virginia &nbsp;·&nbsp; © 2026 MalickLand.</p>
     <div class="footer-social">
       <a href="https://www.facebook.com/malickland.phil" target="_blank" rel="noopener" title="Facebook">📘</a>
       <a href="https://www.instagram.com/malickland_wvrea" target="_blank" rel="noopener" title="Instagram">📷</a>
