@@ -272,7 +272,9 @@ function initListingFolder(slug) {
 // ── Multer (photo upload) ─────────────────────────────────
 const storage = multer.diskStorage({
   destination: (req, _file, cb) => {
-    const slug = req.params.slug || req.body.slug || 'uploads';
+    const rawSlug = req.params.slug || req.body.slug || 'uploads';
+    // Sanitise the slug to prevent directory traversal
+    const slug = rawSlug.replace(/[^a-zA-Z0-9_.-]/g, '').replace(/\.{2,}/g, '') || 'uploads';
     const dir  = path.join(PROJECT_ROOT, 'listings', slug, 'photos', 'raw');
     fs.mkdirSync(dir, { recursive:true });
     cb(null, dir);
@@ -355,6 +357,21 @@ const generateDescRateLimit = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many generate requests. Please wait a moment.' },
 });
+
+// 60 API write calls per minute per IP (contacts read + properties CRUD)
+const apiWriteRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many API requests. Please wait a moment.' },
+});
+
+// Validate that a slug/filename only contains safe characters (alphanumeric, hyphens, underscores, dots)
+const SAFE_PATH_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
+function isSafePathComponent(str) {
+  return typeof str === 'string' && SAFE_PATH_RE.test(str) && !str.includes('..');
+}
 
 // ── Admin login ───────────────────────────────────────────
 app.get('/admin/login', (_req, res) => {
@@ -554,6 +571,7 @@ app.post('/admin/edit/:id', requireAuth, (req, res) => {
 // ── Photo upload page ─────────────────────────────────────
 app.get('/admin/photos/:slug', requireAuth, (req, res) => {
   const slug = req.params.slug;
+  if (!isSafePathComponent(slug)) return res.status(400).send('Invalid slug');
   const p = db.prepare('SELECT * FROM properties WHERE listing_slug=?').get(slug);
   const photoDir = path.join(PROJECT_ROOT,'listings',slug,'photos','compressed');
   let photos = [];
@@ -563,10 +581,10 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
 
   const photoGrid = photos.map((f,i) => `
     <div class="photo-item">
-      <img src="/images/${slug}/photos/compressed/${f}" alt="Photo ${i+1}" />
+      <img src="/images/${esc(slug)}/photos/compressed/${esc(f)}" alt="Photo ${i+1}" />
       <div class="photo-actions">
-        ${i===0 ? '<span class="primary-badge">Primary</span>' : `<button onclick="setPrimary('${slug}','${f}')">Set Primary</button>`}
-        <button onclick="deletePhoto('${slug}','${f}')" class="del">Delete</button>
+        ${i===0 ? '<span class="primary-badge">Primary</span>' : `<button onclick="setPrimary('${esc(slug)}','${esc(f)}')">Set Primary</button>`}
+        <button onclick="deletePhoto('${esc(slug)}','${esc(f)}')" class="del">Delete</button>
       </div>
     </div>`).join('');
 
@@ -643,15 +661,22 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
 // Upload handler
 app.post('/admin/upload/:slug', requireAuth, upload.single('photo'), async (req, res) => {
   const slug = req.params.slug;
+  if (!isSafePathComponent(slug)) return res.status(400).json({ error: 'Invalid slug' });
   if (!req.file) return res.status(400).json({ error: 'No file' });
 
   const rawPath = req.file.path;
+  const filename = req.file.filename;
+  // Validate the multer-generated filename (it should always be safe, but verify defensively)
+  if (!isSafePathComponent(filename)) {
+    fs.unlink(rawPath, () => {});
+    return res.status(400).json({ error: 'Invalid filename' });
+  }
+
   const compDir = path.join(PROJECT_ROOT,'listings',slug,'photos','compressed');
   const mlsDir  = path.join(PROJECT_ROOT,'listings',slug,'photos','mls');
   fs.mkdirSync(compDir, { recursive:true });
   fs.mkdirSync(mlsDir,  { recursive:true });
 
-  const filename = req.file.filename;
   const compPath = path.join(compDir, filename);
   const mlsPath  = path.join(mlsDir,  filename);
 
@@ -696,15 +721,20 @@ app.post('/admin/upload/:slug', requireAuth, upload.single('photo'), async (req,
 
 // Set primary photo
 app.post('/admin/photos/:slug/primary', requireAuth, (req, res) => {
+  const { slug } = req.params;
   const { filename } = req.body;
+  if (!isSafePathComponent(slug) || !isSafePathComponent(filename||''))
+    return res.status(400).json({ error: 'Invalid slug or filename' });
   db.prepare('UPDATE properties SET image_url=? WHERE listing_slug=?')
-    .run(`/images/${req.params.slug}/photos/compressed/${filename}`, req.params.slug);
+    .run(`/images/${slug}/photos/compressed/${filename}`, slug);
   res.json({ ok:true });
 });
 
 // Delete photo
 app.delete('/admin/photos/:slug/:filename', requireAuth, (req, res) => {
   const { slug, filename } = req.params;
+  if (!isSafePathComponent(slug) || !isSafePathComponent(filename))
+    return res.status(400).json({ error: 'Invalid slug or filename' });
   ['raw','compressed','mls'].forEach(dir => {
     const fp = path.join(PROJECT_ROOT,'listings',slug,'photos',dir,filename);
     if (fs.existsSync(fp)) fs.unlinkSync(fp);
@@ -941,7 +971,7 @@ app.post('/api/contacts', contactsRateLimit, (req, res) => {
 });
 
 // List contacts / leads (API-key protected — used by app/admin.html)
-app.get('/api/contacts', requireApiKey, (_req, res) => {
+app.get('/api/contacts', apiWriteRateLimit, requireApiKey, (_req, res) => {
   const contacts = db.prepare(`
     SELECT c.id, c.name, c.email, c.phone, c.property_id, c.message, c.source, c.created_at,
            p.address AS property_address
@@ -953,7 +983,7 @@ app.get('/api/contacts', requireApiKey, (_req, res) => {
 });
 
 // Create property via REST (API-key protected — used by app/admin.html)
-app.post('/api/properties', requireApiKey, (req, res) => {
+app.post('/api/properties', apiWriteRateLimit, requireApiKey, (req, res) => {
   try {
     const f = req.body;
     if (!f.address) return res.status(400).json({ error: 'address is required' });
@@ -990,7 +1020,7 @@ app.post('/api/properties', requireApiKey, (req, res) => {
 });
 
 // Update property via REST (API-key protected — used by app/admin.html)
-app.put('/api/properties/:id', requireApiKey, (req, res) => {
+app.put('/api/properties/:id', apiWriteRateLimit, requireApiKey, (req, res) => {
   try {
     const f = req.body;
     const existing = db.prepare('SELECT id FROM properties WHERE id=?').get(req.params.id);
@@ -1026,7 +1056,7 @@ app.put('/api/properties/:id', requireApiKey, (req, res) => {
 });
 
 // Delete property via REST (API-key protected — used by app/admin.html)
-app.delete('/api/properties/:id', requireApiKey, (req, res) => {
+app.delete('/api/properties/:id', apiWriteRateLimit, requireApiKey, (req, res) => {
   const existing = db.prepare('SELECT id FROM properties WHERE id=?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
   db.prepare('DELETE FROM properties WHERE id=?').run(req.params.id);
