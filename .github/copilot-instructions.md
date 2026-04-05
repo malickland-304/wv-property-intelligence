@@ -19,6 +19,7 @@ Verify the route exists verbatim in `api/server.js`. If it does not exist, do no
 | POST   | /api/contacts       |
 
 GET /api/properties query params: q, county, type, minPrice, maxPrice, page, limit
+county expects the numeric county id from GET /api/counties (not a county name).
 GET /api/properties returns ONLY status='active' records (not all properties).
 Pagination defaults: page=1, limit=12. Response shape: { total, page, properties }.
 
