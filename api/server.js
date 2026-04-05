@@ -330,6 +330,24 @@ function requireAuth(req, res, next) {
   res.redirect('/admin/login');
 }
 
+// ── CSRF protection (session-based double-submit token) ───
+function csrfToken(req) {
+  if (!req.session.csrfToken) {
+    req.session.csrfToken = crypto.randomBytes(16).toString('hex');
+  }
+  return req.session.csrfToken;
+}
+
+function requireCsrf(req, res, next) {
+  // Skip CSRF for API endpoints (protected by API key, not session cookie)
+  if (req.path.startsWith('/api/')) return next();
+  const token = req.body._csrf || req.headers['x-csrf-token'];
+  if (!token || token !== req.session.csrfToken) {
+    return res.status(403).send('Invalid CSRF token');
+  }
+  next();
+}
+
 // ── Rate limiters ─────────────────────────────────────────
 const contactsRateLimit = rateLimit({
   windowMs: 60 * 1000,
@@ -480,20 +498,20 @@ app.get('/admin', requireAuth, (_req, res) => {
       </tr></thead>
       <tbody>${rows || '<tr><td colspan="8" style="text-align:center;padding:2rem;color:#999">No listings yet. <a href="/admin/new">Add your first listing →</a></td></tr>'}</tbody>
     </table>
-  `));
+  `, csrfToken(req)));
 });
 
 // ── New listing form ──────────────────────────────────────
 app.get('/admin/new', requireAuth, (req, res) => {
   const counties = db.prepare('SELECT id,name FROM counties ORDER BY name').all();
-  res.send(adminShell('New Listing', listingForm(null, counties)));
+  res.send(adminShell('New Listing', listingForm(null, counties), csrfToken(req)));
 });
 
 function normalizeAcreage(body) {
   return body.acreage ?? body.lot_acres ?? null;
 }
 
-app.post('/admin/new', requireAuth, (req, res) => {
+app.post('/admin/new', requireAuth, requireCsrf, (req, res) => {
   const f = req.body;
   const id   = crypto.randomBytes(16).toString('hex');
   const slug = slugify((f.address||'listing') + '-' + (f.city||'wv'));
@@ -543,10 +561,10 @@ app.get('/admin/edit/:id', requireAuth, (req, res) => {
   const p = db.prepare('SELECT * FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.redirect('/admin');
   const counties = db.prepare('SELECT id,name FROM counties ORDER BY name').all();
-  res.send(adminShell('Edit Listing', listingForm(p, counties)));
+  res.send(adminShell('Edit Listing', listingForm(p, counties), csrfToken(req)));
 });
 
-app.post('/admin/edit/:id', requireAuth, (req, res) => {
+app.post('/admin/edit/:id', requireAuth, requireCsrf, (req, res) => {
   const f = req.body;
   db.prepare(`
     UPDATE properties SET
@@ -616,7 +634,8 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
     <h3 style="margin:1.5rem 0 1rem">Uploaded Photos (${photos.length})</h3>
     <div class="photo-grid" id="photoGrid">${photoGrid}</div>
     <script>
-      const slug = '${slug}';
+      const slug = '${esc(slug)}';
+      const _csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
       const dropZone = document.getElementById('dropZone');
       const fileInput = document.getElementById('fileInput');
 
@@ -638,7 +657,7 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
         for (const file of files) {
           const fd = new FormData();
           fd.append('photo', file);
-          await fetch('/admin/upload/' + slug, { method:'POST', body:fd });
+          await fetch('/admin/upload/' + slug, { method:'POST', body:fd, headers:{'x-csrf-token':_csrf} });
           done++;
           const pct = Math.round(done/files.length*100);
           fill.style.width = pct+'%';
@@ -651,7 +670,7 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
       async function setPrimary(slug, filename) {
         await fetch('/admin/photos/' + slug + '/primary', {
           method:'POST',
-          headers:{'Content-Type':'application/json'},
+          headers:{'Content-Type':'application/json','x-csrf-token':_csrf},
           body: JSON.stringify({ filename })
         });
         location.reload();
@@ -659,15 +678,15 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
 
       async function deletePhoto(slug, filename) {
         if (!confirm('Delete this photo?')) return;
-        await fetch('/admin/photos/' + slug + '/' + filename, { method:'DELETE' });
+        await fetch('/admin/photos/' + slug + '/' + filename, { method:'DELETE', headers:{'x-csrf-token':_csrf} });
         location.reload();
       }
     </script>
-  `));
+  `, csrfToken(req)));
 });
 
 // Upload handler
-app.post('/admin/upload/:slug', requireAuth, uploadRateLimit, upload.single('photo'), async (req, res) => {
+app.post('/admin/upload/:slug', requireAuth, requireCsrf, uploadRateLimit, upload.single('photo'), async (req, res) => {
   // Sanitise slug via path.basename() to strip any path separators, then validate
   const slug = path.basename(req.params.slug || '');
   if (!isSafePathComponent(slug)) return res.status(400).json({ error: 'Invalid slug' });
@@ -676,7 +695,11 @@ app.post('/admin/upload/:slug', requireAuth, uploadRateLimit, upload.single('pho
   // Sanitise multer-generated filename via path.basename() (should always be safe, but belt-and-suspenders)
   const filename = path.basename(req.file.filename || '');
   if (!isSafePathComponent(filename)) {
-    fs.unlink(req.file.path, () => {});
+    // Clean up by deleting the file multer placed in the raw dir
+    const rawDir = path.join(PROJECT_ROOT, 'listings', slug, 'photos', 'raw');
+    fs.unlink(path.join(rawDir, filename), err => {
+      if (err) console.error('[upload] cleanup failed:', err.message);
+    });
     return res.status(400).json({ error: 'Invalid filename' });
   }
 
@@ -730,7 +753,7 @@ app.post('/admin/upload/:slug', requireAuth, uploadRateLimit, upload.single('pho
 });
 
 // Set primary photo
-app.post('/admin/photos/:slug/primary', requireAuth, (req, res) => {
+app.post('/admin/photos/:slug/primary', requireAuth, requireCsrf, (req, res) => {
   const { slug } = req.params;
   const { filename } = req.body;
   if (!isSafePathComponent(slug) || !isSafePathComponent(filename||''))
@@ -741,7 +764,7 @@ app.post('/admin/photos/:slug/primary', requireAuth, (req, res) => {
 });
 
 // Delete photo
-app.delete('/admin/photos/:slug/:filename', requireAuth, (req, res) => {
+app.delete('/admin/photos/:slug/:filename', requireAuth, requireCsrf, (req, res) => {
   const { slug, filename } = req.params;
   if (!isSafePathComponent(slug) || !isSafePathComponent(filename))
     return res.status(400).json({ error: 'Invalid slug or filename' });
@@ -799,10 +822,11 @@ app.get('/admin/report/:id', requireAuth, (req, res) => {
       </div>
     </div>
     <script>
+      const _csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
       async function saveComps(id) {
         const content = document.getElementById('compsArea').value;
         await fetch('/admin/report/'+id+'/comps', {
-          method:'POST', headers:{'Content-Type':'application/json'},
+          method:'POST', headers:{'Content-Type':'application/json','x-csrf-token':_csrf},
           body: JSON.stringify({ content })
         });
         alert('Comps saved');
@@ -810,16 +834,16 @@ app.get('/admin/report/:id', requireAuth, (req, res) => {
       async function saveDD(id) {
         const content = document.getElementById('ddArea').value;
         await fetch('/admin/report/'+id+'/dd', {
-          method:'POST', headers:{'Content-Type':'application/json'},
+          method:'POST', headers:{'Content-Type':'application/json','x-csrf-token':_csrf},
           body: JSON.stringify({ content })
         });
         alert('Due diligence saved');
       }
     </script>
-  `));
+  `, csrfToken(req)));
 });
 
-app.post('/admin/report/:id/comps', requireAuth, (req, res) => {
+app.post('/admin/report/:id/comps', requireAuth, requireCsrf, (req, res) => {
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
   const slug = p.listing_slug || req.params.id;
@@ -828,7 +852,7 @@ app.post('/admin/report/:id/comps', requireAuth, (req, res) => {
   res.json({ ok:true });
 });
 
-app.post('/admin/report/:id/dd', requireAuth, (req, res) => {
+app.post('/admin/report/:id/dd', requireAuth, requireCsrf, (req, res) => {
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
   const slug = p.listing_slug || req.params.id;
@@ -838,7 +862,7 @@ app.post('/admin/report/:id/dd', requireAuth, (req, res) => {
 });
 
 // ── Integrations status page ──────────────────────────────
-app.get('/admin/integrations', requireAuth, (_req, res) => {
+app.get('/admin/integrations', requireAuth, (req, res) => {
   const gmailUser    = process.env.GOOGLE_GMAIL_USER    || '';
   const notifyEmail  = process.env.NOTIFICATION_EMAIL   || '';
   const driveFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID || '';
@@ -902,7 +926,7 @@ app.get('/admin/integrations', requireAuth, (_req, res) => {
         </ol>
       </div>
     </div>
-  `));
+  `, csrfToken(req)));
 });
 
 // ── Public API ────────────────────────────────────────────
@@ -1195,10 +1219,11 @@ setTimeout(runDbBackup, 10 * 60 * 1000);
 setInterval(runDbBackup, BACKUP_INTERVAL_MS);
 
 // ── Admin HTML shell ──────────────────────────────────────
-function adminShell(title, body) {
+function adminShell(title, body, csrf) {
   return `<!DOCTYPE html><html lang="en"><head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${title} — WVREA Admin</title>
+  <meta name="csrf-token" content="${esc(csrf||'')}">
+  <title>${esc(title)} — WVREA Admin</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Segoe UI',sans-serif;background:#f5f2eb;color:#222}
@@ -1272,6 +1297,20 @@ function adminShell(title, body) {
   </div>
   <div class="main">${body}</div>
   <script>
+  // Read CSRF token from meta tag for use in all admin fetch/form submissions
+  const _csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+  // Patch all forms to include CSRF hidden field before submit
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(form => {
+      if (!form.querySelector('[name=_csrf]')) {
+        const field = document.createElement('input');
+        field.type = 'hidden'; field.name = '_csrf'; field.value = _csrf;
+        form.appendChild(field);
+      }
+    });
+  });
+
   async function generateDescription() {
     const acreage = document.querySelector('[name=acreage]')?.value || '';
     const county = document.querySelector('[name=county_id] option:checked')?.textContent?.trim() || '';
