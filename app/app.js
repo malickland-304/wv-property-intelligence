@@ -129,6 +129,7 @@ function goPage(p) { currentPage = p; loadListings(); window.scrollTo(0,0); }
 // ── Detail modal ─────────────────────────────────────────
 async function openDetail(id) {
   const res  = await fetch(`${API}/properties/${id}`);
+  if (!res.ok) return;
   const p    = await res.json();
 
   const modal = document.getElementById('modal') || createModal();
