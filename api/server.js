@@ -393,6 +393,15 @@ const uploadRateLimit = rateLimit({
   message: { error: 'Too many upload requests. Please wait a moment.' },
 });
 
+// 60 admin form submissions per minute per IP (listing create/edit, report saves, etc.)
+const adminActionRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many admin actions. Please slow down.',
+});
+
 // Validate that a slug/filename only contains safe characters (alphanumeric, hyphens, underscores)
 const SAFE_PATH_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*(\.[a-zA-Z0-9]+)?$/;
 function isSafePathComponent(str) {
@@ -511,7 +520,7 @@ function normalizeAcreage(body) {
   return body.acreage ?? body.lot_acres ?? null;
 }
 
-app.post('/admin/new', requireAuth, requireCsrf, (req, res) => {
+app.post('/admin/new', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
   const f = req.body;
   const id   = crypto.randomBytes(16).toString('hex');
   const slug = slugify((f.address||'listing') + '-' + (f.city||'wv'));
@@ -564,7 +573,7 @@ app.get('/admin/edit/:id', requireAuth, (req, res) => {
   res.send(adminShell('Edit Listing', listingForm(p, counties), csrfToken(req)));
 });
 
-app.post('/admin/edit/:id', requireAuth, requireCsrf, (req, res) => {
+app.post('/admin/edit/:id', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
   const f = req.body;
   db.prepare(`
     UPDATE properties SET
@@ -753,7 +762,7 @@ app.post('/admin/upload/:slug', requireAuth, requireCsrf, uploadRateLimit, uploa
 });
 
 // Set primary photo
-app.post('/admin/photos/:slug/primary', requireAuth, requireCsrf, (req, res) => {
+app.post('/admin/photos/:slug/primary', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
   const { slug } = req.params;
   const { filename } = req.body;
   if (!isSafePathComponent(slug) || !isSafePathComponent(filename||''))
@@ -843,7 +852,7 @@ app.get('/admin/report/:id', requireAuth, (req, res) => {
   `, csrfToken(req)));
 });
 
-app.post('/admin/report/:id/comps', requireAuth, requireCsrf, (req, res) => {
+app.post('/admin/report/:id/comps', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
   const slug = p.listing_slug || req.params.id;
@@ -852,7 +861,7 @@ app.post('/admin/report/:id/comps', requireAuth, requireCsrf, (req, res) => {
   res.json({ ok:true });
 });
 
-app.post('/admin/report/:id/dd', requireAuth, requireCsrf, (req, res) => {
+app.post('/admin/report/:id/dd', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
   const slug = p.listing_slug || req.params.id;
