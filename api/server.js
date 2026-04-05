@@ -515,7 +515,12 @@ app.get('/admin/new', requireAuth, (req, res) => {
 });
 
 function normalizeAcreage(body) {
-  return body.acreage ?? body.lot_acres ?? null;
+  const raw = body.acreage ?? body.lot_acres ?? null;
+  if (raw == null) return null;
+  const trimmed = typeof raw === 'string' ? raw.trim() : raw;
+  if (trimmed === '') return null;
+  const n = Number(trimmed);
+  return Number.isNaN(n) ? null : n;
 }
 
 app.post('/admin/new', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
@@ -979,7 +984,7 @@ app.get('/api/properties/:id', (req, res) => {
            p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
            p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
            p.county_id, c.name AS county, p.property_description AS description
-    FROM properties p JOIN counties c ON c.id=p.county_id WHERE p.id=?
+    FROM properties p JOIN counties c ON c.id=p.county_id WHERE p.id=? AND p.status='active'
   `).get(req.params.id);
   if (!row) return res.status(404).json({ error:'Not found' });
   res.json(row);
