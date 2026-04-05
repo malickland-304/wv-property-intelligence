@@ -100,6 +100,65 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_properties_price  ON properties(price);
 `);
 
+// Align legacy SQLite files with the current properties schema (additive columns only)
+(function migratePropertiesSchema() {
+  const cols = new Set(
+    db.prepare(`PRAGMA table_info(properties)`).all().map((r) => r.name)
+  );
+  const add = (name, sql) => {
+    if (cols.has(name)) return;
+    try {
+      db.exec(`ALTER TABLE properties ADD COLUMN ${name} ${sql}`);
+      cols.add(name);
+    } catch (e) {
+      console.warn('[db] ALTER properties', name, e.message);
+    }
+  };
+  add('state', "TEXT DEFAULT 'WV'");
+  add('parcel_id', 'TEXT');
+  add('subdivision', 'TEXT');
+  add('lot_acres', 'REAL');
+  add('acreage', 'REAL');
+  add('lot_size', 'TEXT');
+  add('road_access', 'TEXT');
+  add('utilities_available', 'TEXT');
+  add('septic', 'INTEGER DEFAULT 0');
+  add('well', 'INTEGER DEFAULT 0');
+  add('electric', 'INTEGER DEFAULT 0');
+  add('internet', 'INTEGER DEFAULT 0');
+  add('recommended_list_price', 'REAL');
+  add('price_per_acre', 'REAL');
+  add('tax_assessed', 'REAL');
+  add('annual_tax', 'REAL');
+  add('mls_status', "TEXT DEFAULT 'draft'");
+  add('mls_number', 'TEXT');
+  add('listing_agent', 'TEXT');
+  add('listing_office', 'TEXT');
+  add('latitude', 'REAL');
+  add('longitude', 'REAL');
+  add('flood_zone', 'TEXT');
+  add('school_district', 'TEXT');
+  add('description', 'TEXT');
+  add('property_description', 'TEXT');
+  add('marketing_description', 'TEXT');
+  add('seller_notes', 'TEXT');
+  add('internal_notes', 'TEXT');
+  add('due_diligence_complete', 'INTEGER DEFAULT 0');
+  add('photos_uploaded', 'INTEGER DEFAULT 0');
+  add('comps_complete', 'INTEGER DEFAULT 0');
+  add('listing_slug', 'TEXT');
+  if (cols.has('lot_acres') && cols.has('acreage')) {
+    try {
+      db.exec(`UPDATE properties SET acreage = COALESCE(acreage, lot_acres) WHERE acreage IS NULL`);
+    } catch (_) { /* ignore */ }
+  }
+  if (cols.has('description') && cols.has('marketing_description')) {
+    try {
+      db.exec(`UPDATE properties SET marketing_description = COALESCE(marketing_description, description) WHERE marketing_description IS NULL AND description IS NOT NULL`);
+    } catch (_) { /* ignore */ }
+  }
+})();
+
 // Seed counties
 if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
   const ins = db.prepare('INSERT OR IGNORE INTO counties (name,fips_code) VALUES (?,?)');
@@ -703,7 +762,7 @@ app.get('/api/counties', (_req, res) => {
   res.json(db.prepare('SELECT id,name FROM counties ORDER BY name').all());
 });
 
-app.get('/api/properties', (req, res) => {
+function sendPropertyList(req, res) {
   try {
     const { q='',county='',type='',minPrice='',maxPrice='',page=1,limit=12 } = req.query;
     const conditions = ["p.status = 'active'"];
@@ -716,30 +775,42 @@ app.get('/api/properties', (req, res) => {
     const where  = 'WHERE ' + conditions.join(' AND ');
     const offset = (Number(page)-1) * Number(limit);
     const total  = db.prepare(`SELECT COUNT(*) as c FROM properties p ${where}`).get(...values).c;
-    // DB stores `acreage`; the public API exposes `lot_acres` (aliased) for the UI
     const properties = db.prepare(`
       SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
-             p.bedrooms, p.bathrooms, p.sqft, p.lot_acres,
+             p.bedrooms, p.bathrooms, p.sqft, COALESCE(p.acreage, p.lot_acres) AS lot_acres,
              p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
+             p.listing_slug,
              c.name AS county
       FROM properties p JOIN counties c ON c.id=p.county_id
       ${where} ORDER BY p.listed_at DESC LIMIT ? OFFSET ?
     `).all(...values, Number(limit), offset);
     res.json({ total, page:Number(page), properties });
   } catch(err) { console.error(err); res.status(500).json({ error:'Failed' }); }
-});
+}
 
-app.get('/api/properties/:id', (req, res) => {
+app.get('/api/properties', sendPropertyList);
+app.get('/api/listings', sendPropertyList);
+
+function sendPropertyDetail(req, res) {
   const row = db.prepare(`
     SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
-           p.bedrooms, p.bathrooms, p.sqft, p.lot_acres,
+           p.bedrooms, p.bathrooms, p.sqft, COALESCE(p.acreage, p.lot_acres) AS lot_acres,
            p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
-           p.county_id, c.name AS county, p.description
+           p.county_id, c.name AS county,
+           p.marketing_description, p.property_description, p.description,
+           p.listing_slug, p.mls_number, p.road_access, p.flood_zone,
+           p.listing_agent, p.listing_office, p.utilities_available,
+           p.septic, p.well, p.electric, p.internet
     FROM properties p JOIN counties c ON c.id=p.county_id WHERE p.id=?
   `).get(req.params.id);
   if (!row) return res.status(404).json({ error:'Not found' });
-  res.json(row);
-});
+  const description =
+    row.marketing_description || row.property_description || row.description || '';
+  res.json({ ...row, description });
+}
+
+app.get('/api/properties/:id', sendPropertyDetail);
+app.get('/api/listings/:id', sendPropertyDetail);
 
 app.get('/api/analytics', (_req, res) => {
   const row = db.prepare(`
@@ -747,7 +818,7 @@ app.get('/api/analytics', (_req, res) => {
       CAST(ROUND(AVG(price)) AS INTEGER) AS avgPrice,
       COUNT(*) AS totalListings,
       CAST(ROUND(AVG(julianday('now')-julianday(listed_at))) AS INTEGER) AS medianDom,
-      CAST(ROUND(AVG(price/MAX(sqft,1))) AS INTEGER) AS pricePerSqft
+      CAST(ROUND(AVG(CASE WHEN sqft IS NOT NULL AND sqft > 0 THEN CAST(price AS REAL) / sqft END)) AS INTEGER) AS pricePerSqft
     FROM properties WHERE status='active'
   `).get();
   res.json(row);
@@ -771,8 +842,24 @@ app.post('/api/contacts', contactsRateLimit, (req, res) => {
   res.status(201).json({ id:result.lastInsertRowid });
 });
 
+// Public listing detail (HTML) — must be registered before static + catch-all
+app.get('/listing/:id', (_req, res) => {
+  const listingHtml = path.join(PROJECT_ROOT, 'app', 'listing.html');
+  const indexHtml = path.join(PROJECT_ROOT, 'app', 'index.html');
+  const file = fs.existsSync(listingHtml) ? listingHtml : indexHtml;
+  res.sendFile(file);
+});
+
 app.use(express.static(path.join(PROJECT_ROOT, 'app')));
-app.use((_req,res) => res.status(404).json({ error:'Not found' }));
+
+app.use((req, res) => {
+  if (req.path.startsWith('/api')) return res.status(404).json({ error:'Not found' });
+  return res.status(404).type('html').send(
+    `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Not found</title></head>
+    <body style="font-family:system-ui;background:#0f1411;color:#e8e4dc;text-align:center;padding:3rem">
+    <h1>Page not found</h1><p><a href="/" style="color:#c9a84c">Return home</a></p></body></html>`
+  );
+});
 app.use((err,_req,res,_next) => { console.error(err); res.status(500).json({ error:'Server error' }); });
 
 app.listen(PORT, () => console.log(`✅ WV Property API → http://localhost:${PORT}\n   Admin Panel  → http://localhost:${PORT}/admin`));
