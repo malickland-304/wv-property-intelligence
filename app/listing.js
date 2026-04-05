@@ -33,7 +33,7 @@ async function loadListing() {
     return;
   }
 
-  const res = await fetch(`${API}/listings/${encodeURIComponent(id)}`);
+  const res = await fetch(`${API}/properties/${encodeURIComponent(id)}`);
   if (!res.ok) {
     if (res.status === 404) showError('This listing was not found.');
     else showError('Could not load this listing. Please try again later.');
@@ -63,7 +63,7 @@ async function loadListing() {
     <a href="/#listings" class="back-link">← All listings</a>
     <div class="detail-hero">
       <div class="detail-image-wrap">
-        <img src="${img}" alt="" class="detail-image" />
+        <img src="${escapeHtml(img)}" alt="" class="detail-image" />
         ${p.price_reduced ? '<span class="detail-badge reduced">Price reduced</span>' : ''}
         <span class="detail-badge type">${escapeHtml(p.property_type || '')}</span>
       </div>

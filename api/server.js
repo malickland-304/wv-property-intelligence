@@ -261,6 +261,15 @@ const contactsRateLimit = rateLimit({
   message: { error: 'Too many inquiries. Please wait a moment.' },
 });
 
+// ── Rate limiter – public read endpoints ─────────────────
+const publicReadRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please wait a moment.' },
+});
+
 // ── Admin login ───────────────────────────────────────────
 app.get('/admin/login', (_req, res) => {
   res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -788,8 +797,8 @@ function sendPropertyList(req, res) {
   } catch(err) { console.error(err); res.status(500).json({ error:'Failed' }); }
 }
 
-app.get('/api/properties', sendPropertyList);
-app.get('/api/listings', sendPropertyList);
+app.get('/api/properties', publicReadRateLimit, sendPropertyList);
+app.get('/api/listings', publicReadRateLimit, sendPropertyList);
 
 function sendPropertyDetail(req, res) {
   const row = db.prepare(`
@@ -801,18 +810,18 @@ function sendPropertyDetail(req, res) {
            p.listing_slug, p.mls_number, p.road_access, p.flood_zone,
            p.listing_agent, p.listing_office, p.utilities_available,
            p.septic, p.well, p.electric, p.internet
-    FROM properties p JOIN counties c ON c.id=p.county_id WHERE p.id=?
-  `).get(req.params.id);
+    FROM properties p JOIN counties c ON c.id=p.county_id WHERE p.id=? OR p.listing_slug=?
+  `).get(req.params.id, req.params.id);
   if (!row) return res.status(404).json({ error:'Not found' });
   const description =
     row.marketing_description || row.property_description || row.description || '';
   res.json({ ...row, description });
 }
 
-app.get('/api/properties/:id', sendPropertyDetail);
-app.get('/api/listings/:id', sendPropertyDetail);
+app.get('/api/properties/:id', publicReadRateLimit, sendPropertyDetail);
+app.get('/api/listings/:id', publicReadRateLimit, sendPropertyDetail);
 
-app.get('/api/analytics', (_req, res) => {
+app.get('/api/analytics', publicReadRateLimit, (_req, res) => {
   const row = db.prepare(`
     SELECT
       CAST(ROUND(AVG(price)) AS INTEGER) AS avgPrice,
@@ -843,7 +852,7 @@ app.post('/api/contacts', contactsRateLimit, (req, res) => {
 });
 
 // Public listing detail (HTML) — must be registered before static + catch-all
-app.get('/listing/:id', (_req, res) => {
+app.get('/listing/:id', publicReadRateLimit, (_req, res) => {
   const listingHtml = path.join(PROJECT_ROOT, 'app', 'listing.html');
   const indexHtml = path.join(PROJECT_ROOT, 'app', 'index.html');
   const file = fs.existsSync(listingHtml) ? listingHtml : indexHtml;
