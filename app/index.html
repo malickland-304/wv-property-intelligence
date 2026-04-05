@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MalickLand | West Virginia Land & Property</title>
-  <meta name="description" content="Find land, farms, cabin lots, and rural property across all 55 West Virginia counties. AI-powered pricing, local expertise, fast response." />
+  <title>MalickLand | West Virginia Land, Homes & Property</title>
+  <meta name="description" content="Find land, homes, farms, and rural property across all 55 West Virginia counties. AI-powered pricing, local expertise, fast response." />
   <!-- Open Graph -->
-  <meta property="og:title" content="MalickLand | West Virginia Land & Property" />
-  <meta property="og:description" content="Find land, farms, and rural property across all 55 WV counties. AI-powered pricing, local WV expertise." />
+  <meta property="og:title" content="MalickLand | West Virginia Land, Homes & Property" />
+  <meta property="og:description" content="Find land, homes, farms, and rural property across all 55 WV counties. AI-powered pricing, local WV expertise." />
   <meta property="og:url" content="https://malickland.net" />
   <meta property="og:type" content="website" />
   <link rel="canonical" href="https://malickland.net" />
@@ -19,6 +19,7 @@
     "name": "MalickLand",
     "url": "https://malickland.net",
     "telephone": "(540) 246-1421",
+    "description": "West Virginia land, homes, and rural property specialist serving all 55 WV counties.",
     "areaServed": "West Virginia",
     "address": {
       "@type": "PostalAddress",
@@ -1005,16 +1006,16 @@
     <li><a href="#contact-form">Contact</a></li>
     <li><a href="/admin" style="opacity:0.5;font-size:0.8rem">Admin</a></li>
   </ul>
-  <button class="nav-cta" onclick="openModal()">Get Land Alerts</button>
+  <button class="nav-cta" onclick="openModal()">Get Property Alerts</button>
   <button class="nav-mobile-toggle" onclick="this.parentElement.querySelector('.nav-links').style.display = this.parentElement.querySelector('.nav-links').style.display === 'flex' ? 'none' : 'flex'">☰</button>
 </nav>
 
 <!-- HERO -->
 <section class="hero" id="hero">
   <div class="hero-content">
-    <span class="hero-badge">West Virginia Land Specialist</span>
-    <h1>Find Your <em>Wild &amp; Wonderful</em> Piece of West Virginia</h1>
-    <p class="hero-sub">AI-powered property intelligence across all 55 WV counties. Local expertise, fast response.</p>
+    <span class="hero-badge">West Virginia Land &amp; Home Specialist</span>
+    <h1>Find Your <em>Wild &amp; Wonderful</em> Place in West Virginia</h1>
+    <p class="hero-sub">Land, homes, farms &amp; rural retreats across all 55 WV counties. AI-powered pricing, local expertise, fast response.</p>
 
     <div class="hero-form">
       <h3>Tell Phil What You're Looking For</h3>
@@ -1037,6 +1038,7 @@
           <label>What are you looking for?</label>
           <select name="interest">
             <option value="Buying Land">Buying Land or Acreage</option>
+            <option value="Buying a Home">Buying a Home in WV</option>
             <option value="Selling Property">Selling My Property</option>
             <option value="Hunting / Recreation Land">Hunting / Recreation Land</option>
             <option value="Cabin / Rural Retreat">Cabin or Rural Retreat</option>
@@ -1086,7 +1088,7 @@
   <div class="container">
     <div class="section-header">
       <span class="section-label">Available Now</span>
-      <h2 class="section-title">Featured Land Opportunities</h2>
+      <h2 class="section-title">Featured Properties</h2>
     </div>
     <div class="listings-grid" id="listingsGrid">
       <div class="skeleton"></div>
@@ -1099,8 +1101,8 @@
 <!-- LEAD MAGNET -->
 <section class="lead-magnet" id="guide">
   <div class="lead-magnet-inner">
-    <h2>Don't Buy Land in WV Until You Read This</h2>
-    <p>Download our free <strong>2026 WV Land Buying Checklist</strong> — everything you need to know about septic, well access, zoning traps, and due diligence before you sign anything.</p>
+    <h2>Don't Buy Property in WV Until You Read This</h2>
+    <p>Download our free <strong>2026 WV Property Buying Guide</strong> — everything you need to know about land, homes, septic, well access, zoning traps, and due diligence before you sign anything.</p>
     <div class="lead-magnet-form">
       <form id="alertsForm">
         <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
@@ -1143,8 +1145,8 @@
       </div>
       <div class="why-card">
         <div class="why-icon">🌲</div>
-        <h3>Land &amp; Acreage Specialist</h3>
-        <p>Farmland, timberland, hunting tracts, cabin lots, and river frontage. Rural property is what we do best.</p>
+        <h3>Land, Homes &amp; Acreage</h3>
+        <p>Farmland, timberland, hunting tracts, and rural homes. Whether you want acreage or a move-in-ready house, Phil can find it.</p>
       </div>
       <div class="why-card">
         <div class="why-icon">⚡</div>
@@ -1224,7 +1226,7 @@
   <div class="footer-inner">
     <div class="footer-brand">
       <h4>🏡 MalickLand</h4>
-      <p>West Virginia's land &amp; rural property specialist. Serving all 55 WV counties with local expertise, AI-powered pricing, and personal service.</p>
+      <p>West Virginia's land &amp; home specialist. Land, acreage, rural homes, and investment property across all 55 WV counties.</p>
     </div>
     <div class="footer-links">
       <h5>Quick Links</h5>
@@ -1276,7 +1278,7 @@
 <div class="modal-overlay" id="leadModal">
   <div class="modal">
     <button class="modal-close" onclick="closeModal()">✕</button>
-    <h3>🌲 Get Land Alerts First</h3>
+    <h3>🏡 Get Property Alerts First</h3>
     <p>Be the first to know when new WV land hits the market — before it goes public.</p>
     <form id="modalForm">
       <div class="form-group">
@@ -1399,7 +1401,7 @@ const chatSteps = [
   {
     msg: "Hi! I'm the MalickLand assistant 🏡. What brings you here today?",
     type: 'options',
-    opts: ['Buying land or acreage', 'Selling my property', 'Looking for a cabin lot', 'Just browsing'],
+    opts: ['Buying land or acreage', 'Buying a home in WV', 'Selling my property', 'Looking for a cabin lot', 'Just browsing'],
     key: 'intent'
   },
   {
