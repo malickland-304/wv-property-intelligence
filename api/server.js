@@ -212,6 +212,7 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
           mls_number='WVHS2007442',
           price=219900,
           property_description=?,
+          image_url=COALESCE(NULLIF(image_url,''),'/assets/advent-1.jpg'),
           updated_at=datetime('now')
         WHERE id=?
       `).run(newDesc, existing.id);
@@ -221,12 +222,12 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
       db.prepare(`
         INSERT INTO properties
           (id,county_id,address,city,state,zip,property_type,status,price,
-           mls_number,listing_agent,listing_slug,property_description)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+           mls_number,listing_agent,listing_slug,property_description,image_url)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `).run(
         newId, hampshire.id, '37 Advent Dr', 'Romney', 'WV', '26757',
         'land', 'active', 219900,
-        'WVHS2007442', 'Phil Malick', 'advent-dr-hampshire-wv', descSuffix
+        'WVHS2007442', 'Phil Malick', 'advent-dr-hampshire-wv', descSuffix, '/assets/advent-1.jpg'
       );
       console.log('Inserted Advent Dr listing →', newId);
     }

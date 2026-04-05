@@ -10,7 +10,11 @@
   <meta property="og:description" content="Find land, homes, farms, and rural property across all 55 WV counties. AI-powered pricing, local WV expertise." />
   <meta property="og:url" content="https://malickland.net" />
   <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://malickland.net/public/brand/og-image.jpg" />
   <link rel="canonical" href="https://malickland.net" />
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/public/brand/favicon.png" />
+  <link rel="apple-touch-icon" href="/public/brand/favicon.png" />
   <!-- Schema Markup -->
   <script type="application/ld+json">
   {
@@ -106,6 +110,20 @@
     .nav-logo span em {
       color: var(--gold);
       font-style: normal;
+    }
+
+    .nav-logo-img {
+      height: 40px;
+      width: auto;
+      display: block;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
     }
 
     .nav-links {
@@ -559,6 +577,47 @@
       line-height: 1.55;
     }
 
+    /* ---- AGENT BIO ---- */
+    .agent-inner {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 3rem;
+      align-items: center;
+    }
+
+    .agent-photo {
+      flex-shrink: 0;
+    }
+
+    .agent-headshot {
+      width: 100%;
+      max-width: 280px;
+      aspect-ratio: 3/4;
+      object-fit: cover;
+      object-position: top;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    }
+
+    .agent-headshot-fallback {
+      width: 280px;
+      height: 373px;
+      background: #e0e0e0;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 4rem;
+      color: #999;
+    }
+
+    @media (max-width: 700px) {
+      .agent-inner {
+        grid-template-columns: 1fr;
+      }
+      .agent-headshot { max-width: 200px; margin: 0 auto; }
+    }
+
     /* ---- SOCIAL ---- */
     .social-strip {
       background: var(--cream);
@@ -997,8 +1056,9 @@
 <!-- NAVBAR -->
 <nav class="nav">
   <a href="/" class="nav-logo">
-    <div class="nav-logo-icon">🏡</div>
-    <span>Malick<em>Land</em></span>
+    <img src="/public/brand/logo-primary.png" alt="MalickLand" class="nav-logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+    <span class="nav-logo-fallback" style="display:none"><div class="nav-logo-icon">🏡</div><span>Malick<em>Land</em></span></span>
+    <span class="nav-logo-text sr-only">MalickLand</span>
   </a>
   <ul class="nav-links">
     <li><a href="#listings">Listings</a></li>
@@ -1162,6 +1222,27 @@
   </div>
 </section>
 
+<!-- AGENT BIO -->
+<section class="section agent-section" id="about" style="background:var(--cream);">
+  <div class="container">
+    <div class="agent-inner">
+      <div class="agent-photo">
+        <img src="/public/brand/headshot.jpg" alt="Phil Malick — MalickLand" class="agent-headshot" onerror="this.parentElement.innerHTML='<div class=\'agent-headshot-fallback\'>👤</div>'" />
+      </div>
+      <div class="agent-bio">
+        <span class="section-label">Your Agent</span>
+        <h2 style="font-size:2rem;margin-bottom:0.75rem;">Phil Malick</h2>
+        <p style="font-size:1.05rem;color:#444;line-height:1.7;margin-bottom:1rem;">West Virginia land and property specialist with deep roots in the Mountain State. Phil personally handles every listing, every inquiry, and every deal — no handoffs, no runarounds.</p>
+        <p style="font-size:1rem;color:#555;line-height:1.7;margin-bottom:1.5rem;">Licensed in West Virginia. Based in Romney, WV. Covering all 55 counties — from Eastern Panhandle farms to coal country timber tracts.</p>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+          <a href="tel:+15402461421" class="btn" style="background:var(--green);color:var(--white);padding:0.75rem 1.5rem;border-radius:var(--radius);font-weight:700;text-decoration:none;">📞 (540) 246-1421</a>
+          <a href="mailto:phil@malickland.net" class="btn" style="background:transparent;color:var(--green);border:2px solid var(--green);padding:0.75rem 1.5rem;border-radius:var(--radius);font-weight:700;text-decoration:none;">✉️ phil@malickland.net</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- SOCIAL STRIP -->
 <section class="social-strip">
   <div class="social-strip-inner">
@@ -1225,7 +1306,8 @@
 <footer>
   <div class="footer-inner">
     <div class="footer-brand">
-      <h4>🏡 MalickLand</h4>
+      <img src="/public/brand/logo-secondary.png" alt="MalickLand" style="height:36px;width:auto;margin-bottom:0.75rem;opacity:0.9;" onerror="this.outerHTML='<h4>🏡 MalickLand</h4>'" />
+      <h4 style="display:none">🏡 MalickLand</h4>
       <p>West Virginia's land &amp; home specialist. Land, acreage, rural homes, and investment property across all 55 WV counties.</p>
     </div>
     <div class="footer-links">
