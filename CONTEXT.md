@@ -184,7 +184,7 @@ Central hub to create, manage, and analyze property listings focused on WV Easte
 `county` expects the numeric county `id` value from `GET /api/counties` (it is not a county name).
 Pagination defaults: page=1, limit=12. Response shape: `{ total, page, properties }`.
 
-> Note: Property creation, editing, and deletion are handled through admin panel routes (`/admin/*`), not the public API.
+> Note: Property creation and editing are handled through admin panel routes (`/admin/*`), not the public API. There is no property deletion endpoint.
 
 ### Public Listing Page Displays
 
