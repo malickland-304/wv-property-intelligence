@@ -94,6 +94,7 @@ function renderListings({ properties, total, page }) {
           ${p.lot_acres ? `<span>🌿 ${p.lot_acres} ac</span>` : ''}
         </div>
         <div class="card-listed">Listed ${timeAgo(p.listed_at)}</div>
+        <button class="request-info-btn" onclick="event.stopPropagation();openRequestInfo('${p.id}','${(p.address||'').replace(/'/g,"\\'")}')">Request Info</button>
       </div>
     </div>
   `).join('');
@@ -139,12 +140,18 @@ async function openDetail(id) {
         </div>
         ${p.description ? `<p class="modal-desc">${p.description}</p>` : ''}
         <div class="modal-contact">
-          <h3>Inquire About This Property</h3>
+          <h3>Contact Phil Malick</h3>
+          <p style="margin-bottom:.75rem;font-size:.9rem;color:#555;">
+            📞 <a href="tel:+13045550100" style="color:inherit;font-weight:600;">(304) 555-0100</a>
+            &nbsp;·&nbsp;
+            ✉️ <a href="mailto:phil@malickland.net" style="color:inherit;font-weight:600;">phil@malickland.net</a>
+          </p>
           <input id="cName"  type="text"  placeholder="Your Name" />
           <input id="cEmail" type="email" placeholder="Email" />
           <input id="cPhone" type="tel"   placeholder="Phone (optional)" />
           <textarea id="cMsg" placeholder="Message"></textarea>
           <button onclick="submitContact('${p.id}')">Send Inquiry</button>
+          <button onclick="requestPacket('${p.id}','${(p.address||'').replace(/'/g,"\\'")}',this)" style="margin-top:.5rem;background:#1B4332;color:#D4AF37;">Request Full Property Packet</button>
         </div>
       </div>
     </div>
@@ -164,6 +171,36 @@ function createModal() {
 function closeModal() {
   const m = document.getElementById('modal');
   if (m) m.style.display = 'none';
+}
+
+function openRequestInfo(id, address) {
+  openDetail(id);
+  // Pre-fill message after modal renders
+  setTimeout(() => {
+    const msg = document.getElementById('cMsg');
+    if (msg && !msg.value) msg.value = `I'd like more information about: ${address}`;
+    const nameEl = document.getElementById('cName');
+    if (nameEl) nameEl.focus();
+  }, 150);
+}
+
+async function requestPacket(propertyId, address, btn) {
+  const name  = document.getElementById('cName')?.value;
+  const email = document.getElementById('cEmail')?.value;
+  const phone = document.getElementById('cPhone')?.value;
+  if (!name || !email) { alert('Please enter your name and email above first.'); return; }
+  btn.disabled = true; btn.textContent = 'Sending...';
+  const res = await fetch(`${API}/contacts`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ property_id: propertyId, name, email, phone, message: `PACKET REQUEST: ${address}`, source: 'packet_request' })
+  });
+  if (res.ok) {
+    btn.textContent = '✅ Packet Requested!';
+  } else {
+    btn.disabled = false; btn.textContent = 'Request Full Property Packet';
+    alert('Failed to send. Please try again.');
+  }
 }
 
 async function submitContact(propertyId) {
