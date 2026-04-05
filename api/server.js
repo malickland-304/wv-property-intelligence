@@ -15,6 +15,7 @@ require('dotenv').config();
 const { execFile } = require('child_process');
 
 const { sendContactEmail, uploadPhotoToDrive } = require('./google');
+const { requireApiKey } = require('./middleware/auth');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -297,7 +298,9 @@ function initListingFolder(slug) {
 // ── Multer (photo upload) ─────────────────────────────────
 const storage = multer.diskStorage({
   destination: (req, _file, cb) => {
-    const slug = req.params.slug || req.body.slug || 'uploads';
+    const rawSlug = req.params.slug || req.body.slug || 'uploads';
+    const slug = path.basename(rawSlug);
+    if (!isSafePathComponent(slug)) return cb(new Error('Invalid slug'));
     const dir  = path.join(PROJECT_ROOT, 'listings', slug, 'photos', 'raw');
     fs.mkdirSync(dir, { recursive:true });
     cb(null, dir);
@@ -388,6 +391,24 @@ const adminWriteRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests. Please wait a moment.' },
+});
+
+// 60 API write calls per minute per IP (contacts read + properties CRUD)
+const apiWriteRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many API requests. Please wait a moment.' },
+});
+
+// 20 description-generate calls per minute per IP
+const generateDescRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many generate requests. Please wait a moment.' },
 });
 
 // ── Admin login ───────────────────────────────────────────
@@ -980,7 +1001,100 @@ app.post('/api/contacts', contactsRateLimit, (req, res) => {
   res.status(201).json({ id:result.lastInsertRowid });
 });
 
-app.post('/api/listings/generate-description', (req, res) => {
+// List contacts / leads (API-key protected — used by app/admin.html)
+app.get('/api/contacts', apiWriteRateLimit, requireApiKey, (_req, res) => {
+  const contacts = db.prepare(`
+    SELECT c.id, c.name, c.email, c.phone, c.property_id, c.message, c.source, c.created_at,
+           p.address AS property_address
+    FROM contacts c
+    LEFT JOIN properties p ON p.id = c.property_id
+    ORDER BY c.created_at DESC
+  `).all();
+  res.json(contacts);
+});
+
+// Create property via REST (API-key protected — used by app/admin.html)
+app.post('/api/properties', apiWriteRateLimit, requireApiKey, (req, res) => {
+  try {
+    const f = req.body;
+    if (!f.address) return res.status(400).json({ error: 'address is required' });
+    const id   = crypto.randomBytes(16).toString('hex');
+    const slug = slugify((f.address||'listing') + '-' + (f.city||'wv')) + '-' + id.slice(0,6);
+    db.prepare(`
+      INSERT INTO properties (
+        id, county_id, address, city, state, zip, parcel_id, subdivision,
+        property_type, status, acreage, lot_size, road_access, utilities_available,
+        septic, well, electric, internet,
+        price, recommended_list_price, price_per_acre, tax_assessed, annual_tax,
+        mls_status, mls_number, listing_agent, listing_office,
+        latitude, longitude, flood_zone, school_district,
+        bedrooms, bathrooms, sqft, year_built,
+        property_description, marketing_description, seller_notes, internal_notes,
+        listing_slug
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `).run(
+      id, f.county_id||1, f.address, f.city||null, f.state||'WV', f.zip||null,
+      f.parcel_id||null, f.subdivision||null, f.property_type||'land', f.status||'draft',
+      f.acreage||null, f.lot_size||null, f.road_access||null, f.utilities_available||null,
+      f.septic?1:0, f.well?1:0, f.electric?1:0, f.internet?1:0,
+      f.price||null, f.recommended_list_price||null, f.price_per_acre||null,
+      f.tax_assessed||null, f.annual_tax||null,
+      f.mls_status||'draft', f.mls_number||null, f.listing_agent||'Phil Malick',
+      f.listing_office||'WV Real Estate Agency',
+      f.latitude||null, f.longitude||null, f.flood_zone||null, f.school_district||null,
+      f.bedrooms||null, f.bathrooms||null, f.sqft||null, f.year_built||null,
+      f.property_description||null, f.marketing_description||null,
+      f.seller_notes||null, f.internal_notes||null, slug
+    );
+    res.status(201).json({ id, listing_slug: slug });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to create property' }); }
+});
+
+// Update property via REST (API-key protected — used by app/admin.html)
+app.put('/api/properties/:id', apiWriteRateLimit, requireApiKey, (req, res) => {
+  try {
+    const f = req.body;
+    const existing = db.prepare('SELECT id FROM properties WHERE id=?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+    db.prepare(`
+      UPDATE properties SET
+        county_id=?, address=?, city=?, state=?, zip=?, parcel_id=?, subdivision=?,
+        property_type=?, status=?, acreage=?, lot_size=?, road_access=?, utilities_available=?,
+        septic=?, well=?, electric=?, internet=?,
+        price=?, recommended_list_price=?, price_per_acre=?, tax_assessed=?, annual_tax=?,
+        mls_status=?, mls_number=?, listing_agent=?, listing_office=?,
+        latitude=?, longitude=?, flood_zone=?, school_district=?,
+        bedrooms=?, bathrooms=?, sqft=?, year_built=?,
+        property_description=?, marketing_description=?, seller_notes=?, internal_notes=?,
+        updated_at=datetime('now')
+      WHERE id=?
+    `).run(
+      f.county_id||1, f.address, f.city||null, f.state||'WV', f.zip||null,
+      f.parcel_id||null, f.subdivision||null, f.property_type||'land', f.status||'draft',
+      f.acreage||null, f.lot_size||null, f.road_access||null, f.utilities_available||null,
+      f.septic?1:0, f.well?1:0, f.electric?1:0, f.internet?1:0,
+      f.price||null, f.recommended_list_price||null, f.price_per_acre||null,
+      f.tax_assessed||null, f.annual_tax||null,
+      f.mls_status||'draft', f.mls_number||null, f.listing_agent||null, f.listing_office||null,
+      f.latitude||null, f.longitude||null, f.flood_zone||null, f.school_district||null,
+      f.bedrooms||null, f.bathrooms||null, f.sqft||null, f.year_built||null,
+      f.property_description||null, f.marketing_description||null,
+      f.seller_notes||null, f.internal_notes||null,
+      req.params.id
+    );
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to update property' }); }
+});
+
+// Delete property via REST (API-key protected — used by app/admin.html)
+app.delete('/api/properties/:id', apiWriteRateLimit, requireApiKey, (req, res) => {
+  const existing = db.prepare('SELECT id FROM properties WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+  db.prepare('DELETE FROM properties WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/properties/generate-description', generateDescRateLimit, (req, res) => {
   const { acreage, county, property_type, features } = req.body;
   if (!county) return res.status(400).json({ error: 'county is required' });
   const type = (property_type || 'land').toLowerCase();
@@ -1200,7 +1314,7 @@ function adminShell(title, body, csrf = '') {
     const btn = event.target;
     btn.disabled = true; btn.textContent = '...';
     try {
-      const res = await fetch('/api/listings/generate-description', {
+      const res = await fetch('/api/properties/generate-description', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ acreage: acreage ? Number(acreage) : undefined, county, property_type, features })
