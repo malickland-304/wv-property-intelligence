@@ -286,6 +286,7 @@ app.get('/admin', requireAuth, (_req, res) => {
         <a href="/admin/edit/${p.id}" class="btn-sm">Edit</a>
         <a href="/admin/photos/${p.listing_slug||p.id}" class="btn-sm">Photos</a>
         <a href="/admin/report/${p.id}" class="btn-sm">Report</a>
+        <button class="btn-sm btn-del" onclick="deleteListing('${p.id}','${(p.address||'').replace(/'/g,"\\'")}')">Delete</button>
       </td>
     </tr>`).join('');
 
@@ -301,6 +302,14 @@ app.get('/admin', requireAuth, (_req, res) => {
       </tr></thead>
       <tbody>${rows || '<tr><td colspan="8" style="text-align:center;padding:2rem;color:#999">No listings yet. <a href="/admin/new">Add your first listing →</a></td></tr>'}</tbody>
     </table>
+    <script>
+      async function deleteListing(id, address) {
+        if (!confirm('Permanently delete listing "' + address + '"? This cannot be undone.')) return;
+        const res = await fetch('/admin/properties/' + id, { method: 'DELETE' });
+        if (res.ok) { location.reload(); }
+        else { alert('Delete failed. Please try again.'); }
+      }
+    </script>
   `));
 });
 
@@ -395,6 +404,19 @@ app.post('/admin/edit/:id', requireAuth, (req, res) => {
     req.params.id
   );
   res.redirect('/admin');
+});
+
+// ── Delete listing ────────────────────────────────────────
+app.delete('/admin/properties/:id', requireAuth, (req, res) => {
+  const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
+  if (!p) return res.status(404).json({ error:'Not found' });
+  db.prepare('DELETE FROM properties WHERE id=?').run(req.params.id);
+  const slug = p.listing_slug;
+  if (slug) {
+    const listingDir = path.join(PROJECT_ROOT, 'listings', slug);
+    if (fs.existsSync(listingDir)) fs.rmSync(listingDir, { recursive:true, force:true });
+  }
+  res.json({ ok:true });
 });
 
 // ── Photo upload page ─────────────────────────────────────
@@ -799,6 +821,7 @@ function adminShell(title, body) {
     .btn-outline{background:transparent;border:2px solid #1a3a2a;color:#1a3a2a;padding:.6rem 1.2rem;border-radius:6px;font-weight:600;cursor:pointer;text-decoration:none;font-size:.9rem;display:inline-block}
     .btn-sm{background:#1a3a2a;color:#c9a84c;border:none;padding:.3rem .7rem;border-radius:4px;cursor:pointer;text-decoration:none;font-size:.8rem;margin-right:.25rem;display:inline-block}
     .btn-sm:hover{opacity:.85}
+    .btn-del{background:#c0392b;color:#fff}
     .listings-table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06)}
     .listings-table th{background:#1a3a2a;color:#c9a84c;padding:.85rem 1rem;text-align:left;font-size:.85rem}
     .listings-table td{padding:.85rem 1rem;border-bottom:1px solid #eee;font-size:.875rem}

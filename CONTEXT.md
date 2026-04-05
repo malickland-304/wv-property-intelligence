@@ -171,20 +171,20 @@ Central hub to create, manage, and analyze property listings focused on WV Easte
 
 ### API Endpoints
 
-| Method | Endpoint              | Action                                        |
-|--------|-----------------------|-----------------------------------------------|
-| GET    | /api/health           | Health check                                  |
-| GET    | /api/counties         | List all counties                             |
-| GET    | /api/properties       | Get active listings (status='active' only)    |
-| GET    | /api/properties/:id   | Get single listing detail                     |
-| GET    | /api/analytics        | Aggregate market analytics                    |
-| POST   | /api/contacts         | Submit property inquiry                       |
+| Method | Endpoint                  | Action                                        |
+|--------|---------------------------|-----------------------------------------------|
+| GET    | /api/health               | Health check                                  |
+| GET    | /api/counties             | List all counties                             |
+| GET    | /api/properties           | Get active listings (status='active' only)    |
+| GET    | /api/properties/:id       | Get single listing detail                     |
+| GET    | /api/analytics            | Aggregate market analytics                    |
+| POST   | /api/contacts             | Submit property inquiry                       |
 
 `GET /api/properties` query params: `q`, `county`, `type`, `minPrice`, `maxPrice`, `page`, `limit`
 `county` expects the numeric county `id` value from `GET /api/counties` (it is not a county name).
 Pagination defaults: page=1, limit=12. Response shape: `{ total, page, properties }`.
 
-> Note: Property creation and editing are handled through admin panel routes (`/admin/*`), not the public API. There is no property deletion endpoint.
+> Note: Property creation, editing, and deletion are handled through admin panel routes (`/admin/*`), not the public API. The deletion endpoint is `DELETE /admin/properties/:id` and requires an authenticated admin session.
 
 ### Public Listing Page Displays
 
