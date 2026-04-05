@@ -502,7 +502,7 @@ app.get('/admin', requireAuth, (_req, res) => {
       <td>${esc(p.property_type)}</td>
       <td>${p.price ? '$'+Number(p.price).toLocaleString() : '--'}</td>
       <td>${p.acreage ? p.acreage+' ac' : '--'}</td>
-      <td><span class="badge ${safeStatus}">${safeStatus}</span></td>
+      <td><span class="badge ${esc(safeStatus)}">${esc(safeStatus)}</span></td>
       <td>${esc(p.mls_status||'draft')}</td>
       <td>
         <a href="/admin/edit/${esc(p.id)}" class="btn-sm">Edit</a>
