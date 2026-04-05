@@ -1595,6 +1595,7 @@ async function loadListings() {
           ${primaryDetail ? `<div class="card-details">${primaryDetail}</div>` : ''}
           ${secondaryLine}
           ${featureBadges(p.features)}
+          ${p.driveTimes ? `<div style="font-size:.75rem;color:#6b7280;margin-bottom:.6rem">🚗 ${p.driveTimes.dc} to DC · ${p.driveTimes.balt} to Baltimore</div>` : ''}
           <a href="#" class="card-btn" onclick="event.preventDefault();showPropertyModal('${p.id}')">View Details →</a>
         </div>
       </div>`;
@@ -1656,6 +1657,12 @@ async function showPropertyModal(id) {
             ${p.annual_tax ? `<div><span style="color:#888">💰 Annual Tax:</span> $${Number(p.annual_tax).toLocaleString()}</div>` : ''}
             ${p.parcel_id ? `<div><span style="color:#888">📋 Parcel ID:</span> ${p.parcel_id}</div>` : ''}
           </div>` : ''}
+          ${p.driveTimes ? `
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.65rem 1rem;margin-bottom:1rem;font-size:.83rem;display:flex;flex-wrap:wrap;gap:.75rem">
+            <span>🚗 <strong>${p.driveTimes.dc}</strong> to DC</span>
+            <span>🚗 <strong>${p.driveTimes.balt}</strong> to Baltimore</span>
+            <span>🚗 <strong>${p.driveTimes.pit}</strong> to Pittsburgh</span>
+          </div>` : ''}
           <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.5rem">
             <a href="${mapsUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:.4rem;padding:.55rem 1rem;border-radius:8px;font-size:.85rem;font-weight:600;background:#f3f4f6;color:#1a1a1a;border:1px solid #e0e0e0;text-decoration:none">🗺 View on Map</a>
             <a href="${satUrl}"  target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:.4rem;padding:.55rem 1rem;border-radius:8px;font-size:.85rem;font-weight:600;background:#f3f4f6;color:#1a1a1a;border:1px solid #e0e0e0;text-decoration:none">🛰 Satellite View</a>
@@ -1666,7 +1673,9 @@ async function showPropertyModal(id) {
             <p style="font-size:.88rem;color:#555;margin-bottom:.75rem">
               📞 <a href="tel:+15402461421" style="color:#1B4332;font-weight:600">(540) 246-1421</a>
               &nbsp;·&nbsp;
-              ✉️ <a href="mailto:phil@malickland.net" style="color:#1B4332;font-weight:600">phil@malickland.net</a>
+              💬 <a href="sms:+15402461421&body=Hi Phil, I'm interested in ${encodeURIComponent(p.address)}." style="color:#1B4332;font-weight:600">Text Phil</a>
+              &nbsp;·&nbsp;
+              ✉️ <a href="mailto:phil@malickland.net" style="color:#1B4332;font-weight:600">Email</a>
             </p>
             <input id="pm_name"  type="text"  placeholder="Your Name"  style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
             <input id="pm_email" type="email" placeholder="Email"      style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">

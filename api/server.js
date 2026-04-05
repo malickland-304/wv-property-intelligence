@@ -1149,8 +1149,9 @@ app.get('/sitemap.xml', (_req, res) => {
 
   // Static pages
   const staticPages = [
-    { loc: SITE + '/',        changefreq: 'weekly',  priority: '1.0' },
-    { loc: SITE + '/admin',   changefreq: 'never',   priority: '0.1' },
+    { loc: SITE + '/',         changefreq: 'weekly',  priority: '1.0' },
+    { loc: SITE + '/listings', changefreq: 'daily',   priority: '0.9' },
+    { loc: SITE + '/admin',    changefreq: 'never',   priority: '0.1' },
   ];
 
   // Dynamic property pages
@@ -1394,7 +1395,7 @@ app.get('/properties/:slug', (req, res) => {
     WHERE p.listing_slug = ? OR p.id = ?
   `).get(slug, slug);
 
-  if (!p) return res.status(404).sendFile(path.join(PROJECT_ROOT, 'app', 'index.html'));
+  if (!p) return res.status(404).sendFile(path.join(PROJECT_ROOT, 'app', 'index.html'), { dotfiles: 'allow' });
 
   const SITE = 'https://malickland.net';
   const pageUrl = `${SITE}/properties/${p.listing_slug || p.id}`;
@@ -1519,6 +1520,9 @@ app.get('/properties/:slug', (req, res) => {
 </body>
 </html>`);
 });
+
+// Full listings/search page
+app.get('/listings', (_req, res) => res.sendFile(path.join(PROJECT_ROOT, 'app', 'listings.html'), { dotfiles: 'allow' }));
 
 app.use(express.static(path.join(PROJECT_ROOT, 'app')));
 app.use((_req,res) => res.status(404).json({ error:'Not found' }));

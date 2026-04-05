@@ -88,8 +88,12 @@ async function loadListings() {
 
 function renderListings({ properties, total, page }) {
   const grid = document.getElementById('listingsGrid');
+  // Update results count if element exists (listings page)
+  const countEl = document.getElementById('resultsCount');
+  if (countEl) countEl.textContent = total ? `${total} listing${total === 1 ? '' : 's'} found` : '';
+
   if (!properties.length) {
-    grid.innerHTML = '<p class="empty">No listings found.</p>';
+    grid.innerHTML = '<p class="empty">No listings found matching your filters.</p>';
     document.getElementById('pagination').innerHTML = '';
     return;
   }
