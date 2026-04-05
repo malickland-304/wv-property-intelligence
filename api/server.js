@@ -451,7 +451,7 @@ app.get('/admin/logout', (req, res) => {
 });
 
 // ── Admin dashboard ───────────────────────────────────────
-app.get('/admin', requireAuth, (req, res) => {
+app.get('/admin', requireAuth, adminWriteRateLimit, (req, res) => {
   const listings = db.prepare(`
     SELECT p.id, p.address, p.city, p.price, p.property_type, p.status,
            p.listing_slug, p.acreage, p.photos_uploaded, p.mls_status,
