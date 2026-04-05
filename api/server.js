@@ -327,6 +327,14 @@ function requireAuth(req, res, next) {
 }
 
 // ── Rate limiters ─────────────────────────────────────────
+const chatRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Chat rate limit exceeded. Please wait a moment.' },
+});
+
 const contactsRateLimit = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
@@ -997,6 +1005,87 @@ app.post('/api/listings/generate-description', (req, res) => {
     'Contact MalickLand for details.',
   ].join(' ');
   res.json({ description });
+});
+
+// ── AI Chat widget ────────────────────────────────────────
+app.post('/api/chat', chatRateLimit, async (req, res) => {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.json({ reply: "Hi! I'm Phil's property assistant. Call me at (540) 246-1421 or email phil@malickland.net for help." });
+  }
+
+  const { messages } = req.body;
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'messages array required' });
+  }
+
+  // Pull fresh listing summary for context
+  let listingContext = '';
+  try {
+    const active = db.prepare(`
+      SELECT p.address, p.city, c.name AS county, p.price, p.property_type, p.lot_acres
+      FROM properties p JOIN counties c ON c.id = p.county_id
+      WHERE p.status = 'active' LIMIT 20
+    `).all();
+    if (active.length) {
+      listingContext = '\n\nCurrent active listings:\n' + active.map(p =>
+        `- ${p.address}${p.city?', '+p.city:''}, ${p.county} County — ${p.property_type}${p.lot_acres?' ('+p.lot_acres+' ac)':''} — ${p.price?'$'+Number(p.price).toLocaleString():'Price TBD'}`
+      ).join('\n');
+    }
+  } catch(_) {}
+
+  const systemPrompt = `You are a helpful property assistant for MalickLand, a West Virginia real estate business run by Phil Malick. You help buyers and sellers find land, homes, and rural property across all 55 WV counties.
+
+Phil Malick's contact info: (540) 246-1421, phil@malickland.net
+Website: malickland.net
+Primary focus: Hampshire, Hardy, Morgan, Grant, Pendleton, Mineral, and eastern WV counties.${listingContext}
+
+Guidelines:
+- Be warm, brief, and local — like a friendly WV neighbor
+- For specific property questions, suggest they call/email Phil or submit an inquiry
+- If someone seems interested in a property, ask for their name and email so Phil can follow up
+- Never invent listing details not shown above
+- Keep responses under 120 words`;
+
+  try {
+    const body = JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
+      system: systemPrompt,
+      messages: messages.slice(-8).map(m => ({ role: m.role, content: m.content })),
+    });
+
+    const reply = await new Promise((resolve, reject) => {
+      const reqOptions = {
+        hostname: 'api.anthropic.com',
+        path: '/v1/messages',
+        method: 'POST',
+        headers: {
+          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(body),
+        },
+      };
+      const r = require('https').request(reqOptions, resp => {
+        let data = '';
+        resp.on('data', c => data += c);
+        resp.on('end', () => {
+          try {
+            const parsed = JSON.parse(data);
+            resolve(parsed.content?.[0]?.text || 'Sorry, I had trouble responding. Call Phil at (540) 246-1421.');
+          } catch { reject(new Error('Parse error')); }
+        });
+      });
+      r.on('error', reject);
+      r.write(body);
+      r.end();
+    });
+
+    res.json({ reply });
+  } catch(err) {
+    console.error('[Chat]', err.message);
+    res.json({ reply: "I'm having trouble right now. Please call Phil directly at (540) 246-1421 or email phil@malickland.net." });
+  }
 });
 
 // ── Sitemap & Robots ─────────────────────────────────────

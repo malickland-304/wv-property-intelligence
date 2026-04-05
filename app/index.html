@@ -1640,92 +1640,121 @@ window.addEventListener('scroll', () => {
 });
 
 // ---- CHAT WIDGET ----
-let chatState = 0;
-let chatData = {};
+// (chat state now in aiMessages array)
+
+// ---- AI CHAT ----
+const aiMessages = [];
+let chatReady = false;
+let chatConnectShown = false;
 
 function openChat() {
   const panel = document.getElementById('chatPanel');
   panel.classList.add('open');
-  if (chatState === 0) renderChatStep(0);
+  if (!chatReady) initChat();
 }
 
-const chatSteps = [
-  {
-    msg: "Hi! I'm the MalickLand assistant 🏡. What brings you here today?",
-    type: 'options',
-    opts: ['Buying land or acreage', 'Buying a home in WV', 'Selling my property', 'Looking for a cabin lot', 'Just browsing'],
-    key: 'intent'
-  },
-  {
-    msg: "Great! Which county or area of WV are you interested in?",
-    type: 'input',
-    placeholder: 'e.g. Hampshire, Tucker, Pocahontas...',
-    key: 'county'
-  },
-  {
-    msg: "What's your budget range?",
-    type: 'options',
-    opts: ['Under $50k', '$50k – $150k', '$150k – $500k', '$500k+', 'Flexible / Not sure'],
-    key: 'budget'
-  },
-  {
-    msg: "Almost done! What's your name and best phone number so Phil can reach you?",
-    type: 'contact',
-    key: 'contact'
-  }
-];
-
-function renderChatStep(step) {
+function initChat() {
+  chatReady = true;
   const body = document.getElementById('chatBody');
-  const s = chatSteps[step];
-  let html = `<div class="chat-msg">${s.msg}</div>`;
-
-  if (s.type === 'options') {
-    html += `<div class="chat-options">${s.opts.map(o => `<button class="chat-opt" onclick="chatSelect('${o}', ${step})">${o}</button>`).join('')}</div>`;
-  } else if (s.type === 'input') {
-    html += `<div class="chat-input-row"><input class="chat-input" id="chatInput" placeholder="${s.placeholder}" /><button class="chat-send" onclick="chatInputSubmit(${step})">Continue →</button></div>`;
-  } else if (s.type === 'contact') {
-    html += `<div class="chat-input-row"><input class="chat-input" id="chatName" placeholder="Your Name" /><input class="chat-input" id="chatPhone" placeholder="(304) 555-1234" /><button class="chat-send" onclick="chatSubmitContact()">Send to Phil →</button></div>`;
-  }
-
-  body.innerHTML = html;
+  body.style.cssText = 'padding:1rem;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:.6rem';
+  addChatMsg('bot', "Hi! I'm Phil's property assistant 🏡 — I know WV land well. What are you looking for today?");
+  body.insertAdjacentHTML('beforeend', chatInputHtml());
 }
 
-function chatSelect(val, step) {
-  chatData[chatSteps[step].key] = val;
-  chatState = step + 1;
-  if (chatState >= chatSteps.length) {
-    renderChatStep(chatSteps.length - 1); // re-render contact step
-  } else {
-    renderChatStep(chatState);
-  }
+function chatInputHtml() {
+  return `<div class="chat-input-row" id="chatInputRow">
+    <input class="chat-input" id="chatUserInput" placeholder="Ask about listings, counties, pricing..." onkeydown="if(event.key==='Enter')sendChatMsg()"/>
+    <button class="chat-send" onclick="sendChatMsg()">→</button>
+  </div>`;
 }
 
-function chatInputSubmit(step) {
-  const val = document.getElementById('chatInput').value.trim();
-  if (!val) return;
-  chatData[chatSteps[step].key] = val;
-  chatState = step + 1;
-  if (chatState >= chatSteps.length) {
-    renderChatStep(chatSteps.length - 1);
-  } else {
-    renderChatStep(chatState);
-  }
+function addChatMsg(role, text) {
+  const body = document.getElementById('chatBody');
+  const el = document.createElement('div');
+  el.className = 'chat-msg';
+  el.style.cssText = role === 'user'
+    ? 'align-self:flex-end;background:var(--green);color:#fff;padding:.6rem .9rem;border-radius:12px 12px 2px 12px;font-size:.88rem;max-width:85%'
+    : 'align-self:flex-start;background:#f3f4f6;color:#1a1a1a;padding:.6rem .9rem;border-radius:12px 12px 12px 2px;font-size:.88rem;max-width:85%;line-height:1.5';
+  el.textContent = text;
+  const inputRow = document.getElementById('chatInputRow');
+  if (inputRow) body.insertBefore(el, inputRow);
+  else body.appendChild(el);
+  body.scrollTop = body.scrollHeight;
+  return el;
 }
 
-async function chatSubmitContact() {
-  const name = document.getElementById('chatName').value.trim();
-  const phone = document.getElementById('chatPhone').value.trim();
-  if (!name) { document.getElementById('chatName').focus(); return; }
-  chatData.name = name;
-  chatData.phone = phone;
-  const msg = `Intent: ${chatData.intent || ''} | County: ${chatData.county || ''} | Budget: ${chatData.budget || ''}`;
+async function sendChatMsg() {
+  const input = document.getElementById('chatUserInput');
+  const text = input?.value.trim();
+  if (!text) return;
+  input.value = '';
+  input.disabled = true;
+
+  addChatMsg('user', text);
+  aiMessages.push({ role: 'user', content: text });
+
+  const typing = addChatMsg('bot', '…');
+
   try {
-    await fetch('/api/contacts', {
+    const r = await fetch('/api/chat', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ name, phone, message: msg, source: 'website_chat' })
+      body: JSON.stringify({ messages: aiMessages })
     });
+    const data = await r.json();
+    const reply = data.reply || "I couldn't connect right now. Call Phil at (540) 246-1421.";
+    typing.textContent = reply;
+    aiMessages.push({ role: 'assistant', content: reply });
+
+    // After 3 exchanges, offer to connect with Phil
+    if (aiMessages.length >= 6 && !chatConnectShown) {
+      chatConnectShown = true;
+      const body = document.getElementById('chatBody');
+      const connectEl = document.createElement('div');
+      connectEl.style.cssText = 'align-self:center;margin:.5rem 0';
+      connectEl.innerHTML = `<button onclick="showChatContact()" style="background:var(--gold);color:var(--black);border:none;border-radius:8px;padding:.6rem 1.2rem;font-weight:700;cursor:pointer;font-size:.85rem">📞 Connect with Phil directly →</button>`;
+      const inputRow = document.getElementById('chatInputRow');
+      if (inputRow) body.insertBefore(connectEl, inputRow);
+      else body.appendChild(connectEl);
+    }
+  } catch(e) {
+    typing.textContent = "Connection issue. Call Phil at (540) 246-1421 or email phil@malickland.net.";
+  }
+  input.disabled = false;
+  input.focus();
+}
+
+function showChatContact() {
+  const body = document.getElementById('chatBody');
+  const inputRow = document.getElementById('chatInputRow');
+  const formEl = document.createElement('div');
+  formEl.style.cssText = 'background:#f9f6f0;border-radius:10px;padding:.9rem;margin:.25rem 0';
+  formEl.innerHTML = `
+    <p style="font-size:.82rem;color:#555;margin-bottom:.6rem">Leave your info and Phil will call you:</p>
+    <input id="chatLeadName" class="chat-input" placeholder="Your Name" style="margin-bottom:.4rem"/>
+    <input id="chatLeadEmail" class="chat-input" type="email" placeholder="Email" style="margin-bottom:.4rem"/>
+    <input id="chatLeadPhone" class="chat-input" type="tel" placeholder="Phone (optional)" style="margin-bottom:.6rem"/>
+    <button onclick="submitChatLead(this)" style="width:100%;background:var(--green);color:var(--gold);border:none;border-radius:6px;padding:.6rem;font-weight:700;cursor:pointer;font-size:.88rem">Send to Phil →</button>
+    <p style="font-size:.7rem;color:#999;margin-top:.4rem;line-height:1.4">By submitting, you consent to receive communications from MalickLand. Reply STOP to opt out.</p>`;
+  if (inputRow) body.insertBefore(formEl, inputRow);
+  else body.appendChild(formEl);
+  body.scrollTop = body.scrollHeight;
+}
+
+async function submitChatLead(btn) {
+  const name  = document.getElementById('chatLeadName')?.value.trim();
+  const email = document.getElementById('chatLeadEmail')?.value.trim();
+  const phone = document.getElementById('chatLeadPhone')?.value.trim();
+  if (!name || !email) { alert('Name and email are required.'); return; }
+  btn.disabled = true; btn.textContent = 'Sending…';
+  const summary = aiMessages.filter(m=>m.role==='user').map(m=>m.content).join(' | ');
+  try {
+    await fetch('/api/contacts', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ name, email, phone, message: 'Chat: ' + summary, source: 'website_chat' })
+    });
+    pixelEvent('Lead', { content_name: 'ai_chat' });
+    if (window.gtag) gtag('event', 'generate_lead');
   } catch(e) {}
   document.getElementById('chatBody').innerHTML = `<div class="chat-done">✅ Phil will reach out within 2 hours!<br/><br/>Call anytime: <a href="tel:+15402461421" style="color:var(--green);font-weight:700">(540) 246-1421</a></div>`;
 }
