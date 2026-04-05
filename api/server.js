@@ -17,6 +17,9 @@ const { promisify } = require('util');
 const execAsync     = promisify(exec);
 
 const { sendContactEmail, uploadPhotoToDrive } = require('./google');
+const { requireApiKey } = require('./middleware/auth');
+let sharp;
+try { sharp = require('sharp'); } catch (_) { sharp = null; }
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -237,6 +240,16 @@ function slugify(str) {
   return str.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 }
 
+// Escape HTML special characters to prevent XSS in server-rendered admin pages
+function esc(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function initListingFolder(slug) {
   const base = path.join(PROJECT_ROOT, 'listings', slug);
   ['photos/raw','photos/compressed','photos/mls'].forEach(p =>
@@ -334,6 +347,15 @@ const adminLoginRateLimit = rateLimit({
   skipSuccessfulRequests: true,
 });
 
+// 20 description-generate calls per minute per IP
+const generateDescRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many generate requests. Please wait a moment.' },
+});
+
 // ── Admin login ───────────────────────────────────────────
 app.get('/admin/login', (_req, res) => {
   res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -407,17 +429,17 @@ app.get('/admin', requireAuth, (_req, res) => {
 
   const rows = listings.map(p => `
     <tr>
-      <td>${p.address}${p.city ? ', '+p.city : ''}</td>
-      <td>${p.county||''}</td>
-      <td>${p.property_type}</td>
+      <td>${esc(p.address)}${p.city ? ', '+esc(p.city) : ''}</td>
+      <td>${esc(p.county||'')}</td>
+      <td>${esc(p.property_type)}</td>
       <td>${p.price ? '$'+Number(p.price).toLocaleString() : '--'}</td>
       <td>${p.acreage ? p.acreage+' ac' : '--'}</td>
-      <td><span class="badge ${p.status}">${p.status}</span></td>
-      <td>${p.mls_status||'draft'}</td>
+      <td><span class="badge ${esc(p.status)}">${esc(p.status)}</span></td>
+      <td>${esc(p.mls_status||'draft')}</td>
       <td>
-        <a href="/admin/edit/${p.id}" class="btn-sm">Edit</a>
-        <a href="/admin/photos/${p.listing_slug||p.id}" class="btn-sm">Photos</a>
-        <a href="/admin/report/${p.id}" class="btn-sm">Report</a>
+        <a href="/admin/edit/${esc(p.id)}" class="btn-sm">Edit</a>
+        <a href="/admin/photos/${esc(p.listing_slug||p.id)}" class="btn-sm">Photos</a>
+        <a href="/admin/report/${esc(p.id)}" class="btn-sm">Report</a>
       </td>
     </tr>`).join('');
 
@@ -550,7 +572,7 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
 
   res.send(adminShell('Upload Photos', `
     <div class="dash-header">
-      <h1>Photos — ${p ? p.address : slug}</h1>
+      <h1>Photos — ${p ? esc(p.address) : esc(slug)}</h1>
       <a href="/admin" class="btn-outline">← Back</a>
     </div>
     <div class="upload-zone" id="dropZone">
@@ -646,13 +668,26 @@ app.post('/admin/upload/:slug', requireAuth, upload.single('photo'), async (req,
     res.json({ ok:true, filename });
   }
 
-  if (process.platform === 'darwin') {
-    // sips is macOS-only — use it when available for lossless resize
+  if (process.platform === 'darwin' && !sharp) {
+    // sips is macOS-only fallback when sharp is unavailable
     exec(`sips -Z 1200 "${rawPath}" --out "${compPath}"`, () => {
       exec(`sips -Z 1024 "${rawPath}" --out "${mlsPath}"`, afterCompress);
     });
+  } else if (sharp) {
+    // Use sharp for cross-platform image compression (Linux / Railway / macOS)
+    Promise.all([
+      sharp(rawPath).resize({ width: 1200, withoutEnlargement: true }).jpeg({ quality: 85 }).toFile(compPath),
+      sharp(rawPath).resize({ width: 1024, withoutEnlargement: true }).jpeg({ quality: 80 }).toFile(mlsPath),
+    ])
+      .then(afterCompress)
+      .catch(err => {
+        console.error('[sharp] compression failed, using original:', err.message);
+        fs.copyFileSync(rawPath, compPath);
+        fs.copyFileSync(rawPath, mlsPath);
+        afterCompress();
+      });
   } else {
-    // Linux/Railway: copy raw file as-is; compression can be added via sharp later
+    // Last resort: copy raw file as-is
     fs.copyFileSync(rawPath, compPath);
     fs.copyFileSync(rawPath, mlsPath);
     afterCompress();
@@ -694,33 +729,33 @@ app.get('/admin/report/:id', requireAuth, (req, res) => {
 
   res.send(adminShell('Report', `
     <div class="dash-header">
-      <h1>Report — ${p.address}</h1>
+      <h1>Report — ${esc(p.address)}</h1>
       <a href="/admin" class="btn-outline">← Back</a>
     </div>
     <div class="report-grid">
       <div class="report-card">
         <h3>Property Details</h3>
         <table class="detail-table">
-          <tr><td>Address</td><td>${p.address}, ${p.city} ${p.zip}</td></tr>
-          <tr><td>County</td><td>${p.county}</td></tr>
-          <tr><td>Type</td><td>${p.property_type}</td></tr>
+          <tr><td>Address</td><td>${esc(p.address)}, ${esc(p.city)} ${esc(p.zip)}</td></tr>
+          <tr><td>County</td><td>${esc(p.county)}</td></tr>
+          <tr><td>Type</td><td>${esc(p.property_type)}</td></tr>
           <tr><td>Acreage</td><td>${p.acreage||'--'}</td></tr>
           <tr><td>Price</td><td>${p.price ? '$'+Number(p.price).toLocaleString() : '--'}</td></tr>
           <tr><td>Price/Acre</td><td>${p.price_per_acre ? '$'+Number(p.price_per_acre).toLocaleString() : '--'}</td></tr>
-          <tr><td>Flood Zone</td><td>${p.flood_zone||'--'}</td></tr>
-          <tr><td>Road Access</td><td>${p.road_access||'--'}</td></tr>
-          <tr><td>MLS #</td><td>${p.mls_number||'--'}</td></tr>
+          <tr><td>Flood Zone</td><td>${esc(p.flood_zone||'--')}</td></tr>
+          <tr><td>Road Access</td><td>${esc(p.road_access||'--')}</td></tr>
+          <tr><td>MLS #</td><td>${esc(p.mls_number||'--')}</td></tr>
         </table>
       </div>
       <div class="report-card">
         <h3>Comparable Sales</h3>
-        <textarea id="compsArea" rows="10">${comps}</textarea>
-        <button onclick="saveComps('${p.id}')">Save Comps</button>
+        <textarea id="compsArea" rows="10">${esc(comps)}</textarea>
+        <button onclick="saveComps('${esc(p.id)}')">Save Comps</button>
       </div>
       <div class="report-card full">
         <h3>Due Diligence Notes</h3>
-        <textarea id="ddArea" rows="15">${dd}</textarea>
-        <button onclick="saveDD('${p.id}')">Save Notes</button>
+        <textarea id="ddArea" rows="15">${esc(dd)}</textarea>
+        <button onclick="saveDD('${esc(p.id)}')">Save Notes</button>
       </div>
     </div>
     <script>
@@ -905,7 +940,100 @@ app.post('/api/contacts', contactsRateLimit, (req, res) => {
   res.status(201).json({ id:result.lastInsertRowid });
 });
 
-app.post('/api/listings/generate-description', (req, res) => {
+// List contacts / leads (API-key protected — used by app/admin.html)
+app.get('/api/contacts', requireApiKey, (_req, res) => {
+  const contacts = db.prepare(`
+    SELECT c.id, c.name, c.email, c.phone, c.property_id, c.message, c.source, c.created_at,
+           p.address AS property_address
+    FROM contacts c
+    LEFT JOIN properties p ON p.id = c.property_id
+    ORDER BY c.created_at DESC
+  `).all();
+  res.json(contacts);
+});
+
+// Create property via REST (API-key protected — used by app/admin.html)
+app.post('/api/properties', requireApiKey, (req, res) => {
+  try {
+    const f = req.body;
+    if (!f.address) return res.status(400).json({ error: 'address is required' });
+    const id   = crypto.randomBytes(16).toString('hex');
+    const slug = slugify((f.address||'listing') + '-' + (f.city||'wv')) + '-' + id.slice(0,6);
+    db.prepare(`
+      INSERT INTO properties (
+        id, county_id, address, city, state, zip, parcel_id, subdivision,
+        property_type, status, acreage, lot_size, road_access, utilities_available,
+        septic, well, electric, internet,
+        price, recommended_list_price, price_per_acre, tax_assessed, annual_tax,
+        mls_status, mls_number, listing_agent, listing_office,
+        latitude, longitude, flood_zone, school_district,
+        bedrooms, bathrooms, sqft, year_built,
+        property_description, marketing_description, seller_notes, internal_notes,
+        listing_slug
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `).run(
+      id, f.county_id||1, f.address, f.city||null, f.state||'WV', f.zip||null,
+      f.parcel_id||null, f.subdivision||null, f.property_type||'land', f.status||'draft',
+      f.acreage||null, f.lot_size||null, f.road_access||null, f.utilities_available||null,
+      f.septic?1:0, f.well?1:0, f.electric?1:0, f.internet?1:0,
+      f.price||null, f.recommended_list_price||null, f.price_per_acre||null,
+      f.tax_assessed||null, f.annual_tax||null,
+      f.mls_status||'draft', f.mls_number||null, f.listing_agent||'Phil Malick',
+      f.listing_office||'WV Real Estate Agency',
+      f.latitude||null, f.longitude||null, f.flood_zone||null, f.school_district||null,
+      f.bedrooms||null, f.bathrooms||null, f.sqft||null, f.year_built||null,
+      f.property_description||null, f.marketing_description||null,
+      f.seller_notes||null, f.internal_notes||null, slug
+    );
+    res.status(201).json({ id, listing_slug: slug });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to create property' }); }
+});
+
+// Update property via REST (API-key protected — used by app/admin.html)
+app.put('/api/properties/:id', requireApiKey, (req, res) => {
+  try {
+    const f = req.body;
+    const existing = db.prepare('SELECT id FROM properties WHERE id=?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+    db.prepare(`
+      UPDATE properties SET
+        county_id=?, address=?, city=?, state=?, zip=?, parcel_id=?, subdivision=?,
+        property_type=?, status=?, acreage=?, lot_size=?, road_access=?, utilities_available=?,
+        septic=?, well=?, electric=?, internet=?,
+        price=?, recommended_list_price=?, price_per_acre=?, tax_assessed=?, annual_tax=?,
+        mls_status=?, mls_number=?, listing_agent=?, listing_office=?,
+        latitude=?, longitude=?, flood_zone=?, school_district=?,
+        bedrooms=?, bathrooms=?, sqft=?, year_built=?,
+        property_description=?, marketing_description=?, seller_notes=?, internal_notes=?,
+        updated_at=datetime('now')
+      WHERE id=?
+    `).run(
+      f.county_id||1, f.address, f.city||null, f.state||'WV', f.zip||null,
+      f.parcel_id||null, f.subdivision||null, f.property_type||'land', f.status||'draft',
+      f.acreage||null, f.lot_size||null, f.road_access||null, f.utilities_available||null,
+      f.septic?1:0, f.well?1:0, f.electric?1:0, f.internet?1:0,
+      f.price||null, f.recommended_list_price||null, f.price_per_acre||null,
+      f.tax_assessed||null, f.annual_tax||null,
+      f.mls_status||'draft', f.mls_number||null, f.listing_agent||null, f.listing_office||null,
+      f.latitude||null, f.longitude||null, f.flood_zone||null, f.school_district||null,
+      f.bedrooms||null, f.bathrooms||null, f.sqft||null, f.year_built||null,
+      f.property_description||null, f.marketing_description||null,
+      f.seller_notes||null, f.internal_notes||null,
+      req.params.id
+    );
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to update property' }); }
+});
+
+// Delete property via REST (API-key protected — used by app/admin.html)
+app.delete('/api/properties/:id', requireApiKey, (req, res) => {
+  const existing = db.prepare('SELECT id FROM properties WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+  db.prepare('DELETE FROM properties WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/properties/generate-description', generateDescRateLimit, (req, res) => {
   const { acreage, county, property_type, features } = req.body;
   if (!county) return res.status(400).json({ error: 'county is required' });
   const type = (property_type || 'land').toLowerCase();
@@ -1116,7 +1244,7 @@ function adminShell(title, body) {
     const btn = event.target;
     btn.disabled = true; btn.textContent = '...';
     try {
-      const res = await fetch('/api/listings/generate-description', {
+      const res = await fetch('/api/properties/generate-description', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ acreage: acreage ? Number(acreage) : undefined, county, property_type, features })
@@ -1132,11 +1260,11 @@ function adminShell(title, body) {
 
 // ── Listing form HTML ─────────────────────────────────────
 function listingForm(p, counties) {
-  const v = (f) => p ? (p[f]||'') : '';
+  const v = (f) => esc(p ? (p[f]||'') : '');
   const chk = (f) => p && p[f] ? 'checked' : '';
   const sel = (f,val) => p && p[f]===val ? 'selected' : '';
   const countyOpts = counties.map(c =>
-    `<option value="${c.id}" ${p && p.county_id==c.id?'selected':''}>${c.name}</option>`
+    `<option value="${esc(c.id)}" ${p && p.county_id==c.id?'selected':''}>${esc(c.name)}</option>`
   ).join('');
 
   return `

@@ -534,7 +534,7 @@ async function generateDesc() {
   const btn = event.target;
   btn.disabled = true; btn.textContent = '...';
   try {
-    const res = await fetch(`${API}/listings/generate-description`, {
+    const res = await fetch(`${API}/properties/generate-description`, {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({ acreage: acreage ? Number(acreage) : undefined, county, property_type, features: [] }),
