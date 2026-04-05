@@ -843,7 +843,8 @@ app.get('/admin/integrations', requireAuth, (_req, res) => {
 // ── Leads view ───────────────────────────────────────────
 app.get('/admin/leads', requireAuth, (req, res) => {
   const leads = db.prepare(`
-    SELECT ct.id, ct.name, ct.email, ct.phone, ct.message, ct.source, ct.created_at,
+    SELECT ct.id, ct.name, ct.email, ct.phone, ct.message, ct.source,
+           ct.created_at, ct.lead_status,
            p.address, p.city, c.name AS county
     FROM contacts ct
     LEFT JOIN properties p ON p.id = ct.property_id
@@ -852,30 +853,51 @@ app.get('/admin/leads', requireAuth, (req, res) => {
     LIMIT 200
   `).all();
 
-  const rows = leads.map(l => `
-    <tr>
-      <td>${new Date(l.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</td>
+  const statusColors = { new:'active', contacted:'pending', qualified:'pending', closed:'sold', lost:'draft' };
+  const rows = leads.map(l => {
+    const status = l.lead_status || 'new';
+    return `
+    <tr id="lead-${l.id}">
+      <td>${new Date(l.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}</td>
       <td><strong>${l.name||'—'}</strong></td>
       <td><a href="mailto:${l.email}" style="color:#1a3a2a">${l.email||'—'}</a></td>
       <td>${l.phone ? `<a href="tel:${l.phone}" style="color:#1a3a2a">${l.phone}</a>` : '—'}</td>
-      <td>${l.address ? `${l.address}${l.city?', '+l.city:''}, ${l.county||''}` : '—'}</td>
-      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(l.message||'').replace(/"/g,'')}">${l.message||'—'}</td>
-      <td><span class="badge ${l.source==='county_notify'?'draft':l.source==='packet_request'?'pending':'active'}">${l.source||'web'}</span></td>
-    </tr>`).join('');
+      <td style="font-size:.82rem">${l.address ? `${l.address}${l.city?', '+l.city:''}, ${l.county||''}` : '—'}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.82rem" title="${(l.message||'').replace(/"/g,'')}">${l.message||'—'}</td>
+      <td>
+        <select onchange="updateLeadStatus(${l.id},this.value)" style="padding:.25rem .5rem;border:1px solid #ddd;border-radius:4px;font-size:.8rem;background:#fff">
+          ${['new','contacted','qualified','closed','lost'].map(s=>`<option value="${s}"${s===status?' selected':''}>${s}</option>`).join('')}
+        </select>
+      </td>
+    </tr>`;
+  }).join('');
 
   res.send(adminShell('Leads', `
     <div class="dash-header">
       <h1>Leads &amp; Inquiries</h1>
-      <span style="color:#666;font-size:.9rem">${leads.length} total</span>
+      <span style="color:#666;font-size:.9rem">${leads.length} total &middot; ${leads.filter(l=>!l.lead_status||l.lead_status==='new').length} new</span>
     </div>
     ${leads.length ? `
     <table class="listings-table">
       <thead><tr>
-        <th>Date</th><th>Name</th><th>Email</th><th>Phone</th><th>Property</th><th>Message</th><th>Source</th>
+        <th>Date</th><th>Name</th><th>Email</th><th>Phone</th><th>Property</th><th>Message</th><th>Status</th>
       </tr></thead>
       <tbody>${rows}</tbody>
-    </table>` : `<p style="color:#666;padding:2rem">No leads yet. Share your listings!</p>`}
+    </table>
+    <script>
+    async function updateLeadStatus(id, status) {
+      await fetch('/admin/leads/'+id+'/status', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
+    }
+    </script>` : `<p style="color:#666;padding:2rem">No leads yet. Share your listings!</p>`}
   `));
+});
+
+app.post('/admin/leads/:id/status', requireAuth, (req, res) => {
+  const valid = ['new','contacted','qualified','closed','lost'];
+  const status = req.body.status;
+  if (!valid.includes(status)) return res.status(400).json({ error: 'Invalid status' });
+  db.prepare(`UPDATE contacts SET lead_status=?, last_contacted_at=datetime('now') WHERE id=?`).run(status, req.params.id);
+  res.json({ ok: true });
 });
 
 // ── Public API ────────────────────────────────────────────
