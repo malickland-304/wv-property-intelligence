@@ -965,7 +965,25 @@ app.get('/sitemap.xml', (_req, res) => {
     }));
   } catch (_) {}
 
-  const allPages = [...staticPages, ...propertyPages];
+  // County SEO pages (Phil's primary coverage + any county with active listings)
+  const PRIMARY_COUNTIES = ['Hampshire','Hardy','Morgan','Grant','Pendleton','Mineral','Berkeley','Jefferson','Tucker'];
+  let countyPages = [];
+  try {
+    const activeCnty = db.prepare(`
+      SELECT DISTINCT c.name FROM counties c
+      JOIN properties p ON p.county_id = c.id
+      WHERE p.status = 'active'
+    `).all().map(r => r.name);
+    const allCnty = [...new Set([...PRIMARY_COUNTIES, ...activeCnty])];
+    countyPages = allCnty.map(name => ({
+      loc: `${SITE}/wv/${name.toLowerCase().replace(/\s+/g,'-')}-county`,
+      lastmod: now,
+      changefreq: 'weekly',
+      priority: '0.7',
+    }));
+  } catch (_) {}
+
+  const allPages = [...staticPages, ...propertyPages, ...countyPages];
 
   const xml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -983,6 +1001,283 @@ app.get('/sitemap.xml', (_req, res) => {
 
   res.type('application/xml');
   res.send(xml);
+});
+
+// ── County SEO pages  /wv/:county-county ──────────────────
+app.get('/wv/:slug', (req, res) => {
+  const slug = req.params.slug; // e.g. "hampshire-county"
+  const countyName = slug
+    .replace(/-county$/i, '')
+    .split('-')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+
+  const county = db.prepare(`SELECT id, name FROM counties WHERE name = ?`).get(countyName);
+  if (!county) return res.status(404).json({ error: 'County not found' });
+
+  const listings = db.prepare(`
+    SELECT id, listing_slug, address, city, price, property_type, lot_acres, bedrooms, image_url, description
+    FROM properties
+    WHERE county_id = ? AND status = 'active'
+    ORDER BY price ASC
+  `).all(county.id);
+
+  const SITE = 'https://malickland.net';
+  const title = `Land & Property for Sale in ${county.name} County, WV | MalickLand`;
+  const desc  = `Browse ${listings.length || ''} active listings in ${county.name} County, West Virginia. Hunting land, rural homes, and investment property listed by Phil Malick — local WV land specialist.`;
+
+  const cardHtml = listings.length ? listings.map(p => {
+    const url = `${SITE}/properties/${p.listing_slug || p.id}`;
+    const price = p.price ? `$${Number(p.price).toLocaleString()}` : 'Price TBD';
+    return `
+    <div class="lcard">
+      ${p.image_url ? `<img src="${p.image_url}" alt="${p.address}" loading="lazy">` : `<div class="lcard-img-ph"></div>`}
+      <div class="lcard-body">
+        <div class="lcard-price">${price}</div>
+        <div class="lcard-addr">${p.address}${p.city ? ', ' + p.city : ''}</div>
+        <div class="lcard-type">${p.property_type}${p.lot_acres ? ' · ' + p.lot_acres + ' ac' : ''}${p.bedrooms ? ' · ' + p.bedrooms + ' bd' : ''}</div>
+        ${p.description ? `<p class="lcard-desc">${p.description.slice(0,160)}…</p>` : ''}
+        <a href="${url}" class="lcard-btn">View Listing →</a>
+      </div>
+    </div>`;
+  }).join('') : `<p style="color:#666;grid-column:1/-1">No active listings right now — <a href="/#contact" style="color:#1B4332;font-weight:700">contact Phil</a> to be the first to know.</p>`;
+
+  const jsonLd = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: `Properties for Sale in ${county.name} County WV`,
+    url: `${SITE}/wv/${slug}`,
+    numberOfItems: listings.length,
+    itemListElement: listings.map((p, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      url: `${SITE}/properties/${p.listing_slug || p.id}`,
+      name: `${p.address} — ${county.name} County WV`,
+    })),
+  });
+
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${title}</title>
+  <meta name="description" content="${desc}">
+  <link rel="canonical" href="${SITE}/wv/${slug}">
+  <meta property="og:title" content="${title}">
+  <meta property="og:description" content="${desc}">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="${SITE}/wv/${slug}">
+  <meta property="og:image" content="${SITE}/public/brand/og-image.jpg">
+  <script type="application/ld+json">${jsonLd}</script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',sans-serif;background:#f9f6f0;color:#1a1a1a}
+    .nav{background:#0a0a0a;border-bottom:2px solid #D4AF37;padding:.75rem 2rem;display:flex;justify-content:space-between;align-items:center}
+    .nav a{color:#D4AF37;text-decoration:none;font-weight:700;font-size:1.1rem}
+    .nav-links a{color:#fff;font-size:.9rem;margin-left:1.5rem;font-weight:400}
+    .hero{background:linear-gradient(135deg,#0a0a0a 0%,#1B4332 100%);color:#fff;padding:3rem 2rem;text-align:center}
+    .hero h1{font-size:2rem;color:#D4AF37;margin-bottom:.5rem}
+    .hero p{opacity:.85;max-width:600px;margin:0 auto}
+    .main{max-width:1100px;margin:2.5rem auto;padding:0 1.5rem}
+    .section-title{font-size:1.4rem;color:#1B4332;margin-bottom:1.5rem;font-weight:800}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem;margin-bottom:3rem}
+    .lcard{background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+    .lcard img{width:100%;height:190px;object-fit:cover}
+    .lcard-img-ph{width:100%;height:190px;background:#c8d4cc}
+    .lcard-body{padding:1rem}
+    .lcard-price{font-size:1.3rem;font-weight:800;color:#1B4332;margin-bottom:.25rem}
+    .lcard-addr{font-size:.95rem;margin-bottom:.2rem}
+    .lcard-type{font-size:.82rem;color:#666;margin-bottom:.6rem}
+    .lcard-desc{font-size:.82rem;color:#555;line-height:1.5;margin-bottom:.75rem}
+    .lcard-btn{display:inline-block;background:#D4AF37;color:#0a0a0a;padding:.5rem 1.1rem;border-radius:6px;text-decoration:none;font-weight:700;font-size:.85rem}
+    .contact-box{background:#1B4332;color:#fff;border-radius:12px;padding:2rem;margin-bottom:3rem;text-align:center}
+    .contact-box h2{color:#D4AF37;margin-bottom:.75rem}
+    .contact-box p{opacity:.9;margin-bottom:1rem}
+    .contact-box a{color:#D4AF37;font-weight:700}
+    .nearby{margin-bottom:3rem}
+    .nearby h2{font-size:1.1rem;color:#1B4332;margin-bottom:.75rem;font-weight:700}
+    .nearby-links{display:flex;flex-wrap:wrap;gap:.5rem}
+    .nearby-links a{background:#fff;border:1px solid #ddd;border-radius:6px;padding:.4rem .8rem;font-size:.85rem;color:#1B4332;text-decoration:none;font-weight:600}
+    .nearby-links a:hover{background:#1B4332;color:#D4AF37}
+    footer{background:#0a0a0a;color:#aaa;text-align:center;padding:1.5rem;font-size:.82rem}
+    @media(max-width:600px){.hero h1{font-size:1.4rem}.nav-links{display:none}}
+  </style>
+</head>
+<body>
+<nav class="nav">
+  <a href="/">MalickLand</a>
+  <div>
+    <a href="/listings.html" class="nav-links">All Listings</a>
+    <a href="/#contact" class="nav-links">Contact</a>
+  </div>
+</nav>
+<div class="hero">
+  <h1>Land &amp; Property for Sale in ${county.name} County, WV</h1>
+  <p>${listings.length ? `${listings.length} active listing${listings.length > 1 ? 's' : ''} · Updated daily · Local agent Phil Malick` : `Be notified when listings come available in ${county.name} County`}</p>
+</div>
+<div class="main">
+  <h2 class="section-title">Active Listings in ${county.name} County</h2>
+  <div class="grid">${cardHtml}</div>
+
+  <div class="contact-box">
+    <h2>Work With a Local ${county.name} County Specialist</h2>
+    <p>Phil Malick knows WV land — from timber and hunting tracts to rural homesites. Call or email for a free property consultation.</p>
+    <p>
+      <a href="tel:+15402461421">(540) 246-1421</a>
+      &nbsp;·&nbsp;
+      <a href="mailto:phil@malickland.net">phil@malickland.net</a>
+    </p>
+  </div>
+
+  <div class="nearby">
+    <h2>Explore Nearby Counties</h2>
+    <div class="nearby-links">
+      ${['Hampshire','Hardy','Morgan','Grant','Pendleton','Mineral','Tucker','Berkeley'].filter(n=>n!==county.name).map(n=>`<a href="/wv/${n.toLowerCase()}-county">${n} County</a>`).join('')}
+    </div>
+  </div>
+</div>
+<footer>
+  &copy; ${new Date().getFullYear()} MalickLand Real Estate &middot; Phil Malick, WV Licensed REALTOR&reg;
+  &middot; Broker: Sheila Judy &middot; <a href="/" style="color:#D4AF37">malickland.net</a>
+</footer>
+</body>
+</html>`);
+});
+
+// ── Individual property SEO page  /properties/:slug ──────
+app.get('/properties/:slug', (req, res) => {
+  const { slug } = req.params;
+  const p = db.prepare(`
+    SELECT p.*, c.name AS county
+    FROM properties p
+    JOIN counties c ON c.id = p.county_id
+    WHERE p.listing_slug = ? OR p.id = ?
+  `).get(slug, slug);
+
+  if (!p) return res.status(404).sendFile(path.join(PROJECT_ROOT, 'app', 'index.html'));
+
+  const SITE = 'https://malickland.net';
+  const pageUrl = `${SITE}/properties/${p.listing_slug || p.id}`;
+  const price = p.price ? `$${Number(p.price).toLocaleString()}` : 'Price Upon Request';
+  const title = `${p.address}${p.city ? ', ' + p.city : ''} – ${p.county} County WV | MalickLand`;
+  const desc  = p.description
+    ? p.description.slice(0, 155)
+    : `${p.property_type} for sale in ${p.county} County, WV. ${price}. Contact Phil Malick, local WV land specialist.`;
+
+  const addr = encodeURIComponent(`${p.address}${p.city?', '+p.city:''}, WV${p.zip?' '+p.zip:''}`);
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${addr}`;
+  const satUrl  = `https://www.google.com/maps/@?api=1&map_action=map&basemap=satellite&q=${addr}`;
+
+  const jsonLd = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'RealEstateListing',
+    name: `${p.address} – ${p.county} County WV`,
+    description: p.description || desc,
+    url: pageUrl,
+    image: p.image_url || `${SITE}/public/brand/og-image.jpg`,
+    offers: p.price ? {
+      '@type': 'Offer',
+      price: p.price,
+      priceCurrency: 'USD',
+    } : undefined,
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: p.address,
+      addressLocality: p.city || '',
+      addressRegion: 'WV',
+      postalCode: p.zip || '',
+      addressCountry: 'US',
+    },
+  });
+
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${title}</title>
+  <meta name="description" content="${desc}">
+  <link rel="canonical" href="${pageUrl}">
+  <meta property="og:title" content="${title}">
+  <meta property="og:description" content="${desc}">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="${pageUrl}">
+  <meta property="og:image" content="${p.image_url || SITE + '/public/brand/og-image.jpg'}">
+  <script type="application/ld+json">${jsonLd}</script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',sans-serif;background:#f9f6f0;color:#1a1a1a}
+    .nav{background:#0a0a0a;border-bottom:2px solid #D4AF37;padding:.75rem 2rem;display:flex;justify-content:space-between;align-items:center}
+    .nav a{color:#D4AF37;text-decoration:none;font-weight:700;font-size:1.1rem}
+    .back-link{color:#fff!important;font-size:.9rem;font-weight:400!important;margin-left:1.5rem}
+    .hero{background:linear-gradient(135deg,#0a0a0a 0%,#1B4332 100%);color:#fff;padding:2.5rem 2rem}
+    .hero-inner{max-width:900px;margin:0 auto}
+    .hero-price{font-size:2.2rem;font-weight:900;color:#D4AF37;margin-bottom:.25rem}
+    .hero-addr{font-size:1.1rem;opacity:.85}
+    .main{max-width:900px;margin:2rem auto;padding:0 1.5rem;display:grid;grid-template-columns:1fr;gap:1.5rem}
+    .prop-img{width:100%;max-height:420px;object-fit:cover;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.12)}
+    .chips{display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:.25rem}
+    .chip{background:#fff;border:1px solid #e0e0e0;padding:.4rem .8rem;border-radius:6px;font-size:.85rem}
+    .chip.type{background:#1B4332;color:#D4AF37;font-weight:700;border-color:#1B4332}
+    .desc{line-height:1.7;color:#444;font-size:.95rem}
+    .map-row{display:flex;gap:.75rem;flex-wrap:wrap}
+    .map-btn{display:inline-flex;align-items:center;gap:.4rem;padding:.6rem 1.1rem;border-radius:8px;font-size:.85rem;font-weight:600;background:#fff;color:#1a1a1a;border:1px solid #e0e0e0;text-decoration:none}
+    .map-btn:hover{background:#f3f4f6}
+    .contact-box{background:#1B4332;color:#fff;border-radius:12px;padding:1.75rem}
+    .contact-box h2{color:#D4AF37;margin-bottom:.5rem;font-size:1.1rem}
+    .contact-box p{font-size:.9rem;opacity:.9;margin-bottom:.75rem}
+    .contact-box a{color:#D4AF37;font-weight:700}
+    footer{background:#0a0a0a;color:#aaa;text-align:center;padding:1.5rem;font-size:.82rem;margin-top:3rem}
+    @media(max-width:600px){.hero-price{font-size:1.6rem}}
+  </style>
+</head>
+<body>
+<nav class="nav">
+  <a href="/">MalickLand</a>
+  <a href="/listings.html" class="back-link">← All Listings</a>
+</nav>
+<div class="hero">
+  <div class="hero-inner">
+    <div class="hero-price">${price}</div>
+    <div class="hero-addr">${p.address}${p.city?', '+p.city:''} &middot; ${p.county} County, WV${p.zip?' '+p.zip:''}</div>
+  </div>
+</div>
+<div class="main">
+  ${p.image_url ? `<img src="${p.image_url}" alt="${p.address}" class="prop-img">` : ''}
+  <div>
+    <div class="chips">
+      <span class="chip type">${p.property_type}</span>
+      ${p.bedrooms  ? `<span class="chip">🛏 ${p.bedrooms} bd</span>` : ''}
+      ${p.bathrooms ? `<span class="chip">🚿 ${p.bathrooms} ba</span>` : ''}
+      ${p.sqft      ? `<span class="chip">📐 ${Number(p.sqft).toLocaleString()} sqft</span>` : ''}
+      ${p.lot_acres ? `<span class="chip">🌿 ${p.lot_acres} acres</span>` : ''}
+      ${p.year_built? `<span class="chip">🏗 Built ${p.year_built}</span>` : ''}
+      <span class="chip">📍 ${p.county} County, WV</span>
+    </div>
+  </div>
+  ${p.description ? `<p class="desc">${p.description}</p>` : ''}
+  <div class="map-row">
+    <a href="${mapsUrl}" target="_blank" rel="noopener" class="map-btn">🗺 View on Map</a>
+    <a href="${satUrl}"  target="_blank" rel="noopener" class="map-btn">🛰 Satellite View</a>
+    <a href="/wv/${p.county.toLowerCase()}-county" class="map-btn">📍 More ${p.county} County listings</a>
+  </div>
+  <div class="contact-box">
+    <h2>Interested in This Property?</h2>
+    <p>Contact Phil Malick directly — local WV land specialist, no runaround.</p>
+    <p>
+      <a href="tel:+15402461421">(540) 246-1421</a>
+      &nbsp;·&nbsp;
+      <a href="mailto:phil@malickland.net?subject=Inquiry: ${encodeURIComponent(p.address)}">phil@malickland.net</a>
+    </p>
+  </div>
+</div>
+<footer>
+  &copy; ${new Date().getFullYear()} MalickLand Real Estate &middot; Phil Malick, WV Licensed REALTOR&reg;
+  &middot; Broker: Sheila Judy &middot; <a href="/" style="color:#D4AF37">malickland.net</a>
+</footer>
+</body>
+</html>`);
 });
 
 app.use(express.static(path.join(PROJECT_ROOT, 'app')));
