@@ -37,14 +37,31 @@ function doSearch() {
 
 function applyFilters() {
   currentFilters = {
-    q:        document.getElementById('searchInput').value.trim(),
-    county:   document.getElementById('countyFilter').value,
-    type:     document.getElementById('typeFilter').value,
-    minPrice: document.getElementById('minPrice').value,
-    maxPrice: document.getElementById('maxPrice').value,
+    q:         document.getElementById('searchInput').value.trim(),
+    county:    document.getElementById('countyFilter').value,
+    type:      document.getElementById('typeFilter').value,
+    minPrice:  document.getElementById('minPrice').value,
+    maxPrice:  document.getElementById('maxPrice').value,
+    minAcres:  document.getElementById('minAcres')?.value || '',
   };
   currentPage = 1;
   loadListings();
+}
+
+const FEAT_ICONS = {
+  'Timber':'🌲','Hunting':'🦌','Water':'💧','Creek':'💧','Pond':'💧','Stream':'💧',
+  'Road Access':'🛣️','Paved Road':'🛣️','Gravel Road':'🛣️',
+  'Electric':'⚡','Power':'⚡','Utilities':'⚡',
+  'Broadband':'📶','Internet':'📶','Starlink':'📶',
+  'Mountain View':'🏔️','Views':'🏔️','Pasture':'🌾','Fields':'🌾',
+  'Well':'💦','Spring':'💦','Cabin':'🏠','Barn':'🏚️',
+};
+function appFeatureBadges(featStr) {
+  if (!featStr) return '';
+  return featStr.split(',').map(f => f.trim()).filter(Boolean).slice(0,4).map(f => {
+    const icon = Object.entries(FEAT_ICONS).find(([k]) => f.toLowerCase().includes(k.toLowerCase()));
+    return `<span class="feat-badge">${icon ? icon[1]+' ' : ''}${f}</span>`;
+  }).join('');
 }
 
 // ── Listings ─────────────────────────────────────────────
@@ -77,27 +94,32 @@ function renderListings({ properties, total, page }) {
     return;
   }
 
-  grid.innerHTML = properties.map(p => `
+  grid.innerHTML = properties.map(p => {
+    const isLand = p.property_type === 'land';
+    const price = p.price ? `$${Number(p.price).toLocaleString()}` : 'Contact for Price';
+    const ppa = isLand && p.price && p.lot_acres ? `<span style="font-size:.78rem;color:#666"> · $${Math.round(p.price/p.lot_acres).toLocaleString()}/ac</span>` : '';
+    const primaryStat = isLand
+      ? (p.lot_acres ? `🌿 ${p.lot_acres} acres` : '')
+      : [p.bedrooms?`🛏 ${p.bedrooms}bd`:'', p.bathrooms?`🚿 ${p.bathrooms}ba`:'', p.sqft?`📐 ${Number(p.sqft).toLocaleString()} sqft`:''].filter(Boolean).join(' · ');
+    const driveTag = p.driveTimes ? `<div class="drive-tag">🚗 ${p.driveTimes.dc} to DC</div>` : '';
+    return `
     <div class="property-card" onclick="openDetail('${p.id}')">
       <div class="card-img" style="background-image:url('${p.image_url || 'https://placehold.co/400x240/1a3a2a/gold?text=No+Photo'}')">
         ${p.price_reduced ? '<span class="badge reduced">Price Reduced</span>' : ''}
-        <span class="badge type">${p.property_type}</span>
+        <span class="badge type">${isLand ? '🌲 Land' : '🏡 '+p.property_type}</span>
       </div>
       <div class="card-body">
-        <div class="card-price">$${Number(p.price).toLocaleString()}</div>
+        <div class="card-price">${price}${ppa}</div>
         <div class="card-address">${p.address}${p.city ? ', ' + p.city : ''}</div>
         <div class="card-county">${p.county} County${p.zip ? ' · ' + p.zip : ''}</div>
-        <div class="card-details">
-          ${p.bedrooms ? `<span>🛏 ${p.bedrooms} bd</span>` : ''}
-          ${p.bathrooms ? `<span>🚿 ${p.bathrooms} ba</span>` : ''}
-          ${p.sqft ? `<span>📐 ${Number(p.sqft).toLocaleString()} sqft</span>` : ''}
-          ${p.lot_acres ? `<span>🌿 ${p.lot_acres} ac</span>` : ''}
-        </div>
+        ${primaryStat ? `<div class="card-details"><span>${primaryStat}</span></div>` : ''}
+        <div class="feat-badges">${appFeatureBadges(p.features)}</div>
+        ${driveTag}
         <div class="card-listed">Listed ${timeAgo(p.listed_at)}</div>
-        <button class="request-info-btn" onclick="event.stopPropagation();openRequestInfo('${p.id}','${(p.address||'').replace(/'/g,"\\'")}')">Request Info</button>
+        <button class="request-info-btn" onclick="event.stopPropagation();openDetail('${p.id}')">View Details →</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 
   renderPagination(total, page);
 }
@@ -122,35 +144,48 @@ async function openDetail(id) {
   const p    = await res.json();
 
   const modal = document.getElementById('modal') || createModal();
+  const isLand = p.property_type === 'land';
+  const addr = encodeURIComponent(`${p.address}${p.city?', '+p.city:''}, WV${p.zip?' '+p.zip:''}`);
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${addr}`;
+  const satUrl  = `https://www.google.com/maps/@?api=1&map_action=map&basemap=satellite&q=${addr}`;
+  const ppa = isLand && p.price && p.lot_acres ? ` · $${Math.round(p.price/p.lot_acres).toLocaleString()}/acre` : '';
+
   modal.innerHTML = `
     <div class="modal-content">
       <button class="modal-close" onclick="closeModal()">✕</button>
       <img src="${p.image_url || 'https://placehold.co/800x400/1a3a2a/gold?text=No+Photo'}" alt="Property" />
       <div class="modal-body">
-        <h2>$${Number(p.price).toLocaleString()}</h2>
+        <h2>$${Number(p.price).toLocaleString()}<span style="font-size:1rem;font-weight:400;color:#666">${ppa}</span></h2>
         <p class="modal-address">${p.address}${p.city ? ', ' + p.city : ''}, ${p.county} County${p.zip ? ' ' + p.zip : ''}</p>
+
         <div class="modal-details">
-          ${p.bedrooms   ? `<span>🛏 ${p.bedrooms} Bedrooms</span>` : ''}
-          ${p.bathrooms  ? `<span>🚿 ${p.bathrooms} Bathrooms</span>` : ''}
+          <span>${isLand ? '🌲 Land' : '🏡 '+p.property_type}</span>
+          ${p.lot_acres  ? `<span>🌿 ${p.lot_acres} acres</span>` : ''}
+          ${p.bedrooms   ? `<span>🛏 ${p.bedrooms} bd</span>` : ''}
+          ${p.bathrooms  ? `<span>🚿 ${p.bathrooms} ba</span>` : ''}
           ${p.sqft       ? `<span>📐 ${Number(p.sqft).toLocaleString()} sqft</span>` : ''}
-          ${p.lot_acres ? `<span>🌿 ${p.lot_acres} Acres</span>` : ''}
-          ${p.year_built ? `<span>🏗 Built ${p.year_built}</span>` : ''}
-          <span>📋 ${p.property_type}</span>
-          <span>🏷 ${p.status}</span>
+          ${p.year_built ? `<span>🏗 ${p.year_built}</span>` : ''}
         </div>
+
+        ${p.features ? `<div class="feat-badges" style="margin:.5rem 0">${appFeatureBadges(p.features)}</div>` : ''}
+
+        ${p.driveTimes ? `<div class="drive-row">🚗 <strong>${p.driveTimes.dc}</strong> to DC · <strong>${p.driveTimes.balt}</strong> to Baltimore · <strong>${p.driveTimes.pit}</strong> to Pittsburgh</div>` : ''}
+
+        ${isLand ? `<div class="land-grid">
+          ${p.road_access    ? `<div><span class="lg-label">🛣 Road</span>${p.road_access}</div>` : ''}
+          ${p.broadband_type ? `<div><span class="lg-label">📶 Broadband</span>${p.broadband_type}</div>` : ''}
+          ${p.water_features ? `<div style="grid-column:1/-1"><span class="lg-label">💧 Water</span>${p.water_features}</div>` : ''}
+          ${p.mineral_rights && p.mineral_rights!=='unknown' ? `<div><span class="lg-label">⛏ Minerals</span>${p.mineral_rights}</div>` : ''}
+          ${p.nearest_town   ? `<div><span class="lg-label">📍 Town</span>${p.nearest_town}${p.miles_to_town?' ('+p.miles_to_town+' mi)':''}</div>` : ''}
+          ${p.annual_tax     ? `<div><span class="lg-label">💰 Taxes</span>$${Number(p.annual_tax).toLocaleString()}/yr</div>` : ''}
+        </div>` : ''}
+
         ${p.description ? `<p class="modal-desc">${p.description}</p>` : ''}
 
-        <!-- Map + listing links -->
         <div class="modal-map-row">
-          ${(function(){
-            const addr = encodeURIComponent(`${p.address}${p.city?', '+p.city:''}, WV${p.zip?' '+p.zip:''}`);
-            const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${addr}`;
-            const satUrl  = `https://www.google.com/maps/@?api=1&map_action=map&basemap=satellite&q=${addr}`;
-            return `
-              <a href="${mapsUrl}" target="_blank" rel="noopener" class="modal-map-btn">🗺 View on Map</a>
-              <a href="${satUrl}"  target="_blank" rel="noopener" class="modal-map-btn">🛰 Satellite View</a>
-            `;
-          })()}
+          <a href="${mapsUrl}" target="_blank" rel="noopener" class="modal-map-btn">🗺 Map</a>
+          <a href="${satUrl}"  target="_blank" rel="noopener" class="modal-map-btn">🛰 Satellite</a>
+          ${p.listing_slug ? `<a href="/properties/${p.listing_slug}" target="_blank" class="modal-map-btn">🔗 Full Page</a>` : ''}
         </div>
 
         <div class="modal-contact">
@@ -158,14 +193,16 @@ async function openDetail(id) {
           <p style="margin-bottom:.75rem;font-size:.9rem;color:#555;">
             📞 <a href="tel:+15402461421" style="color:inherit;font-weight:600;">(540) 246-1421</a>
             &nbsp;·&nbsp;
-            ✉️ <a href="mailto:phil@malickland.net" style="color:inherit;font-weight:600;">phil@malickland.net</a>
+            💬 <a href="sms:+15402461421&body=Hi Phil, interested in ${encodeURIComponent(p.address||'your listing')}." style="color:inherit;font-weight:600;">Text Phil</a>
+            &nbsp;·&nbsp;
+            ✉️ <a href="mailto:phil@malickland.net" style="color:inherit;font-weight:600;">Email</a>
           </p>
           <input id="cName"  type="text"  placeholder="Your Name" />
           <input id="cEmail" type="email" placeholder="Email" />
           <input id="cPhone" type="tel"   placeholder="Phone (optional)" />
-          <textarea id="cMsg" placeholder="Message"></textarea>
+          <textarea id="cMsg" placeholder="Message">I'm interested in ${p.address}.</textarea>
           <button onclick="submitContact('${p.id}')">Send Inquiry</button>
-          <button onclick="requestPacket('${p.id}','${(p.address||'').replace(/'/g,"\\'")}',this)" style="margin-top:.5rem;background:#1B4332;color:#D4AF37;">Request Full Property Packet</button>
+          <p style="font-size:.72rem;color:#999;margin-top:.5rem;line-height:1.4">By submitting, you consent to receive communications from MalickLand. Reply STOP to opt out.</p>
         </div>
       </div>
     </div>

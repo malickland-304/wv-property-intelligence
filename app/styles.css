@@ -138,3 +138,15 @@ footer { background:var(--green); color:#fff; text-align:center; padding:1.5rem;
   .agent-inner { flex-direction:column; text-align:center; gap:1.5rem; }
   .agent-photo { width:160px; height:160px; }
 }
+
+/* FEATURE BADGES */
+.feat-badges { display:flex; flex-wrap:wrap; gap:.3rem; margin:.4rem 0; }
+.feat-badge { font-size:.74rem; background:#f0fdf4; border:1px solid #bbf7d0; padding:.2rem .55rem; border-radius:20px; color:#166534; white-space:nowrap; }
+
+/* DRIVE TIME */
+.drive-tag { font-size:.75rem; color:#6b7280; margin:.3rem 0 .5rem; }
+.drive-row { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:.5rem .85rem; font-size:.83rem; margin:.6rem 0; }
+
+/* LAND DETAIL GRID (modal) */
+.land-grid { display:grid; grid-template-columns:1fr 1fr; gap:.4rem .75rem; font-size:.83rem; margin:.6rem 0; padding:.75rem; background:#f9f6f0; border-radius:8px; }
+.land-grid .lg-label { color:#888; margin-right:.3rem; }

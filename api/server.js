@@ -247,6 +247,22 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
   }
 }
 
+// ── DC/Baltimore drive-time lookup (Eastern Panhandle selling point) ─
+const DC_DRIVE_TIMES = {
+  Hampshire:  { dc:'~2 hrs', balt:'~2.5 hrs', pit:'~3 hrs' },
+  Hardy:      { dc:'~2.5 hrs', balt:'~3 hrs',   pit:'~3 hrs' },
+  Morgan:     { dc:'~2 hrs',   balt:'~2.5 hrs', pit:'~3 hrs' },
+  Grant:      { dc:'~2.5 hrs', balt:'~3 hrs',   pit:'~3 hrs' },
+  Pendleton:  { dc:'~3 hrs',   balt:'~3.5 hrs', pit:'~3 hrs' },
+  Mineral:    { dc:'~2.5 hrs', balt:'~2.5 hrs', pit:'~3 hrs' },
+  Tucker:     { dc:'~3 hrs',   balt:'~3 hrs',   pit:'~3 hrs' },
+  Berkeley:   { dc:'~1.5 hrs', balt:'~2 hrs',   pit:'~3.5 hrs' },
+  Jefferson:  { dc:'~1.5 hrs', balt:'~2 hrs',   pit:'~3.5 hrs' },
+};
+function getDriveTimes(countyName) {
+  return DC_DRIVE_TIMES[countyName] || null;
+}
+
 // ── Helpers ───────────────────────────────────────────────
 function slugify(str) {
   return str.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
@@ -965,7 +981,8 @@ app.get('/api/properties', (req, res) => {
       FROM properties p JOIN counties c ON c.id=p.county_id
       ${where} ORDER BY p.listed_at DESC LIMIT ? OFFSET ?
     `).all(...values, Number(limit), offset);
-    res.json({ total, page:Number(page), properties });
+    const propsWithDrive = properties.map(p => ({ ...p, driveTimes: getDriveTimes(p.county) }));
+    res.json({ total, page:Number(page), properties: propsWithDrive });
   } catch(err) { console.error(err); res.status(500).json({ error:'Failed' }); }
 });
 
@@ -984,7 +1001,7 @@ app.get('/api/properties/:id', (req, res) => {
     FROM properties p JOIN counties c ON c.id=p.county_id WHERE p.id=? OR p.listing_slug=?
   `).get(req.params.id, req.params.id);
   if (!row) return res.status(404).json({ error:'Not found' });
-  res.json(row);
+  res.json({ ...row, driveTimes: getDriveTimes(row.county) });
 });
 
 app.get('/api/analytics', (_req, res) => {
