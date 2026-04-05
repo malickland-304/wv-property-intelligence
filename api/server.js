@@ -489,9 +489,11 @@ app.post('/admin/new', requireAuth, (req, res) => {
       latitude, longitude, flood_zone, school_district,
       bedrooms, bathrooms, sqft, year_built,
       property_description, marketing_description, seller_notes, internal_notes,
+      features, mineral_rights, water_features, broadband_type,
+      elevation_min, elevation_max, nearest_town, miles_to_town,
       listing_slug
     ) VALUES (
-      ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+      ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
     )
   `).run(
     id, f.county_id||1, f.address, f.city, f.state||'WV', f.zip,
@@ -505,6 +507,8 @@ app.post('/admin/new', requireAuth, (req, res) => {
     f.latitude||null, f.longitude||null, f.flood_zone, f.school_district,
     f.bedrooms||null, f.bathrooms||null, f.sqft||null, f.year_built||null,
     f.property_description, f.marketing_description, f.seller_notes, f.internal_notes,
+    f.features||null, f.mineral_rights||'unknown', f.water_features||null, f.broadband_type||null,
+    f.elevation_min||null, f.elevation_max||null, f.nearest_town||null, f.miles_to_town||null,
     uniqueSlug
   );
 
@@ -538,6 +542,8 @@ app.post('/admin/edit/:id', requireAuth, (req, res) => {
       latitude=?, longitude=?, flood_zone=?, school_district=?,
       bedrooms=?, bathrooms=?, sqft=?, year_built=?,
       property_description=?, marketing_description=?, seller_notes=?, internal_notes=?,
+      features=?, mineral_rights=?, water_features=?, broadband_type=?,
+      elevation_min=?, elevation_max=?, nearest_town=?, miles_to_town=?,
       updated_at=datetime('now')
     WHERE id=?
   `).run(
@@ -551,6 +557,8 @@ app.post('/admin/edit/:id', requireAuth, (req, res) => {
     f.latitude||null, f.longitude||null, f.flood_zone, f.school_district,
     f.bedrooms||null, f.bathrooms||null, f.sqft||null, f.year_built||null,
     f.property_description, f.marketing_description, f.seller_notes, f.internal_notes,
+    f.features||null, f.mineral_rights||'unknown', f.water_features||null, f.broadband_type||null,
+    f.elevation_min||null, f.elevation_max||null, f.nearest_town||null, f.miles_to_town||null,
     req.params.id
   );
   res.redirect('/admin');
@@ -1734,6 +1742,28 @@ function listingForm(p, counties) {
       <div><label>MLS Number</label><input type="text" name="mls_number" value="${v('mls_number')}" /></div>
       <div><label>Listing Agent</label><input type="text" name="listing_agent" value="${v('listing_agent')||'Phil Malick'}" /></div>
       <div><label>Listing Office</label><input type="text" name="listing_office" value="${v('listing_office')||'WV Real Estate Agency'}" /></div>
+
+      <div class="form-section"><h3>🌲 Land-Specific Details</h3></div>
+
+      <div class="full">
+        <label>Features / Tags <span style="font-weight:400;color:#888">(comma-separated: Hunting, Timber, Water, Road Access, Broadband, Mountain View, Pasture, Cabin, Barn, Spring)</span></label>
+        <input type="text" name="features" value="${v('features')}" placeholder="Hunting, Timber, Mountain View, Water..." />
+      </div>
+      <div><label>Broadband Type</label><input type="text" name="broadband_type" value="${v('broadband_type')}" placeholder="Starlink Available, Fiber, None..." /></div>
+      <div><label>Mineral Rights</label>
+        <select name="mineral_rights">
+          <option value="unknown" ${sel('mineral_rights','unknown')}>Unknown</option>
+          <option value="included" ${sel('mineral_rights','included')}>Included</option>
+          <option value="excluded" ${sel('mineral_rights','excluded')}>Excluded (Severed)</option>
+        </select>
+      </div>
+      <div class="full"><label>Water Features <span style="font-weight:400;color:#888">(streams, ponds, springs)</span></label>
+        <input type="text" name="water_features" value="${v('water_features')}" placeholder="Seasonal creek, 1/4 mile of Mill Run..." />
+      </div>
+      <div><label>Elevation Min (ft)</label><input type="number" name="elevation_min" value="${v('elevation_min')}" /></div>
+      <div><label>Elevation Max (ft)</label><input type="number" name="elevation_max" value="${v('elevation_max')}" /></div>
+      <div><label>Nearest Town</label><input type="text" name="nearest_town" value="${v('nearest_town')}" /></div>
+      <div><label>Miles to Town</label><input type="number" step="0.1" name="miles_to_town" value="${v('miles_to_town')}" /></div>
 
       <div class="form-section"><h3>📍 Location & Environment</h3></div>
 
