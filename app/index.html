@@ -1508,7 +1508,7 @@ async function loadListings() {
           <div class="card-address">${p.address}${p.city ? ', ' + p.city : ''}</div>
           <div class="card-price">${price}</div>
           ${details ? `<div class="card-details">${details}</div>` : ''}
-          <a href="/property/${p.id}" class="card-btn">View Details →</a>
+          <a href="#" class="card-btn" onclick="event.preventDefault();showPropertyModal('${p.id}')">View Details →</a>
         </div>
       </div>`;
     }).join('');
@@ -1517,6 +1517,82 @@ async function loadListings() {
   }
 }
 loadListings();
+
+// ---- PROPERTY DETAIL MODAL ----
+async function showPropertyModal(id) {
+  let overlay = document.getElementById('propModal');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'propModal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.style.display='none'; });
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML = '<div style="background:#fff;border-radius:12px;padding:2rem;color:#1a1a1a;font-size:1rem">Loading...</div>';
+  overlay.style.display = 'flex';
+
+  try {
+    const p = await fetch(`/api/properties/${id}`).then(r => r.json());
+    const addr = encodeURIComponent(`${p.address}${p.city?', '+p.city:''}, WV${p.zip?' '+p.zip:''}`);
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${addr}`;
+    const satUrl  = `https://www.google.com/maps/@?api=1&map_action=map&basemap=satellite&q=${addr}`;
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:14px;max-width:680px;width:100%;max-height:90vh;overflow-y:auto;position:relative;">
+        <button onclick="document.getElementById('propModal').style.display='none'"
+          style="position:absolute;top:.75rem;right:.75rem;background:#1B4332;color:#fff;border:none;border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer;z-index:1">✕</button>
+        ${p.image_url ? `<img src="${p.image_url}" alt="${p.address}" style="width:100%;max-height:300px;object-fit:cover;border-radius:14px 14px 0 0">` : ''}
+        <div style="padding:1.5rem">
+          <h2 style="font-size:1.9rem;font-weight:900;color:#0a0a0a;margin-bottom:.25rem">$${Number(p.price).toLocaleString()}</h2>
+          <p style="color:#555;margin-bottom:1rem">${p.address}${p.city?', '+p.city:''}, ${p.county} County${p.zip?' '+p.zip:''}</p>
+          <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:1rem">
+            ${p.bedrooms  ? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem">🛏 ${p.bedrooms} bd</span>`:''}
+            ${p.bathrooms ? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem">🚿 ${p.bathrooms} ba</span>`:''}
+            ${p.sqft      ? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem">📐 ${Number(p.sqft).toLocaleString()} sqft</span>`:''}
+            ${p.lot_acres ? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem">🌿 ${p.lot_acres} ac</span>`:''}
+            ${p.year_built? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem">🏗 ${p.year_built}</span>`:''}
+            <span style="background:#1B4332;color:#D4AF37;padding:.35rem .75rem;border-radius:6px;font-size:.85rem;font-weight:700">${p.property_type}</span>
+          </div>
+          ${p.description ? `<p style="color:#444;line-height:1.65;margin-bottom:1.25rem;font-size:.95rem">${p.description}</p>` : ''}
+          <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.5rem">
+            <a href="${mapsUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:.4rem;padding:.55rem 1rem;border-radius:8px;font-size:.85rem;font-weight:600;background:#f3f4f6;color:#1a1a1a;border:1px solid #e0e0e0;text-decoration:none">🗺 View on Map</a>
+            <a href="${satUrl}"  target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:.4rem;padding:.55rem 1rem;border-radius:8px;font-size:.85rem;font-weight:600;background:#f3f4f6;color:#1a1a1a;border:1px solid #e0e0e0;text-decoration:none">🛰 Satellite View</a>
+          </div>
+          <div style="border-top:1px solid #f0f0f0;padding-top:1.25rem">
+            <h3 style="color:#1B4332;margin-bottom:.5rem;font-size:1rem">Contact Phil Malick</h3>
+            <p style="font-size:.88rem;color:#555;margin-bottom:.75rem">
+              📞 <a href="tel:+15402461421" style="color:#1B4332;font-weight:600">(540) 246-1421</a>
+              &nbsp;·&nbsp;
+              ✉️ <a href="mailto:phil@malickland.net" style="color:#1B4332;font-weight:600">phil@malickland.net</a>
+            </p>
+            <input id="pm_name"  type="text"  placeholder="Your Name"  style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
+            <input id="pm_email" type="email" placeholder="Email"      style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
+            <input id="pm_phone" type="tel"   placeholder="Phone (optional)" style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
+            <textarea id="pm_msg" placeholder="Message" style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.75rem;min-height:80px;font-size:.9rem;font-family:inherit;resize:vertical">I'd like more information about ${p.address}.</textarea>
+            <button onclick="pmSend('${p.id}',this)" style="width:100%;padding:.85rem;background:#D4AF37;color:#0a0a0a;border:none;border-radius:8px;font-size:1rem;font-weight:800;cursor:pointer">Send Inquiry</button>
+          </div>
+        </div>
+      </div>`;
+  } catch(e) {
+    overlay.innerHTML = '<div style="background:#fff;padding:2rem;border-radius:12px;color:#c00">Failed to load property. Please try again.</div>';
+  }
+}
+
+async function pmSend(propertyId, btn) {
+  const name  = document.getElementById('pm_name')?.value.trim();
+  const email = document.getElementById('pm_email')?.value.trim();
+  const phone = document.getElementById('pm_phone')?.value.trim();
+  const msg   = document.getElementById('pm_msg')?.value.trim();
+  if (!name || !email) { alert('Name and email are required.'); return; }
+  btn.disabled = true; btn.textContent = 'Sending...';
+  try {
+    const r = await fetch('/api/contacts', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ property_id: propertyId, name, email, phone, message: msg, source: 'homepage_detail' })
+    });
+    if (r.ok) { btn.textContent = "✅ Sent! Phil will be in touch."; btn.style.background='#1B4332'; btn.style.color='#D4AF37'; }
+    else      { btn.disabled=false; btn.textContent='Send Inquiry'; alert('Failed. Please try again.'); }
+  } catch { btn.disabled=false; btn.textContent='Send Inquiry'; }
+}
 
 // ---- STICKY NAV SHADOW ----
 window.addEventListener('scroll', () => {
