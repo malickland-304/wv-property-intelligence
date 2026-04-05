@@ -489,7 +489,7 @@ app.get('/admin', requireAuth, adminWriteRateLimit, (req, res) => {
       <td>${escapeHtml(p.property_type)}</td>
       <td>${p.price ? '$'+Number(p.price).toLocaleString() : '--'}</td>
       <td>${p.acreage ? p.acreage+' ac' : '--'}</td>
-      <td><span class="badge ${['active','pending','sold','withdrawn','draft'].includes(p.status) ? p.status : 'draft'}">${escapeHtml(p.status)}</span></td>
+      ${(() => { const s = ['active','pending','sold','withdrawn','draft'].includes(p.status) ? p.status : 'draft'; return `<td><span class="badge ${s}">${s}</span></td>`; })()}
       <td>${escapeHtml(p.mls_status||'draft')}</td>
       <td>
         <a href="/admin/edit/${p.id}" class="btn-sm">Edit</a>

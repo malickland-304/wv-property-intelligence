@@ -89,7 +89,7 @@ function renderListings({ properties, total, page }) {
   }
 
   grid.innerHTML = properties.map(p => `
-    <div class="property-card" onclick="openDetail('${p.id}')">
+    <div class="property-card" onclick="openDetail(${JSON.stringify(p.id)})">
       <div class="card-img" style="background-image:url('${escapeHtml(p.image_url || 'https://placehold.co/400x240/1a3a2a/gold?text=No+Photo')}')">
         ${p.price_reduced ? '<span class="badge reduced">Price Reduced</span>' : ''}
         <span class="badge type">${escapeHtml(p.property_type)}</span>
