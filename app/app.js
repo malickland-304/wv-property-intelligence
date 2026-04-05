@@ -136,7 +136,7 @@ async function openDetail(id) {
   modal.innerHTML = `
     <div class="modal-content">
       <button class="modal-close" onclick="closeModal()">✕</button>
-      <img src="${escapeHtml(p.image_url || 'https://placehold.co/800x400/1a3a2a/gold?text=No+Photo')}" alt="Property" />
+      <img src="${escapeHtml(p.image_url || 'https://placehold.co/800x400/1a3a2a/gold?text=No+Photo')}" alt="Property" onerror="this.style.display='none'" />
       <div class="modal-body">
         <h2>$${Number(p.price).toLocaleString()}</h2>
         <p class="modal-address">${escapeHtml(p.address)}${p.city ? ', ' + escapeHtml(p.city) : ''}, ${escapeHtml(p.county)} County${p.zip ? ' ' + escapeHtml(p.zip) : ''}</p>

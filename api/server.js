@@ -1076,7 +1076,7 @@ app.post('/api/properties', apiWriteRateLimit, requireApiKey, (req, res) => {
     `).run(
       id, f.county_id||1, f.address, f.city||null, f.state||'WV', f.zip||null,
       f.parcel_id||null, f.subdivision||null, f.property_type||'land', f.status||'draft',
-      f.acreage||null, f.lot_size||null, f.road_access||null, f.utilities_available||null,
+      normalizeAcreage(f), f.lot_size||null, f.road_access||null, f.utilities_available||null,
       f.septic?1:0, f.well?1:0, f.electric?1:0, f.internet?1:0,
       f.price||null, f.recommended_list_price||null, f.price_per_acre||null,
       f.tax_assessed||null, f.annual_tax||null,
@@ -1116,7 +1116,7 @@ app.put('/api/properties/:id', apiWriteRateLimit, requireApiKey, (req, res) => {
     `).run(
       f.county_id||1, f.address, f.city||null, f.state||'WV', f.zip||null,
       f.parcel_id||null, f.subdivision||null, f.property_type||'land', f.status||'draft',
-      f.acreage||null, f.lot_size||null, f.road_access||null, f.utilities_available||null,
+      normalizeAcreage(f), f.lot_size||null, f.road_access||null, f.utilities_available||null,
       f.septic?1:0, f.well?1:0, f.electric?1:0, f.internet?1:0,
       f.price||null, f.recommended_list_price||null, f.price_per_acre||null,
       f.tax_assessed||null, f.annual_tax||null,

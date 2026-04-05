@@ -1352,7 +1352,7 @@ async function loadListings() {
     }
     grid.innerHTML = props.slice(0, 6).map(p => {
       const imgHtml = p.image_url
-        ? `<img src="${p.image_url}" alt="${p.address}" loading="lazy" />`
+        ? `<img src="${p.image_url}" alt="${p.address}" loading="lazy" onerror="this.style.display='none'" />`
         : `<span style="font-size:3.5rem">🌲</span>`;
       const acres = p.lot_acres ? `${p.lot_acres} ac` : '';
       const sqft = p.sqft ? `${p.sqft.toLocaleString()} sqft` : '';
