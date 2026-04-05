@@ -120,6 +120,15 @@ db.exec(`
 // Schema migrations (safe to run repeatedly)
 try { db.exec(`ALTER TABLE contacts ADD COLUMN lead_status TEXT DEFAULT 'new'`); } catch(_) {}
 try { db.exec(`ALTER TABLE contacts ADD COLUMN last_contacted_at TEXT`); } catch(_) {}
+// Land-specific fields
+try { db.exec(`ALTER TABLE properties ADD COLUMN features TEXT`); } catch(_) {}
+try { db.exec(`ALTER TABLE properties ADD COLUMN mineral_rights TEXT DEFAULT 'unknown'`); } catch(_) {}
+try { db.exec(`ALTER TABLE properties ADD COLUMN water_features TEXT`); } catch(_) {}
+try { db.exec(`ALTER TABLE properties ADD COLUMN broadband_type TEXT`); } catch(_) {}
+try { db.exec(`ALTER TABLE properties ADD COLUMN elevation_min INTEGER`); } catch(_) {}
+try { db.exec(`ALTER TABLE properties ADD COLUMN elevation_max INTEGER`); } catch(_) {}
+try { db.exec(`ALTER TABLE properties ADD COLUMN nearest_town TEXT`); } catch(_) {}
+try { db.exec(`ALTER TABLE properties ADD COLUMN miles_to_town REAL`); } catch(_) {}
 
 // Seed counties
 if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
@@ -925,22 +934,25 @@ app.get('/api/counties', (_req, res) => {
 
 app.get('/api/properties', (req, res) => {
   try {
-    const { q='',county='',type='',minPrice='',maxPrice='',page=1,limit=12 } = req.query;
+    const { q='',county='',type='',minPrice='',maxPrice='',minAcres='',maxAcres='',page=1,limit=12 } = req.query;
     const conditions = ["p.status = 'active'"];
     const values = [];
-    if (q)        { conditions.push(`(p.address LIKE ? OR p.zip LIKE ?)`); values.push(`%${q}%`,`%${q}%`); }
-    if (county)   { conditions.push(`p.county_id = ?`);       values.push(Number(county)); }
-    if (type)     { conditions.push(`p.property_type = ?`);   values.push(type); }
-    if (minPrice) { conditions.push(`p.price >= ?`);          values.push(Number(minPrice)); }
-    if (maxPrice) { conditions.push(`p.price <= ?`);          values.push(Number(maxPrice)); }
+    if (q)         { conditions.push(`(p.address LIKE ? OR p.zip LIKE ? OR p.city LIKE ?)`); values.push(`%${q}%`,`%${q}%`,`%${q}%`); }
+    if (county)    { conditions.push(`p.county_id = ?`);       values.push(Number(county)); }
+    if (type)      { conditions.push(`p.property_type = ?`);   values.push(type); }
+    if (minPrice)  { conditions.push(`p.price >= ?`);          values.push(Number(minPrice)); }
+    if (maxPrice)  { conditions.push(`p.price <= ?`);          values.push(Number(maxPrice)); }
+    if (minAcres)  { conditions.push(`p.acreage >= ?`);        values.push(Number(minAcres)); }
+    if (maxAcres)  { conditions.push(`p.acreage <= ?`);        values.push(Number(maxAcres)); }
     const where  = 'WHERE ' + conditions.join(' AND ');
     const offset = (Number(page)-1) * Number(limit);
     const total  = db.prepare(`SELECT COUNT(*) as c FROM properties p ${where}`).get(...values).c;
-    // DB stores `acreage`; the public API exposes `lot_acres` (aliased) for the UI
     const properties = db.prepare(`
       SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
              p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
              p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
+             p.features, p.road_access, p.electric, p.well, p.internet, p.broadband_type,
+             p.water_features, p.nearest_town, p.miles_to_town, p.listing_slug,
              c.name AS county
       FROM properties p JOIN counties c ON c.id=p.county_id
       ${where} ORDER BY p.listed_at DESC LIMIT ? OFFSET ?
@@ -954,9 +966,15 @@ app.get('/api/properties/:id', (req, res) => {
     SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
            p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
            p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
-           p.county_id, c.name AS county, p.property_description AS description
-    FROM properties p JOIN counties c ON c.id=p.county_id WHERE p.id=?
-  `).get(req.params.id);
+           p.county_id, c.name AS county,
+           p.property_description AS description,
+           p.features, p.road_access, p.utilities_available,
+           p.electric, p.well, p.septic, p.internet, p.broadband_type,
+           p.mineral_rights, p.water_features, p.elevation_min, p.elevation_max,
+           p.nearest_town, p.miles_to_town, p.annual_tax, p.parcel_id,
+           p.flood_zone, p.listing_slug
+    FROM properties p JOIN counties c ON c.id=p.county_id WHERE p.id=? OR p.listing_slug=?
+  `).get(req.params.id, req.params.id);
   if (!row) return res.status(404).json({ error:'Not found' });
   res.json(row);
 });

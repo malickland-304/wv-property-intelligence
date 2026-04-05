@@ -550,6 +550,18 @@
 
     .card-btn:hover { background: var(--green-light); }
 
+    /* Feature badges */
+    .card-features { display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.75rem; }
+    .card-feat { font-size:.75rem;background:#f3f4f6;border:1px solid #e5e7eb;padding:.2rem .55rem;border-radius:20px;color:#374151;white-space:nowrap; }
+
+    /* Price per acre */
+    .card-ppa { font-size:.78rem;color:#6b7280;margin-bottom:.5rem; }
+
+    /* Listing type tabs */
+    .ltab { background:#f3f4f6;border:1px solid #e5e7eb;color:#374151;padding:.45rem 1.1rem;border-radius:20px;font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s; }
+    .ltab:hover { background:var(--green);color:#fff;border-color:var(--green); }
+    .ltab-active { background:var(--green);color:#fff;border-color:var(--green); }
+
     /* Skeleton loading */
     .skeleton {
       background: linear-gradient(90deg, var(--gray-light) 25%, #e5e7eb 50%, var(--gray-light) 75%);
@@ -1235,6 +1247,12 @@
       <span class="section-label">Available Now</span>
       <h2 class="section-title">Featured Properties</h2>
     </div>
+    <!-- Type filter tabs -->
+    <div id="listingTabs" style="display:flex;gap:.5rem;margin-bottom:1.25rem;flex-wrap:wrap">
+      <button class="ltab ltab-active" data-type="" onclick="setListingType(this,'')">All Properties</button>
+      <button class="ltab" data-type="land" onclick="setListingType(this,'land')">🌲 Land &amp; Acreage</button>
+      <button class="ltab" data-type="residential" onclick="setListingType(this,'residential')">🏡 Homes</button>
+    </div>
     <div class="listings-grid" id="listingsGrid">
       <div class="skeleton"></div>
       <div class="skeleton"></div>
@@ -1510,10 +1528,38 @@ async function submitForm(form, successId) {
 });
 
 // ---- LISTINGS ----
+const FEATURE_ICONS = {
+  'Timber':'🌲','Hunting':'🦌','Water':'💧','Creek':'💧','Pond':'💧','Stream':'💧',
+  'Road Access':'🛣️','Paved Road':'🛣️','Gravel Road':'🛣️',
+  'Electric':'⚡','Power':'⚡','Utilities':'⚡',
+  'Broadband':'📶','Internet':'📶','Starlink':'📶',
+  'Mountain View':'🏔️','Views':'🏔️','Pasture':'🌾','Fields':'🌾',
+  'Cabin':'🏠','Barn':'🏚️','Well':'💦','Spring':'💦',
+};
+
+function featureBadges(featStr) {
+  if (!featStr) return '';
+  const badges = featStr.split(',').map(f => f.trim()).filter(Boolean).slice(0,5);
+  if (!badges.length) return '';
+  return `<div class="card-features">${badges.map(f => {
+    const icon = Object.entries(FEATURE_ICONS).find(([k]) => f.toLowerCase().includes(k.toLowerCase()));
+    return `<span class="card-feat">${icon ? icon[1]+' ' : ''}${f}</span>`;
+  }).join('')}</div>`;
+}
+
+let _listingType = '';
+function setListingType(btn, type) {
+  _listingType = type;
+  document.querySelectorAll('.ltab').forEach(b => b.classList.remove('ltab-active'));
+  btn.classList.add('ltab-active');
+  loadListings();
+}
+
 async function loadListings() {
   const grid = document.getElementById('listingsGrid');
   try {
-    const res = await fetch('/api/properties?limit=6');
+    const url = `/api/properties?limit=6${_listingType ? '&type='+encodeURIComponent(_listingType) : ''}`;
+    const res = await fetch(url);
     const data = await res.json();
     const props = data.properties || data;
     if (!props || !props.length) {
@@ -1521,14 +1567,21 @@ async function loadListings() {
       return;
     }
     grid.innerHTML = props.slice(0, 6).map(p => {
+      const isLand = p.property_type === 'land';
       const imgHtml = p.image_url
         ? `<img src="${p.image_url}" alt="${p.address}" loading="lazy" />`
-        : `<span style="font-size:3.5rem">🌲</span>`;
-      const acres = p.lot_acres ? `${p.lot_acres} ac` : '';
-      const sqft = p.sqft ? `${p.sqft.toLocaleString()} sqft` : '';
-      const beds = p.bedrooms ? `${p.bedrooms}bd` : '';
+        : `<span style="font-size:3.5rem">${isLand ? '🌲' : '🏡'}</span>`;
       const price = p.price ? `$${Number(p.price).toLocaleString()}` : 'Contact for Price';
-      const details = [beds, sqft, acres].filter(Boolean).join(' · ');
+      // Land: acreage first; Home: beds/sqft first
+      let primaryDetail = '';
+      let secondaryLine = '';
+      if (isLand) {
+        primaryDetail = p.lot_acres ? `<strong>${p.lot_acres} acres</strong>` : '';
+        if (p.price && p.lot_acres) secondaryLine = `<div class="card-ppa">$${Math.round(p.price/p.lot_acres).toLocaleString()}/acre</div>`;
+      } else {
+        primaryDetail = [p.bedrooms ? `${p.bedrooms} bd` : '', p.bathrooms ? `${p.bathrooms} ba` : '', p.sqft ? `${Number(p.sqft).toLocaleString()} sqft` : ''].filter(Boolean).join(' · ');
+      }
+      const detailSlug = p.listing_slug || p.id;
       return `
       <div class="card">
         <div class="card-img">
@@ -1536,10 +1589,12 @@ async function loadListings() {
           <span class="card-county">${p.county || ''} County</span>
         </div>
         <div class="card-body">
-          <div class="card-type">${(p.property_type || 'Property').replace(/-/g,' ')}</div>
+          <div class="card-type">${isLand ? '🌲 Land' : '🏡 '+((p.property_type||'Home').replace(/-/g,' '))}</div>
           <div class="card-address">${p.address}${p.city ? ', ' + p.city : ''}</div>
           <div class="card-price">${price}</div>
-          ${details ? `<div class="card-details">${details}</div>` : ''}
+          ${primaryDetail ? `<div class="card-details">${primaryDetail}</div>` : ''}
+          ${secondaryLine}
+          ${featureBadges(p.features)}
           <a href="#" class="card-btn" onclick="event.preventDefault();showPropertyModal('${p.id}')">View Details →</a>
         </div>
       </div>`;
@@ -1577,19 +1632,34 @@ async function showPropertyModal(id) {
         ${p.image_url ? `<img src="${p.image_url}" alt="${p.address}" style="width:100%;max-height:300px;object-fit:cover;border-radius:14px 14px 0 0">` : ''}
         <div style="padding:1.5rem">
           <h2 style="font-size:1.9rem;font-weight:900;color:#0a0a0a;margin-bottom:.25rem">$${Number(p.price).toLocaleString()}</h2>
-          <p style="color:#555;margin-bottom:1rem">${p.address}${p.city?', '+p.city:''}, ${p.county} County${p.zip?' '+p.zip:''}</p>
-          <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:1rem">
+          <p style="color:#555;margin-bottom:.75rem">${p.address}${p.city?', '+p.city:''}, ${p.county} County${p.zip?' '+p.zip:''}</p>
+          <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:.9rem">
+            <span style="background:#1B4332;color:#D4AF37;padding:.35rem .75rem;border-radius:6px;font-size:.82rem;font-weight:700">${p.property_type==='land'?'🌲 Land':'🏡 '+p.property_type}</span>
+            ${p.lot_acres ? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem;font-weight:700">🌿 ${p.lot_acres} acres</span>`:''}
+            ${p.price && p.lot_acres ? `<span style="background:#f9f6f0;padding:.35rem .75rem;border-radius:6px;font-size:.82rem;color:#666">$${Math.round(p.price/p.lot_acres).toLocaleString()}/acre</span>`:''}
             ${p.bedrooms  ? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem">🛏 ${p.bedrooms} bd</span>`:''}
             ${p.bathrooms ? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem">🚿 ${p.bathrooms} ba</span>`:''}
             ${p.sqft      ? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem">📐 ${Number(p.sqft).toLocaleString()} sqft</span>`:''}
-            ${p.lot_acres ? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem">🌿 ${p.lot_acres} ac</span>`:''}
             ${p.year_built? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem">🏗 ${p.year_built}</span>`:''}
-            <span style="background:#1B4332;color:#D4AF37;padding:.35rem .75rem;border-radius:6px;font-size:.85rem;font-weight:700">${p.property_type}</span>
           </div>
-          ${p.description ? `<p style="color:#444;line-height:1.65;margin-bottom:1.25rem;font-size:.95rem">${p.description}</p>` : ''}
+          ${p.features ? `<div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.9rem">${p.features.split(',').map(f=>f.trim()).filter(Boolean).map(f=>{const icon=Object.entries(FEATURE_ICONS).find(([k])=>f.toLowerCase().includes(k.toLowerCase()));return `<span style="background:#f0fdf4;border:1px solid #bbf7d0;padding:.25rem .6rem;border-radius:20px;font-size:.78rem;color:#166534">${icon?icon[1]+' ':''}${f}</span>`;}).join('')}</div>`:''}
+          ${p.description ? `<p style="color:#444;line-height:1.65;margin-bottom:1rem;font-size:.93rem">${p.description}</p>` : ''}
+          <!-- Land-specific detail grid -->
+          ${p.property_type==='land' ? `
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem .75rem;margin-bottom:1rem;font-size:.83rem">
+            ${p.road_access ? `<div><span style="color:#888">🛣 Road:</span> ${p.road_access}</div>` : ''}
+            ${p.broadband_type ? `<div><span style="color:#888">📶 Broadband:</span> ${p.broadband_type}</div>` : (p.internet ? `<div><span style="color:#888">📶 Internet:</span> Available</div>` : '')}
+            ${p.water_features ? `<div style="grid-column:1/-1"><span style="color:#888">💧 Water:</span> ${p.water_features}</div>` : ''}
+            ${p.mineral_rights && p.mineral_rights!=='unknown' ? `<div><span style="color:#888">⛏ Mineral Rights:</span> ${p.mineral_rights}</div>` : ''}
+            ${(p.elevation_min||p.elevation_max) ? `<div><span style="color:#888">🏔 Elevation:</span> ${[p.elevation_min,p.elevation_max].filter(Boolean).join('–')} ft</div>` : ''}
+            ${p.nearest_town ? `<div><span style="color:#888">📍 Nearest Town:</span> ${p.nearest_town}${p.miles_to_town?' ('+p.miles_to_town+' mi)':''}</div>` : ''}
+            ${p.annual_tax ? `<div><span style="color:#888">💰 Annual Tax:</span> $${Number(p.annual_tax).toLocaleString()}</div>` : ''}
+            ${p.parcel_id ? `<div><span style="color:#888">📋 Parcel ID:</span> ${p.parcel_id}</div>` : ''}
+          </div>` : ''}
           <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.5rem">
             <a href="${mapsUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:.4rem;padding:.55rem 1rem;border-radius:8px;font-size:.85rem;font-weight:600;background:#f3f4f6;color:#1a1a1a;border:1px solid #e0e0e0;text-decoration:none">🗺 View on Map</a>
             <a href="${satUrl}"  target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:.4rem;padding:.55rem 1rem;border-radius:8px;font-size:.85rem;font-weight:600;background:#f3f4f6;color:#1a1a1a;border:1px solid #e0e0e0;text-decoration:none">🛰 Satellite View</a>
+            ${p.listing_slug ? `<a href="/properties/${p.listing_slug}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:.4rem;padding:.55rem 1rem;border-radius:8px;font-size:.85rem;font-weight:600;background:#f3f4f6;color:#1a1a1a;border:1px solid #e0e0e0;text-decoration:none">🔗 Full Detail Page</a>` : ''}
           </div>
           <div style="border-top:1px solid #f0f0f0;padding-top:1.25rem">
             <h3 style="color:#1B4332;margin-bottom:.5rem;font-size:1rem">Contact Phil Malick</h3>
