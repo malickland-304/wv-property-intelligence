@@ -272,9 +272,8 @@ function initListingFolder(slug) {
 // ── Multer (photo upload) ─────────────────────────────────
 const storage = multer.diskStorage({
   destination: (req, _file, cb) => {
-    const rawSlug = req.params.slug || req.body.slug || 'uploads';
-    // Sanitise the slug to prevent directory traversal
-    const slug = rawSlug.replace(/[^a-zA-Z0-9_.-]/g, '').replace(/\.{2,}/g, '') || 'uploads';
+    // Use path.basename() to strip any path separators from the slug
+    const slug = path.basename(req.params.slug || req.body.slug || 'uploads');
     const dir  = path.join(PROJECT_ROOT, 'listings', slug, 'photos', 'raw');
     fs.mkdirSync(dir, { recursive:true });
     cb(null, dir);
@@ -367,8 +366,17 @@ const apiWriteRateLimit = rateLimit({
   message: { error: 'Too many API requests. Please wait a moment.' },
 });
 
-// Validate that a slug/filename only contains safe characters (alphanumeric, hyphens, underscores, dots)
-const SAFE_PATH_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
+// 30 photo uploads per minute per IP (admin upload handler)
+const uploadRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many upload requests. Please wait a moment.' },
+});
+
+// Validate that a slug/filename only contains safe characters (alphanumeric, hyphens, underscores)
+const SAFE_PATH_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*(\.[a-zA-Z0-9]+)?$/;
 function isSafePathComponent(str) {
   return typeof str === 'string' && SAFE_PATH_RE.test(str) && !str.includes('..');
 }
@@ -659,19 +667,21 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
 });
 
 // Upload handler
-app.post('/admin/upload/:slug', requireAuth, upload.single('photo'), async (req, res) => {
-  const slug = req.params.slug;
+app.post('/admin/upload/:slug', requireAuth, uploadRateLimit, upload.single('photo'), async (req, res) => {
+  // Sanitise slug via path.basename() to strip any path separators, then validate
+  const slug = path.basename(req.params.slug || '');
   if (!isSafePathComponent(slug)) return res.status(400).json({ error: 'Invalid slug' });
   if (!req.file) return res.status(400).json({ error: 'No file' });
 
-  const rawPath = req.file.path;
-  const filename = req.file.filename;
-  // Validate the multer-generated filename (it should always be safe, but verify defensively)
+  // Sanitise multer-generated filename via path.basename() (should always be safe, but belt-and-suspenders)
+  const filename = path.basename(req.file.filename || '');
   if (!isSafePathComponent(filename)) {
-    fs.unlink(rawPath, () => {});
+    fs.unlink(req.file.path, () => {});
     return res.status(400).json({ error: 'Invalid filename' });
   }
 
+  // Use sanitised slug/filename for all path operations
+  const rawPath = path.join(PROJECT_ROOT, 'listings', slug, 'photos', 'raw', filename);
   const compDir = path.join(PROJECT_ROOT,'listings',slug,'photos','compressed');
   const mlsDir  = path.join(PROJECT_ROOT,'listings',slug,'photos','mls');
   fs.mkdirSync(compDir, { recursive:true });
