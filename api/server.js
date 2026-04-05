@@ -308,7 +308,7 @@ app.get('/admin', requireAuth, (_req, res) => {
         const id = e.target.dataset.id;
         const address = e.target.dataset.address;
         if (!confirm('Permanently delete listing "' + address + '"? This cannot be undone.')) return;
-        const r = await fetch('/admin/properties/' + id, { method: 'DELETE' });
+        const r = await fetch('/admin/properties/' + encodeURIComponent(id), { method: 'DELETE' });
         if (r.ok) { location.reload(); }
         else { alert('Delete failed. Please try again.'); }
       });
@@ -411,6 +411,7 @@ app.post('/admin/edit/:id', requireAuth, (req, res) => {
 
 // ── Delete listing ────────────────────────────────────────
 app.delete('/admin/properties/:id', requireAuth, (req, res) => {
+  if (!/^[0-9a-f]{32}$/.test(req.params.id)) return res.status(400).json({ error:'Invalid id' });
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
   db.prepare('DELETE FROM properties WHERE id=?').run(req.params.id);
