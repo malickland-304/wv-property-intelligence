@@ -286,7 +286,7 @@ app.get('/admin', requireAuth, (_req, res) => {
         <a href="/admin/edit/${p.id}" class="btn-sm">Edit</a>
         <a href="/admin/photos/${p.listing_slug||p.id}" class="btn-sm">Photos</a>
         <a href="/admin/report/${p.id}" class="btn-sm">Report</a>
-        <button class="btn-sm btn-del" onclick="deleteListing('${p.id}','${(p.address||'').replace(/'/g,"\\'")}')">Delete</button>
+        <button class="btn-sm btn-del" data-id="${p.id}" data-address="${(p.address||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">Delete</button>
       </td>
     </tr>`).join('');
 
@@ -303,12 +303,15 @@ app.get('/admin', requireAuth, (_req, res) => {
       <tbody>${rows || '<tr><td colspan="8" style="text-align:center;padding:2rem;color:#999">No listings yet. <a href="/admin/new">Add your first listing →</a></td></tr>'}</tbody>
     </table>
     <script>
-      async function deleteListing(id, address) {
+      document.addEventListener('click', async function(e) {
+        if (!e.target.classList.contains('btn-del')) return;
+        const id = e.target.dataset.id;
+        const address = e.target.dataset.address;
         if (!confirm('Permanently delete listing "' + address + '"? This cannot be undone.')) return;
-        const res = await fetch('/admin/properties/' + id, { method: 'DELETE' });
-        if (res.ok) { location.reload(); }
+        const r = await fetch('/admin/properties/' + id, { method: 'DELETE' });
+        if (r.ok) { location.reload(); }
         else { alert('Delete failed. Please try again.'); }
-      }
+      });
     </script>
   `));
 });
@@ -412,7 +415,7 @@ app.delete('/admin/properties/:id', requireAuth, (req, res) => {
   if (!p) return res.status(404).json({ error:'Not found' });
   db.prepare('DELETE FROM properties WHERE id=?').run(req.params.id);
   const slug = p.listing_slug;
-  if (slug) {
+  if (slug && /^[a-z0-9-]+$/.test(slug)) {
     const listingDir = path.join(PROJECT_ROOT, 'listings', slug);
     if (fs.existsSync(listingDir)) fs.rmSync(listingDir, { recursive:true, force:true });
   }
