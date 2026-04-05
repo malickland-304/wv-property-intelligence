@@ -101,7 +101,15 @@ button:hover { opacity:.85; }
 .modal-address { color:var(--muted); margin:.25rem 0 1rem; }
 .modal-details { display:flex; flex-wrap:wrap; gap:.75rem; margin-bottom:1rem; }
 .modal-details span { background:var(--light); padding:.4rem .8rem; border-radius:6px; font-size:.875rem; }
-.modal-desc { color:var(--text); line-height:1.6; margin-bottom:1.5rem; }
+.modal-desc { color:var(--text); line-height:1.6; margin-bottom:1.25rem; }
+.modal-map-row { display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1.25rem; }
+.modal-map-btn {
+  display:inline-flex; align-items:center; gap:.4rem;
+  padding:.55rem 1rem; border-radius:8px; font-size:.85rem; font-weight:600;
+  background:#f3f4f6; color:#1a1a1a; border:1px solid #e0e0e0;
+  text-decoration:none; transition:background .15s;
+}
+.modal-map-btn:hover { background:#e5e7eb; }
 .modal-contact h3 { color:var(--green); margin-bottom:.75rem; }
 .modal-contact input, .modal-contact textarea {
   width:100%; padding:.65rem .9rem; border:1px solid var(--border);

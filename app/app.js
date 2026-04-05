@@ -139,6 +139,20 @@ async function openDetail(id) {
           <span>🏷 ${p.status}</span>
         </div>
         ${p.description ? `<p class="modal-desc">${p.description}</p>` : ''}
+
+        <!-- Map + listing links -->
+        <div class="modal-map-row">
+          ${(function(){
+            const addr = encodeURIComponent(`${p.address}${p.city?', '+p.city:''}, WV${p.zip?' '+p.zip:''}`);
+            const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${addr}`;
+            const satUrl  = `https://www.google.com/maps/@?api=1&map_action=map&basemap=satellite&q=${addr}`;
+            return `
+              <a href="${mapsUrl}" target="_blank" rel="noopener" class="modal-map-btn">🗺 View on Map</a>
+              <a href="${satUrl}"  target="_blank" rel="noopener" class="modal-map-btn">🛰 Satellite View</a>
+            `;
+          })()}
+        </div>
+
         <div class="modal-contact">
           <h3>Contact Phil Malick</h3>
           <p style="margin-bottom:.75rem;font-size:.9rem;color:#555;">
