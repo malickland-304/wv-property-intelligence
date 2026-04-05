@@ -142,7 +142,7 @@ async function openDetail(id) {
         <div class="modal-contact">
           <h3>Contact Phil Malick</h3>
           <p style="margin-bottom:.75rem;font-size:.9rem;color:#555;">
-            📞 <a href="tel:+13045550100" style="color:inherit;font-weight:600;">(304) 555-0100</a>
+            📞 <a href="tel:+15402461421" style="color:inherit;font-weight:600;">(540) 246-1421</a>
             &nbsp;·&nbsp;
             ✉️ <a href="mailto:phil@malickland.net" style="color:inherit;font-weight:600;">phil@malickland.net</a>
           </p>
