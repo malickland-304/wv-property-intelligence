@@ -4,6 +4,16 @@ const API = '/api';
 let currentPage = 1;
 let currentFilters = {};
 
+// ── HTML escaping ─────────────────────────────────────────
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ── Init ─────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   loadCounties();
@@ -78,23 +88,23 @@ function renderListings({ properties, total, page }) {
   }
 
   grid.innerHTML = properties.map(p => `
-    <div class="property-card" onclick="openDetail('${p.id}')">
-      <div class="card-img" style="background-image:url('${p.image_url || 'https://placehold.co/400x240/1a3a2a/gold?text=No+Photo'}')">
+    <div class="property-card" onclick="openDetail(${JSON.stringify(p.id)})">
+      <div class="card-img" style="background-image:url('${escapeHtml(p.image_url || 'https://placehold.co/400x240/1a3a2a/gold?text=No+Photo')}')">
         ${p.price_reduced ? '<span class="badge reduced">Price Reduced</span>' : ''}
-        <span class="badge type">${p.property_type}</span>
+        <span class="badge type">${escapeHtml(p.property_type)}</span>
       </div>
       <div class="card-body">
         <div class="card-price">$${Number(p.price).toLocaleString()}</div>
-        <div class="card-address">${p.address}${p.city ? ', ' + p.city : ''}</div>
-        <div class="card-county">${p.county} County${p.zip ? ' · ' + p.zip : ''}</div>
+        <div class="card-address">${escapeHtml(p.address)}${p.city ? ', ' + escapeHtml(p.city) : ''}</div>
+        <div class="card-county">${escapeHtml(p.county)} County${p.zip ? ' · ' + escapeHtml(p.zip) : ''}</div>
         <div class="card-details">
-          ${p.bedrooms ? `<span>🛏 ${p.bedrooms} bd</span>` : ''}
-          ${p.bathrooms ? `<span>🚿 ${p.bathrooms} ba</span>` : ''}
+          ${p.bedrooms ? `<span>🛏 ${escapeHtml(p.bedrooms)} bd</span>` : ''}
+          ${p.bathrooms ? `<span>🚿 ${escapeHtml(p.bathrooms)} ba</span>` : ''}
           ${p.sqft ? `<span>📐 ${Number(p.sqft).toLocaleString()} sqft</span>` : ''}
-          ${p.lot_acres ? `<span>🌿 ${p.lot_acres} ac</span>` : ''}
+          ${p.lot_acres ? `<span>🌿 ${escapeHtml(p.lot_acres)} ac</span>` : ''}
         </div>
         <div class="card-listed">Listed ${timeAgo(p.listed_at)}</div>
-        <button class="request-info-btn" onclick="event.stopPropagation();openRequestInfo('${p.id}','${(p.address||'').replace(/'/g,"\\'")}')">Request Info</button>
+        <button class="request-info-btn" onclick="event.stopPropagation();openRequestInfo(${JSON.stringify(p.id)},${JSON.stringify(p.address||'')})">Request Info</button>
       </div>
     </div>
   `).join('');
@@ -125,20 +135,20 @@ async function openDetail(id) {
   modal.innerHTML = `
     <div class="modal-content">
       <button class="modal-close" onclick="closeModal()">✕</button>
-      <img src="${p.image_url || 'https://placehold.co/800x400/1a3a2a/gold?text=No+Photo'}" alt="Property" />
+      <img src="${escapeHtml(p.image_url || 'https://placehold.co/800x400/1a3a2a/gold?text=No+Photo')}" alt="Property" />
       <div class="modal-body">
         <h2>$${Number(p.price).toLocaleString()}</h2>
-        <p class="modal-address">${p.address}${p.city ? ', ' + p.city : ''}, ${p.county} County${p.zip ? ' ' + p.zip : ''}</p>
+        <p class="modal-address">${escapeHtml(p.address)}${p.city ? ', ' + escapeHtml(p.city) : ''}, ${escapeHtml(p.county)} County${p.zip ? ' ' + escapeHtml(p.zip) : ''}</p>
         <div class="modal-details">
-          ${p.bedrooms   ? `<span>🛏 ${p.bedrooms} Bedrooms</span>` : ''}
-          ${p.bathrooms  ? `<span>🚿 ${p.bathrooms} Bathrooms</span>` : ''}
+          ${p.bedrooms   ? `<span>🛏 ${escapeHtml(p.bedrooms)} Bedrooms</span>` : ''}
+          ${p.bathrooms  ? `<span>🚿 ${escapeHtml(p.bathrooms)} Bathrooms</span>` : ''}
           ${p.sqft       ? `<span>📐 ${Number(p.sqft).toLocaleString()} sqft</span>` : ''}
-          ${p.lot_acres ? `<span>🌿 ${p.lot_acres} Acres</span>` : ''}
-          ${p.year_built ? `<span>🏗 Built ${p.year_built}</span>` : ''}
-          <span>📋 ${p.property_type}</span>
-          <span>🏷 ${p.status}</span>
+          ${p.lot_acres ? `<span>🌿 ${escapeHtml(p.lot_acres)} Acres</span>` : ''}
+          ${p.year_built ? `<span>🏗 Built ${escapeHtml(p.year_built)}</span>` : ''}
+          <span>📋 ${escapeHtml(p.property_type)}</span>
+          <span>🏷 ${escapeHtml(p.status)}</span>
         </div>
-        ${p.description ? `<p class="modal-desc">${p.description}</p>` : ''}
+        ${p.description ? `<p class="modal-desc">${escapeHtml(p.description)}</p>` : ''}
         <div class="modal-contact">
           <h3>Contact Phil Malick</h3>
           <p style="margin-bottom:.75rem;font-size:.9rem;color:#555;">
@@ -150,8 +160,8 @@ async function openDetail(id) {
           <input id="cEmail" type="email" placeholder="Email" />
           <input id="cPhone" type="tel"   placeholder="Phone (optional)" />
           <textarea id="cMsg" placeholder="Message"></textarea>
-          <button onclick="submitContact('${p.id}')">Send Inquiry</button>
-          <button onclick="requestPacket('${p.id}','${(p.address||'').replace(/'/g,"\\'")}',this)" style="margin-top:.5rem;background:#1B4332;color:#D4AF37;">Request Full Property Packet</button>
+          <button onclick="submitContact(${JSON.stringify(p.id)})">Send Inquiry</button>
+          <button onclick="requestPacket(${JSON.stringify(p.id)},${JSON.stringify(p.address||'')},this)" style="margin-top:.5rem;background:#1B4332;color:#D4AF37;">Request Full Property Packet</button>
         </div>
       </div>
     </div>

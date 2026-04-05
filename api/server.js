@@ -12,9 +12,7 @@ const multer     = require('multer');
 const session    = require('express-session');
 const rateLimit  = require('express-rate-limit');
 require('dotenv').config();
-const { exec }    = require('child_process');
-const { promisify } = require('util');
-const execAsync     = promisify(exec);
+const { execFile } = require('child_process');
 
 const { sendContactEmail, uploadPhotoToDrive } = require('./google');
 const { requireApiKey } = require('./middleware/auth');
@@ -737,8 +735,12 @@ app.post('/admin/upload/:slug', requireAuth, requireCsrf, uploadRateLimit, uploa
 
   if (process.platform === 'darwin' && !sharp) {
     // sips is macOS-only fallback when sharp is unavailable
-    exec(`sips -Z 1200 "${rawPath}" --out "${compPath}"`, () => {
-      exec(`sips -Z 1024 "${rawPath}" --out "${mlsPath}"`, afterCompress);
+    execFile('sips', ['-Z', '1200', rawPath, '--out', compPath], (err) => {
+      if (err) console.error('[sips] compress failed:', err.message);
+      execFile('sips', ['-Z', '1024', rawPath, '--out', mlsPath], (err2) => {
+        if (err2) console.error('[sips] mls resize failed:', err2.message);
+        afterCompress();
+      });
     });
   } else if (sharp) {
     // Use sharp for cross-platform image compression (Linux / Railway / macOS)
