@@ -1484,6 +1484,16 @@ app.get('/properties/:slug', (req, res) => {
     },
   });
 
+  // Drive times for this county
+  const dt = getDriveTimes(p.county);
+  // Feature badges HTML
+  const featBadges = p.features ? p.features.split(',').map(f => f.trim()).filter(Boolean).map(f => {
+    const ICONS = {'Timber':'🌲','Hunting':'🦌','Water':'💧','Creek':'💧','Pond':'💧','Stream':'💧','Road Access':'🛣️','Paved Road':'🛣️','Gravel Road':'🛣️','Electric':'⚡','Power':'⚡','Utilities':'⚡','Broadband':'📶','Internet':'📶','Starlink':'📶','Mountain View':'🏔️','Views':'🏔️','Pasture':'🌾','Fields':'🌾','Well':'💦','Spring':'💦','Cabin':'🏠','Barn':'🏚️'};
+    const icon = Object.entries(ICONS).find(([k]) => f.toLowerCase().includes(k.toLowerCase()));
+    return `<span style="background:#f0fdf4;border:1px solid #bbf7d0;padding:.3rem .7rem;border-radius:20px;font-size:.82rem;color:#166534;white-space:nowrap">${icon?icon[1]+' ':''}${f}</span>`;
+  }).join('') : '';
+  const ppa = p.acreage && p.price ? ` &nbsp;<span style="font-size:.9rem;color:#6b7280;font-weight:400">· $${Math.round(p.price/p.acreage).toLocaleString()}/acre</span>` : '';
+
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1501,75 +1511,194 @@ app.get('/properties/:slug', (req, res) => {
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Segoe UI',sans-serif;background:#f9f6f0;color:#1a1a1a}
-    .nav{background:#0a0a0a;border-bottom:2px solid #D4AF37;padding:.75rem 2rem;display:flex;justify-content:space-between;align-items:center}
-    .nav a{color:#D4AF37;text-decoration:none;font-weight:700;font-size:1.1rem}
-    .back-link{color:#fff!important;font-size:.9rem;font-weight:400!important;margin-left:1.5rem}
-    .hero{background:linear-gradient(135deg,#0a0a0a 0%,#1B4332 100%);color:#fff;padding:2.5rem 2rem}
-    .hero-inner{max-width:900px;margin:0 auto}
-    .hero-price{font-size:2.2rem;font-weight:900;color:#D4AF37;margin-bottom:.25rem}
-    .hero-addr{font-size:1.1rem;opacity:.85}
-    .main{max-width:900px;margin:2rem auto;padding:0 1.5rem;display:grid;grid-template-columns:1fr;gap:1.5rem}
-    .prop-img{width:100%;max-height:420px;object-fit:cover;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.12)}
-    .chips{display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:.25rem}
-    .chip{background:#fff;border:1px solid #e0e0e0;padding:.4rem .8rem;border-radius:6px;font-size:.85rem}
+    a{color:inherit;text-decoration:none}
+    /* NAV */
+    .nav{background:#1B4332;border-bottom:2px solid #D4AF37;padding:.75rem 2rem;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:50}
+    .nav-brand{color:#D4AF37;font-weight:800;font-size:1.1rem;text-decoration:none}
+    .nav-right{display:flex;gap:1rem;align-items:center}
+    .nav-link{color:rgba(255,255,255,.85);font-size:.85rem;text-decoration:none}
+    .nav-link:hover{color:#D4AF37}
+    .nav-cta{background:#D4AF37;color:#1B4332;padding:.45rem 1rem;border-radius:6px;font-weight:700;font-size:.82rem;text-decoration:none}
+    /* HERO */
+    .hero{background:linear-gradient(135deg,#1B4332 0%,#2d5c42 100%);color:#fff;padding:2.25rem 2rem}
+    .hero-inner{max-width:960px;margin:0 auto}
+    .hero-price{font-size:2rem;font-weight:900;color:#D4AF37;margin-bottom:.3rem}
+    .hero-addr{font-size:1rem;opacity:.85;margin-bottom:.2rem}
+    .hero-county{font-size:.85rem;opacity:.6}
+    /* LAYOUT */
+    .main{max-width:960px;margin:0 auto;padding:1.5rem;display:grid;grid-template-columns:1fr 340px;gap:1.75rem}
+    .col-main{}
+    .col-side{}
+    /* PHOTO */
+    .prop-img{width:100%;max-height:400px;object-fit:cover;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.12);margin-bottom:1.25rem;display:block}
+    .no-photo{width:100%;height:260px;border-radius:12px;background:linear-gradient(135deg,#1B4332,#2d5c42);display:flex;align-items:center;justify-content:center;font-size:3rem;margin-bottom:1.25rem;color:rgba(255,255,255,.3)}
+    /* CHIPS */
+    .chips{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem}
+    .chip{background:#fff;border:1px solid #e0e0e0;padding:.35rem .75rem;border-radius:6px;font-size:.83rem}
     .chip.type{background:#1B4332;color:#D4AF37;font-weight:700;border-color:#1B4332}
-    .desc{line-height:1.7;color:#444;font-size:.95rem}
-    .map-row{display:flex;gap:.75rem;flex-wrap:wrap}
-    .map-btn{display:inline-flex;align-items:center;gap:.4rem;padding:.6rem 1.1rem;border-radius:8px;font-size:.85rem;font-weight:600;background:#fff;color:#1a1a1a;border:1px solid #e0e0e0;text-decoration:none}
+    /* FEATURES */
+    .feat-row{display:flex;flex-wrap:wrap;gap:.4rem;margin:1rem 0}
+    /* DRIVE TIME */
+    .drive-box{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.75rem 1rem;font-size:.85rem;margin:1rem 0;line-height:1.7}
+    /* LAND GRID */
+    .land-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem .75rem;font-size:.85rem;background:#fff;border-radius:10px;padding:1rem;border:1px solid #e5e7eb;margin:1rem 0}
+    .land-grid .lg-label{color:#888;margin-right:.3rem;font-size:.78rem;text-transform:uppercase;letter-spacing:.3px}
+    .land-grid .lg-val{font-weight:600}
+    /* DESCRIPTION */
+    .desc{line-height:1.7;color:#444;font-size:.93rem;margin:1rem 0}
+    /* MAP */
+    .map-row{display:flex;gap:.6rem;flex-wrap:wrap;margin:1rem 0}
+    .map-btn{display:inline-flex;align-items:center;gap:.35rem;padding:.55rem 1rem;border-radius:8px;font-size:.83rem;font-weight:600;background:#fff;color:#1a1a1a;border:1px solid #e0e0e0;text-decoration:none}
     .map-btn:hover{background:#f3f4f6}
-    .contact-box{background:#1B4332;color:#fff;border-radius:12px;padding:1.75rem}
-    .contact-box h2{color:#D4AF37;margin-bottom:.5rem;font-size:1.1rem}
-    .contact-box p{font-size:.9rem;opacity:.9;margin-bottom:.75rem}
-    .contact-box a{color:#D4AF37;font-weight:700}
-    footer{background:#0a0a0a;color:#aaa;text-align:center;padding:1.5rem;font-size:.82rem;margin-top:3rem}
-    @media(max-width:600px){.hero-price{font-size:1.6rem}}
+    /* SIDEBAR CONTACT */
+    .contact-card{background:#1B4332;color:#fff;border-radius:12px;padding:1.5rem;position:sticky;top:72px}
+    .contact-card h3{color:#D4AF37;font-size:1rem;margin-bottom:.5rem}
+    .contact-card p{font-size:.85rem;opacity:.85;margin-bottom:1rem;line-height:1.5}
+    .contact-card .cta-phone{display:block;background:#D4AF37;color:#1B4332;text-align:center;padding:.85rem;border-radius:8px;font-weight:800;font-size:1.05rem;text-decoration:none;margin-bottom:.6rem}
+    .contact-card .cta-text{display:block;background:rgba(255,255,255,.12);color:#fff;text-align:center;padding:.7rem;border-radius:8px;font-weight:600;font-size:.9rem;text-decoration:none;margin-bottom:.6rem}
+    .contact-card .cta-email{display:block;color:#D4AF37;text-align:center;font-size:.83rem;margin-bottom:1rem}
+    .form-input{width:100%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;padding:.6rem .8rem;border-radius:6px;font-size:.85rem;margin-bottom:.5rem;font-family:inherit}
+    .form-input::placeholder{color:rgba(255,255,255,.5)}
+    .form-input:focus{outline:none;border-color:#D4AF37}
+    .form-textarea{height:80px;resize:vertical}
+    .form-submit{width:100%;background:#D4AF37;color:#1B4332;border:none;padding:.75rem;border-radius:6px;font-weight:800;font-size:.95rem;cursor:pointer;margin-top:.25rem}
+    .tcpa{font-size:.68rem;color:rgba(255,255,255,.4);margin-top:.5rem;line-height:1.4}
+    /* COUNTY LINK */
+    .county-more{display:block;margin-top:1rem;text-align:center;color:rgba(255,255,255,.6);font-size:.8rem;text-decoration:none}
+    .county-more:hover{color:#D4AF37}
+    /* FOOTER */
+    footer{background:#1B4332;color:rgba(255,255,255,.6);text-align:center;padding:1.5rem;font-size:.8rem;margin-top:2rem}
+    footer a{color:#D4AF37}
+    /* RESPONSIVE */
+    @media(max-width:700px){
+      .main{grid-template-columns:1fr}
+      .col-side{order:-1}
+      .contact-card{position:static}
+      .hero-price{font-size:1.6rem}
+    }
   </style>
   ${gaSnippet()}
 </head>
 <body>
 <nav class="nav">
-  <a href="/">MalickLand</a>
-  <a href="/#listings" class="back-link">← All Listings</a>
+  <a href="/" class="nav-brand">MalickLand</a>
+  <div class="nav-right">
+    <a href="/listings" class="nav-link">← Search</a>
+    <a href="/wv/${p.county.toLowerCase().replace(/ /g,'-')}-county" class="nav-link">${p.county} County</a>
+    <a href="tel:+15402461421" class="nav-cta">📞 Call Phil</a>
+  </div>
 </nav>
+
 <div class="hero">
   <div class="hero-inner">
-    <div class="hero-price">${price}</div>
-    <div class="hero-addr">${p.address}${p.city?', '+p.city:''} &middot; ${p.county} County, WV${p.zip?' '+p.zip:''}</div>
+    <div class="hero-price">${price}${ppa}</div>
+    <div class="hero-addr">${p.address}${p.city?', '+p.city:''}, WV${p.zip?' '+p.zip:''}</div>
+    <div class="hero-county">${p.county} County &nbsp;·&nbsp; ${p.property_type === 'land' ? '🌲 Land / Acreage' : '🏡 ' + p.property_type}</div>
   </div>
 </div>
+
 <div class="main">
-  ${p.image_url ? `<img src="${p.image_url}" alt="${p.address}" class="prop-img">` : ''}
-  <div>
+  <!-- LEFT COL -->
+  <div class="col-main">
+    ${p.image_url
+      ? `<img src="${p.image_url}" alt="${p.address} — ${p.county} County WV land for sale" class="prop-img">`
+      : `<div class="no-photo">🌲</div>`}
+
+    <!-- CHIPS -->
     <div class="chips">
-      <span class="chip type">${p.property_type}</span>
+      <span class="chip type">${p.property_type === 'land' ? '🌲 Land' : '🏡 ' + p.property_type}</span>
+      ${p.acreage   ? `<span class="chip">🌿 ${p.acreage} acres</span>` : ''}
       ${p.bedrooms  ? `<span class="chip">🛏 ${p.bedrooms} bd</span>` : ''}
       ${p.bathrooms ? `<span class="chip">🚿 ${p.bathrooms} ba</span>` : ''}
       ${p.sqft      ? `<span class="chip">📐 ${Number(p.sqft).toLocaleString()} sqft</span>` : ''}
-      ${p.lot_acres ? `<span class="chip">🌿 ${p.lot_acres} acres</span>` : ''}
-      ${p.year_built? `<span class="chip">🏗 Built ${p.year_built}</span>` : ''}
-      <span class="chip">📍 ${p.county} County, WV</span>
+      ${p.year_built? `<span class="chip">🏗 ${p.year_built}</span>` : ''}
+      ${p.price_reduced ? `<span class="chip" style="background:#fef2f2;border-color:#fecaca;color:#991b1b">🔻 Price Reduced</span>` : ''}
+    </div>
+
+    <!-- FEATURE BADGES -->
+    ${featBadges ? `<div class="feat-row">${featBadges}</div>` : ''}
+
+    <!-- DRIVE TIMES -->
+    ${dt ? `<div class="drive-box">
+      🚗 <strong>${dt.dc}</strong> from DC &nbsp;·&nbsp;
+      <strong>${dt.balt}</strong> from Baltimore &nbsp;·&nbsp;
+      <strong>${dt.pit}</strong> from Pittsburgh
+      <br><span style="font-size:.78rem;color:#6b7280;margin-top:.2rem;display:block">Perfect weekend escape from the DMV — come see it in an afternoon.</span>
+    </div>` : ''}
+
+    <!-- LAND DETAIL GRID -->
+    ${(p.road_access || p.broadband_type || p.water_features || p.mineral_rights || p.nearest_town || p.annual_tax) ? `
+    <div class="land-grid">
+      ${p.road_access    ? `<div><div class="lg-label">🛣 Road</div><div class="lg-val">${p.road_access}</div></div>` : ''}
+      ${p.broadband_type ? `<div><div class="lg-label">📶 Broadband</div><div class="lg-val">${p.broadband_type}</div></div>` : ''}
+      ${p.nearest_town   ? `<div><div class="lg-label">📍 Nearest Town</div><div class="lg-val">${p.nearest_town}${p.miles_to_town?' ('+p.miles_to_town+' mi)':''}</div></div>` : ''}
+      ${p.mineral_rights && p.mineral_rights !== 'unknown' ? `<div><div class="lg-label">⛏ Minerals</div><div class="lg-val">${p.mineral_rights}</div></div>` : ''}
+      ${p.water_features ? `<div style="grid-column:1/-1"><div class="lg-label">💧 Water</div><div class="lg-val">${p.water_features}</div></div>` : ''}
+      ${p.annual_tax     ? `<div><div class="lg-label">💰 Annual Tax</div><div class="lg-val">$${Number(p.annual_tax).toLocaleString()}/yr</div></div>` : ''}
+    </div>` : ''}
+
+    <!-- DESCRIPTION -->
+    ${p.description ? `<p class="desc">${p.description}</p>` : ''}
+
+    <!-- MAP LINKS -->
+    <div class="map-row">
+      <a href="${mapsUrl}" target="_blank" rel="noopener" class="map-btn">🗺 View on Map</a>
+      <a href="${satUrl}"  target="_blank" rel="noopener" class="map-btn">🛰 Satellite View</a>
+      <a href="/wv/${p.county.toLowerCase().replace(/ /g,'-')}-county" class="map-btn">📍 ${p.county} County Listings</a>
     </div>
   </div>
-  ${p.description ? `<p class="desc">${p.description}</p>` : ''}
-  <div class="map-row">
-    <a href="${mapsUrl}" target="_blank" rel="noopener" class="map-btn">🗺 View on Map</a>
-    <a href="${satUrl}"  target="_blank" rel="noopener" class="map-btn">🛰 Satellite View</a>
-    <a href="/wv/${p.county.toLowerCase()}-county" class="map-btn">📍 More ${p.county} County listings</a>
-  </div>
-  <div class="contact-box">
-    <h2>Interested in This Property?</h2>
-    <p>Contact Phil Malick directly — local WV land specialist, no runaround.</p>
-    <p>
-      <a href="tel:+15402461421">(540) 246-1421</a>
-      &nbsp;·&nbsp;
-      <a href="mailto:phil@malickland.net?subject=Inquiry: ${encodeURIComponent(p.address)}">phil@malickland.net</a>
-    </p>
+
+  <!-- RIGHT COL — CONTACT -->
+  <div class="col-side">
+    <div class="contact-card">
+      <h3>Interested in This Property?</h3>
+      <p>Contact Phil Malick — local WV land specialist. No runaround, fast response.</p>
+      <a href="tel:+15402461421" class="cta-phone">📞 (540) 246-1421</a>
+      <a href="sms:+15402461421&body=Hi Phil, I'm interested in ${encodeURIComponent(p.address + (p.city ? ', ' + p.city : '') + ' WV')}." class="cta-text">💬 Text Phil</a>
+      <a href="mailto:phil@malickland.net?subject=Inquiry: ${encodeURIComponent(p.address)}" class="cta-email">✉️ phil@malickland.net</a>
+      <input class="form-input" id="cName"  type="text"  placeholder="Your Name" />
+      <input class="form-input" id="cEmail" type="email" placeholder="Email Address" />
+      <input class="form-input" id="cPhone" type="tel"   placeholder="Phone (optional)" />
+      <textarea class="form-input form-textarea" id="cMsg">I'm interested in ${p.address}. Please send more info.</textarea>
+      <button class="form-submit" onclick="submitInquiry('${p.id}', '${encodeURIComponent(p.address)}')">Send Inquiry →</button>
+      <p class="tcpa">By submitting, you consent to receive calls and texts from MalickLand. Reply STOP to opt out.</p>
+      <a href="/wv/${p.county.toLowerCase().replace(/ /g,'-')}-county" class="county-more">📍 More ${p.county} County listings</a>
+    </div>
   </div>
 </div>
+
 <footer>
   &copy; ${new Date().getFullYear()} MalickLand Real Estate &middot; Phil Malick, WV Licensed REALTOR&reg;
-  &middot; Broker: Sheila Judy &middot; <a href="/" style="color:#D4AF37">malickland.net</a>
+  &middot; Broker: Sheila Judy &middot; <a href="/">malickland.net</a>
 </footer>
+<script>
+async function submitInquiry(propertyId, address) {
+  const body = {
+    property_id: propertyId,
+    name:    document.getElementById('cName').value,
+    email:   document.getElementById('cEmail').value,
+    phone:   document.getElementById('cPhone').value,
+    message: document.getElementById('cMsg').value,
+    source:  'property_page',
+  };
+  if (!body.name || !body.email) { alert('Please enter your name and email.'); return; }
+  const btn = document.querySelector('.form-submit');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    const r = await fetch('/api/contacts', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    if (r.ok) {
+      btn.textContent = '✅ Sent! Phil will be in touch.';
+      btn.style.background = '#22c55e';
+    } else {
+      btn.disabled = false; btn.textContent = 'Send Inquiry →';
+      alert('Failed to send. Please call Phil directly at (540) 246-1421.');
+    }
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Send Inquiry →';
+    alert('Failed to send. Please call Phil directly at (540) 246-1421.');
+  }
+}
+</script>
 </body>
 </html>`);
 });
