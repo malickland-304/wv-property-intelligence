@@ -12,17 +12,35 @@
   <meta property="og:type" content="website" />
   <meta property="og:image" content="https://malickland.net/public/brand/og-image.jpg" />
   <link rel="canonical" href="https://malickland.net" />
-  <!-- Google Analytics 4 — GA_MEASUREMENT_ID loaded from /api/config -->
+  <!-- Analytics + Meta Pixel — loaded from /api/config (GA_MEASUREMENT_ID, META_PIXEL_ID) -->
   <script>
     fetch('/api/config').then(r=>r.json()).then(cfg=>{
-      if (!cfg.gaId) return;
-      var s = document.createElement('script');
-      s.src = 'https://www.googletagmanager.com/gtag/js?id=' + cfg.gaId;
-      s.async = true; document.head.appendChild(s);
-      window.dataLayer = window.dataLayer || [];
-      window.gtag = function(){dataLayer.push(arguments);};
-      gtag('js', new Date()); gtag('config', cfg.gaId);
+      // Google Analytics 4
+      if (cfg.gaId) {
+        var s = document.createElement('script');
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=' + cfg.gaId;
+        s.async = true; document.head.appendChild(s);
+        window.dataLayer = window.dataLayer || [];
+        window.gtag = function(){dataLayer.push(arguments);};
+        gtag('js', new Date()); gtag('config', cfg.gaId);
+      }
+      // Meta Pixel
+      if (cfg.pixelId) {
+        !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+        n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}
+        (window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', cfg.pixelId);
+        fbq('track', 'PageView');
+        window._fbq_ready = true;
+      }
     }).catch(()=>{});
+
+    // Helper: fire Pixel event safely
+    window.pixelEvent = function(event, data) {
+      if (window.fbq) fbq('track', event, data || {});
+    };
   </script>
   <!-- Favicon -->
   <link rel="icon" type="image/png" sizes="32x32" href="/public/brand/favicon.png" />
@@ -1475,6 +1493,8 @@ async function submitForm(form, successId) {
       body: JSON.stringify(data)
     });
   } catch(e) {}
+  pixelEvent('Lead', { content_name: 'contact_form' });
+  if (window.gtag) gtag('event', 'generate_lead');
   form.style.display = 'none';
   document.getElementById(successId).style.display = 'block';
 }
@@ -1545,6 +1565,8 @@ async function showPropertyModal(id) {
 
   try {
     const p = await fetch(`/api/properties/${id}`).then(r => r.json());
+    pixelEvent('ViewContent', { content_type: 'property', content_ids: [id], value: p.price, currency: 'USD' });
+    if (window.gtag) gtag('event', 'view_item', { item_id: id, price: p.price });
     const addr = encodeURIComponent(`${p.address}${p.city?', '+p.city:''}, WV${p.zip?' '+p.zip:''}`);
     const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${addr}`;
     const satUrl  = `https://www.google.com/maps/@?api=1&map_action=map&basemap=satellite&q=${addr}`;
@@ -1581,6 +1603,7 @@ async function showPropertyModal(id) {
             <input id="pm_phone" type="tel"   placeholder="Phone (optional)" style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
             <textarea id="pm_msg" placeholder="Message" style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.75rem;min-height:80px;font-size:.9rem;font-family:inherit;resize:vertical">I'd like more information about ${p.address}.</textarea>
             <button onclick="pmSend('${p.id}',this)" style="width:100%;padding:.85rem;background:#D4AF37;color:#0a0a0a;border:none;border-radius:8px;font-size:1rem;font-weight:800;cursor:pointer">Send Inquiry</button>
+            <p style="font-size:.72rem;color:#999;margin-top:.5rem;line-height:1.5">By submitting, you consent to receive calls and texts from MalickLand at the number provided. Message &amp; data rates may apply. Reply STOP to opt out.</p>
           </div>
         </div>
       </div>`;
@@ -1601,8 +1624,12 @@ async function pmSend(propertyId, btn) {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ property_id: propertyId, name, email, phone, message: msg, source: 'homepage_detail' })
     });
-    if (r.ok) { btn.textContent = "✅ Sent! Phil will be in touch."; btn.style.background='#1B4332'; btn.style.color='#D4AF37'; }
-    else      { btn.disabled=false; btn.textContent='Send Inquiry'; alert('Failed. Please try again.'); }
+    if (r.ok) {
+      btn.textContent = "✅ Sent! Phil will be in touch.";
+      btn.style.background='#1B4332'; btn.style.color='#D4AF37';
+      pixelEvent('Lead', { content_name: 'property_inquiry' });
+      if (window.gtag) gtag('event', 'generate_lead');
+    } else { btn.disabled=false; btn.textContent='Send Inquiry'; alert('Failed. Please try again.'); }
   } catch { btn.disabled=false; btn.textContent='Send Inquiry'; }
 }
 

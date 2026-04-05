@@ -117,6 +117,10 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_properties_price  ON properties(price);
 `);
 
+// Schema migrations (safe to run repeatedly)
+try { db.exec(`ALTER TABLE contacts ADD COLUMN lead_status TEXT DEFAULT 'new'`); } catch(_) {}
+try { db.exec(`ALTER TABLE contacts ADD COLUMN last_contacted_at TEXT`); } catch(_) {}
+
 // Seed counties
 if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
   const ins = db.prepare('INSERT OR IGNORE INTO counties (name,fips_code) VALUES (?,?)');
@@ -877,9 +881,12 @@ app.get('/admin/leads', requireAuth, (req, res) => {
 // ── Public API ────────────────────────────────────────────
 app.get('/api/health', (_req, res) => res.json({ status:'ok', ts:new Date() }));
 
-// Public config (GA ID, etc.) — safe to expose
+// Public config (GA ID, Meta Pixel, etc.) — safe to expose
 app.get('/api/config', (_req, res) => {
-  res.json({ gaId: process.env.GA_MEASUREMENT_ID || '' });
+  res.json({
+    gaId:    process.env.GA_MEASUREMENT_ID || '',
+    pixelId: process.env.META_PIXEL_ID     || '',
+  });
 });
 
 app.get('/api/counties', (_req, res) => {
@@ -1048,10 +1055,17 @@ app.get('/sitemap.xml', (_req, res) => {
 
 // ── Shared helpers ────────────────────────────────────────
 function gaSnippet() {
-  const id = process.env.GA_MEASUREMENT_ID;
-  if (!id) return '';
-  return `<script async src="https://www.googletagmanager.com/gtag/js?id=${id}"></script>
-<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${id}');</script>`;
+  const gaId    = process.env.GA_MEASUREMENT_ID;
+  const pixelId = process.env.META_PIXEL_ID;
+  let html = '';
+  if (gaId) {
+    html += `<script async src="https://www.googletagmanager.com/gtag/js?id=${gaId}"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${gaId}');</script>`;
+  }
+  if (pixelId) {
+    html += `<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${pixelId}');fbq('track','PageView');</script>`;
+  }
+  return html;
 }
 
 // ── County SEO pages  /wv/:county-county ──────────────────
