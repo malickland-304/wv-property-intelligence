@@ -21,11 +21,13 @@ try { sharp = require('sharp'); } catch (_) { sharp = null; }
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+const IS_PROD = process.env.NODE_ENV === 'production';
 
 // Trust one proxy hop (Cloudflare → Railway). Required for correct req.ip,
 // X-Forwarded-For in logs, and rate-limiter keying.
 app.set('trust proxy', 1);
-const ADMIN_PASSWORD  = process.env.ADMIN_PASSWORD || 'wvrea2026';
+const ADMIN_PASSWORD  = process.env.ADMIN_PASSWORD || (IS_PROD ? null : 'wvrea2026');
+const SESSION_SECRET  = process.env.SESSION_SECRET || (IS_PROD ? null : 'wvrea-secret-2026');
 const PROJECT_ROOT    = path.join(__dirname, '..');
 
 const VALID_PROP_TYPES   = ['residential','commercial','land','multi-family','industrial'];
@@ -39,9 +41,9 @@ function isValidEmail(s) {
   return dot > 0 && dot < domain.length - 1;
 }
 
-if (process.env.NODE_ENV === 'production') {
-  if (!process.env.ADMIN_PASSWORD) console.warn('[WARN] ADMIN_PASSWORD env var is not set — using insecure default');
-  if (!process.env.SESSION_SECRET) console.warn('[WARN] SESSION_SECRET env var is not set — using insecure default');
+if (IS_PROD) {
+  if (!ADMIN_PASSWORD) throw new Error('ADMIN_PASSWORD env var is required in production');
+  if (!SESSION_SECRET) throw new Error('SESSION_SECRET env var is required in production');
 }
 
 // ── DB ────────────────────────────────────────────────────
@@ -323,7 +325,7 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'tiny' : 'dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended:true }));
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'wvrea-secret-2026',
+  secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -431,9 +433,14 @@ function isSafePathComponent(str) {
   return typeof str === 'string' && SAFE_PATH_RE.test(str) && !str.includes('..');
 }
 
-// ── Admin login ───────────────────────────────────────────
-app.get('/admin/login', (_req, res) => {
-  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+function normalizePositiveInt(value, fallback, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+function renderLoginPage(req, errorMessage = '') {
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
   <title>Admin Login</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
@@ -449,50 +456,40 @@ app.get('/admin/login', (_req, res) => {
   </style></head><body>
   <div class="box">
     <h2>🏡 WVREA Admin</h2>
+    ${errorMessage ? `<p class="err">${esc(errorMessage)}</p>` : ''}
     <form method="POST" action="/admin/login">
+      <input type="hidden" name="_csrf" value="${esc(csrfToken(req))}" />
       <input type="password" name="password" placeholder="Admin Password" autofocus />
       <button type="submit">Sign In</button>
     </form>
-  </div></body></html>`);
+  </div></body></html>`;
+}
+
+// ── Admin login ───────────────────────────────────────────
+app.get('/admin/login', (req, res) => {
+  res.send(renderLoginPage(req));
 });
 
-app.post('/admin/login', adminLoginRateLimit, (req, res) => {
+app.post('/admin/login', requireCsrf, adminLoginRateLimit, (req, res) => {
   if (req.body.password === ADMIN_PASSWORD) {
     req.session.admin = true;
     res.redirect('/admin');
   } else {
-    res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-    <title>Admin Login</title>
-    <style>
-      *{box-sizing:border-box;margin:0;padding:0}
-      body{font-family:'Segoe UI',sans-serif;background:#1a3a2a;display:flex;
-        align-items:center;justify-content:center;min-height:100vh}
-      .box{background:#fff;padding:2.5rem;border-radius:12px;width:100%;max-width:380px;text-align:center}
-      h2{color:#1a3a2a;margin-bottom:1.5rem}
-      input{width:100%;padding:.75rem;border:1px solid #ddd;border-radius:6px;
-        margin-bottom:1rem;font-size:1rem}
-      button{width:100%;padding:.85rem;background:#c9a84c;color:#1a3a2a;
-        border:none;border-radius:6px;font-weight:700;font-size:1rem;cursor:pointer}
-      .err{color:#c0392b;margin-bottom:1rem;font-size:.9rem}
-    </style></head><body>
-    <div class="box">
-      <h2>🏡 WVREA Admin</h2>
-      <p class="err">Incorrect password</p>
-      <form method="POST" action="/admin/login">
-        <input type="password" name="password" placeholder="Admin Password" autofocus />
-        <button type="submit">Sign In</button>
-      </form>
-    </div></body></html>`);
+    res.send(renderLoginPage(req, 'Incorrect password'));
   }
 });
 
-app.get('/admin/logout', (req, res) => {
+app.post('/admin/logout', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
   req.session.destroy();
   res.redirect('/admin/login');
 });
 
+app.get('/admin/logout', requireAuth, (_req, res) => {
+  res.status(405).send('Use POST to log out');
+});
+
 // ── Admin dashboard ───────────────────────────────────────
-app.get('/admin', requireAuth, (_req, res) => {
+app.get('/admin', requireAuth, (req, res) => {
   const listings = db.prepare(`
     SELECT p.id, p.address, p.city, p.price, p.property_type, p.status,
            p.listing_slug, p.acreage, p.photos_uploaded, p.mls_status,
@@ -982,6 +979,8 @@ app.get('/api/counties', (_req, res) => {
 function sendPropertyList(req, res) {
   try {
     const { q='',county='',type='',minPrice='',maxPrice='',page=1,limit=12 } = req.query;
+    const pageNumber = normalizePositiveInt(page, 1);
+    const limitNumber = normalizePositiveInt(limit, 12, { min: 1, max: 100 });
     const conditions = ["p.status = 'active'"];
     const values = [];
     if (q)        { conditions.push(`(p.address LIKE ? OR p.zip LIKE ?)`); values.push(`%${q}%`,`%${q}%`); }
@@ -990,18 +989,18 @@ function sendPropertyList(req, res) {
     if (minPrice) { conditions.push(`p.price >= ?`);          values.push(Number(minPrice)); }
     if (maxPrice) { conditions.push(`p.price <= ?`);          values.push(Number(maxPrice)); }
     const where  = 'WHERE ' + conditions.join(' AND ');
-    const offset = (Number(page)-1) * Number(limit);
+    const offset = (pageNumber - 1) * limitNumber;
     const total  = db.prepare(`SELECT COUNT(*) as c FROM properties p ${where}`).get(...values).c;
     // DB stores `acreage`; the public API exposes `lot_acres` (aliased) for the UI
     const properties = db.prepare(`
       SELECT p.id, p.listing_slug, p.address, p.city, p.zip, p.price, p.property_type,
-             p.bedrooms, p.bathrooms, p.sqft, COALESCE(p.acreage, p.lot_acres) AS lot_acres,
+             p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
              p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
              c.name AS county
       FROM properties p JOIN counties c ON c.id=p.county_id
       ${where} ORDER BY p.listed_at DESC LIMIT ? OFFSET ?
-    `).all(...values, Number(limit), offset);
-    res.json({ total, page:Number(page), properties });
+    `).all(...values, limitNumber, offset);
+    res.json({ total, page: pageNumber, properties });
   } catch(err) { console.error(err); res.status(500).json({ error:'Failed' }); }
 }
 
@@ -1011,10 +1010,10 @@ app.get('/api/listings', publicReadRateLimit, sendPropertyList);
 function sendPropertyDetail(req, res) {
   const row = db.prepare(`
     SELECT p.id, p.listing_slug, p.address, p.city, p.zip, p.price, p.property_type,
-           p.bedrooms, p.bathrooms, p.sqft, COALESCE(p.acreage, p.lot_acres) AS lot_acres,
+           p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
            p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
            p.county_id, c.name AS county,
-           p.description, p.property_description, p.marketing_description,
+           p.property_description, p.marketing_description,
            p.mls_number, p.road_access, p.flood_zone,
            p.listing_agent, p.listing_office,
            p.utilities_available, p.septic, p.well, p.electric, p.internet
@@ -1022,7 +1021,7 @@ function sendPropertyDetail(req, res) {
     WHERE (p.id=? OR p.listing_slug=?) AND p.status='active'
   `).get(req.params.id, req.params.id);
   if (!row) return res.status(404).json({ error:'Not found' });
-  const description = row.marketing_description || row.property_description || row.description || '';
+  const description = row.marketing_description || row.property_description || '';
   res.json({ ...row, description });
 }
 
@@ -1311,6 +1310,9 @@ function adminShell(title, body, csrf) {
     .sidebar a{display:block;color:#fff;text-decoration:none;padding:.6rem .75rem;border-radius:6px;margin-bottom:.25rem;font-size:.9rem}
     .sidebar a:hover{background:rgba(255,255,255,.1)}
     .sidebar .logout{position:absolute;bottom:1.5rem;left:1rem;right:1rem}
+    .sidebar .logout button{width:100%;background:none;border:none;color:#ffaaaa;text-align:left;
+      padding:.6rem .75rem;border-radius:6px;font-size:.9rem;cursor:pointer}
+    .sidebar .logout button:hover{background:rgba(255,255,255,.1)}
     .main{margin-left:220px;padding:2rem;min-height:100vh}
     .dash-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem}
     .dash-header h1{font-size:1.5rem;color:#1a3a2a}
@@ -1372,7 +1374,10 @@ function adminShell(title, body, csrf) {
     <a href="/admin/new">➕ New Listing</a>
     <a href="/admin/integrations">🔗 Integrations</a>
     <a href="/" target="_blank">🌐 Public Site</a>
-    <a href="/admin/logout" class="logout" style="color:#ffaaaa">🚪 Logout</a>
+    <form method="POST" action="/admin/logout" class="logout">
+      <input type="hidden" name="_csrf" value="${esc(csrf||'')}">
+      <button type="submit">🚪 Logout</button>
+    </form>
   </div>
   <div class="main">${body}</div>
   <script>
