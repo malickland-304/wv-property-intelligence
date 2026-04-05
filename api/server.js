@@ -16,7 +16,8 @@ const { exec }    = require('child_process');
 const { promisify } = require('util');
 const execAsync     = promisify(exec);
 
-const { sendContactEmail, uploadPhotoToDrive } = require('./google');
+const { uploadPhotoToDrive } = require('./google');
+const { sendLeadNotification } = require('./services/email');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -900,7 +901,7 @@ app.post('/api/contacts', contactsRateLimit, (req, res) => {
                   FROM properties p LEFT JOIN counties c ON c.id=p.county_id
                   WHERE p.id=?`).get(property_id)
     : null;
-  sendContactEmail({ name, email, phone, message }, property).catch(() => {});
+  sendLeadNotification({ name, email, phone, message, source: req.body.source }, property).catch(() => {});
 
   res.status(201).json({ id:result.lastInsertRowid });
 });
