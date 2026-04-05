@@ -286,9 +286,13 @@ app.use(cors());
 // ── www → apex canonical redirect ───────────────────────
 app.use((req, res, next) => {
   const host = req.hostname || '';
+  // www.malickland.net → malickland.net
   if (host.startsWith('www.')) {
-    const target = 'https://malickland.net' + req.originalUrl;
-    return res.redirect(301, target);
+    return res.redirect(301, 'https://malickland.net' + req.originalUrl);
+  }
+  // malickland.com (any variant) → malickland.net
+  if (host === 'malickland.com' || host === 'www.malickland.com') {
+    return res.redirect(301, 'https://malickland.net' + req.originalUrl);
   }
   next();
 });
