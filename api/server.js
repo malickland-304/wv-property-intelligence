@@ -204,7 +204,7 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
     const existing = db.prepare(
       "SELECT id, property_description FROM properties WHERE mls_number='WVHS2007442' OR (address LIKE '%Advent%' AND county_id=?)"
     ).get(hampshire.id);
-    const descSuffix = 'MLS# WVHS2007442 | 37 Advent Dr, Romney, WV 26757 | Hampshire County | Listed at $219,900 | Contact Phil Malick for details.';
+    const descSuffix = 'MLS# WVHS2007442 | 37 Advent Dr, Romney, WV 26757 | Hampshire County | Listed at $185,000 | Contact Phil Malick for details.';
     if (existing) {
       const cur = existing.property_description || '';
       const newDesc = cur.includes('WVHS2007442') ? cur : (cur ? cur + '\n\n' + descSuffix : descSuffix);
@@ -214,7 +214,7 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
           property_type='land',
           status='active',
           mls_number='WVHS2007442',
-          price=219900,
+          price=185000,
           property_description=?,
           image_url=COALESCE(NULLIF(image_url,''),'/assets/advent-1.jpg'),
           updated_at=datetime('now')
@@ -230,7 +230,7 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `).run(
         newId, hampshire.id, '37 Advent Dr', 'Romney', 'WV', '26757',
-        'land', 'active', 219900,
+        'land', 'active', 185000,
         'WVHS2007442', 'Phil Malick', 'advent-dr-hampshire-wv', descSuffix, '/assets/advent-1.jpg'
       );
       console.log('Inserted Advent Dr listing →', newId);
