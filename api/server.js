@@ -25,8 +25,24 @@ const PORT = process.env.PORT || 3000;
 // Trust one proxy hop (Cloudflare → Railway). Required for correct req.ip,
 // X-Forwarded-For in logs, and rate-limiter keying.
 app.set('trust proxy', 1);
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'wvrea2026';
-const PROJECT_ROOT   = path.join(__dirname, '..');
+const ADMIN_PASSWORD  = process.env.ADMIN_PASSWORD || 'wvrea2026';
+const PROJECT_ROOT    = path.join(__dirname, '..');
+
+const VALID_PROP_TYPES   = ['residential','commercial','land','multi-family','industrial'];
+const VALID_PROP_STATUSES = ['active','pending','sold','withdrawn','draft'];
+
+function isValidEmail(s) {
+  const at = s.indexOf('@');
+  if (at < 1 || s.indexOf('@', at + 1) !== -1) return false;
+  const domain = s.slice(at + 1);
+  const dot = domain.lastIndexOf('.');
+  return dot > 0 && dot < domain.length - 1;
+}
+
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.ADMIN_PASSWORD) console.warn('[WARN] ADMIN_PASSWORD env var is not set — using insecure default');
+  if (!process.env.SESSION_SECRET) console.warn('[WARN] SESSION_SECRET env var is not set — using insecure default');
+}
 
 // ── DB ────────────────────────────────────────────────────
 // DATABASE_PATH env var must point to the Railway persistent volume (/data/wv_property.db).
@@ -1000,6 +1016,8 @@ app.get('/api/analytics', (_req, res) => {
 app.post('/api/contacts', contactsRateLimit, (req, res) => {
   const { property_id,name,email,phone,message } = req.body;
   if (!name||!email) return res.status(400).json({ error:'Name and email required' });
+  if (!isValidEmail(email))
+    return res.status(400).json({ error: 'Invalid email address' });
   const result = db.prepare(
     `INSERT INTO contacts (property_id,name,email,phone,message) VALUES (?,?,?,?,?)`
   ).run(property_id||null,name,email,phone,message);
@@ -1032,6 +1050,10 @@ app.post('/api/properties', apiWriteRateLimit, requireApiKey, (req, res) => {
   try {
     const f = req.body;
     if (!f.address) return res.status(400).json({ error: 'address is required' });
+    if (f.property_type && !VALID_PROP_TYPES.includes(f.property_type))
+      return res.status(400).json({ error: 'Invalid property_type' });
+    if (f.status && !VALID_PROP_STATUSES.includes(f.status))
+      return res.status(400).json({ error: 'Invalid status' });
     const id   = crypto.randomBytes(16).toString('hex');
     const slug = slugify((f.address||'listing') + '-' + (f.city||'wv')) + '-' + id.slice(0,6);
     db.prepare(`
@@ -1070,6 +1092,10 @@ app.put('/api/properties/:id', apiWriteRateLimit, requireApiKey, (req, res) => {
     const f = req.body;
     const existing = db.prepare('SELECT id FROM properties WHERE id=?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Not found' });
+    if (f.property_type && !VALID_PROP_TYPES.includes(f.property_type))
+      return res.status(400).json({ error: 'Invalid property_type' });
+    if (f.status && !VALID_PROP_STATUSES.includes(f.status))
+      return res.status(400).json({ error: 'Invalid status' });
     db.prepare(`
       UPDATE properties SET
         county_id=?, address=?, city=?, state=?, zip=?, parcel_id=?, subdivision=?,

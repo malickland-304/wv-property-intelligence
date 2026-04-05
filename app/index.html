@@ -1318,12 +1318,13 @@ async function submitForm(form, successId) {
   const data = {};
   new FormData(form).forEach((v, k) => data[k] = v);
   try {
-    await fetch('/api/contacts', {
+    const res = await fetch('/api/contacts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
-  } catch(e) {}
+    if (!res.ok) return;
+  } catch(e) { return; }
   form.style.display = 'none';
   document.getElementById(successId).style.display = 'block';
 }
