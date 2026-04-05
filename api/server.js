@@ -836,6 +836,44 @@ app.get('/admin/integrations', requireAuth, (_req, res) => {
   `));
 });
 
+// ── Leads view ───────────────────────────────────────────
+app.get('/admin/leads', requireAuth, (req, res) => {
+  const leads = db.prepare(`
+    SELECT ct.id, ct.name, ct.email, ct.phone, ct.message, ct.source, ct.created_at,
+           p.address, p.city, c.name AS county
+    FROM contacts ct
+    LEFT JOIN properties p ON p.id = ct.property_id
+    LEFT JOIN counties c ON c.id = p.county_id
+    ORDER BY ct.created_at DESC
+    LIMIT 200
+  `).all();
+
+  const rows = leads.map(l => `
+    <tr>
+      <td>${new Date(l.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</td>
+      <td><strong>${l.name||'—'}</strong></td>
+      <td><a href="mailto:${l.email}" style="color:#1a3a2a">${l.email||'—'}</a></td>
+      <td>${l.phone ? `<a href="tel:${l.phone}" style="color:#1a3a2a">${l.phone}</a>` : '—'}</td>
+      <td>${l.address ? `${l.address}${l.city?', '+l.city:''}, ${l.county||''}` : '—'}</td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(l.message||'').replace(/"/g,'')}">${l.message||'—'}</td>
+      <td><span class="badge ${l.source==='county_notify'?'draft':l.source==='packet_request'?'pending':'active'}">${l.source||'web'}</span></td>
+    </tr>`).join('');
+
+  res.send(adminShell('Leads', `
+    <div class="dash-header">
+      <h1>Leads &amp; Inquiries</h1>
+      <span style="color:#666;font-size:.9rem">${leads.length} total</span>
+    </div>
+    ${leads.length ? `
+    <table class="listings-table">
+      <thead><tr>
+        <th>Date</th><th>Name</th><th>Email</th><th>Phone</th><th>Property</th><th>Message</th><th>Source</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>` : `<p style="color:#666;padding:2rem">No leads yet. Share your listings!</p>`}
+  `));
+});
+
 // ── Public API ────────────────────────────────────────────
 app.get('/api/health', (_req, res) => res.json({ status:'ok', ts:new Date() }));
 
@@ -1433,6 +1471,7 @@ function adminShell(title, body) {
     <span class="logo">🏡 WVREA Admin</span>
     <a href="/admin">📋 Listings</a>
     <a href="/admin/new">➕ New Listing</a>
+    <a href="/admin/leads">📬 Leads</a>
     <a href="/admin/integrations">🔗 Integrations</a>
     <a href="/" target="_blank">🌐 Public Site</a>
     <a href="/admin/logout" class="logout" style="color:#ffaaaa">🚪 Logout</a>
