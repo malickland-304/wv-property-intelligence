@@ -12,9 +12,7 @@ const multer     = require('multer');
 const session    = require('express-session');
 const rateLimit  = require('express-rate-limit');
 require('dotenv').config();
-const { exec }    = require('child_process');
-const { promisify } = require('util');
-const execAsync     = promisify(exec);
+const { execFile } = require('child_process');
 
 const { sendContactEmail, uploadPhotoToDrive } = require('./google');
 
@@ -26,6 +24,21 @@ const PORT = process.env.PORT || 3000;
 app.set('trust proxy', 1);
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'wvrea2026';
 const PROJECT_ROOT   = path.join(__dirname, '..');
+
+if (!process.env.SESSION_SECRET) {
+  console.warn('⚠️  SESSION_SECRET not set — using insecure default. Set SESSION_SECRET in production!');
+}
+
+// ── HTML escaping helper ──────────────────────────────────
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 // ── DB ────────────────────────────────────────────────────
 // DATABASE_PATH env var must point to the Railway persistent volume (/data/wv_property.db).
@@ -407,13 +420,13 @@ app.get('/admin', requireAuth, (_req, res) => {
 
   const rows = listings.map(p => `
     <tr>
-      <td>${p.address}${p.city ? ', '+p.city : ''}</td>
-      <td>${p.county||''}</td>
-      <td>${p.property_type}</td>
+      <td>${escapeHtml(p.address)}${p.city ? ', '+escapeHtml(p.city) : ''}</td>
+      <td>${escapeHtml(p.county||'')}</td>
+      <td>${escapeHtml(p.property_type)}</td>
       <td>${p.price ? '$'+Number(p.price).toLocaleString() : '--'}</td>
       <td>${p.acreage ? p.acreage+' ac' : '--'}</td>
-      <td><span class="badge ${p.status}">${p.status}</span></td>
-      <td>${p.mls_status||'draft'}</td>
+      <td><span class="badge ${escapeHtml(p.status)}">${escapeHtml(p.status)}</span></td>
+      <td>${escapeHtml(p.mls_status||'draft')}</td>
       <td>
         <a href="/admin/edit/${p.id}" class="btn-sm">Edit</a>
         <a href="/admin/photos/${p.listing_slug||p.id}" class="btn-sm">Photos</a>
@@ -541,16 +554,16 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
 
   const photoGrid = photos.map((f,i) => `
     <div class="photo-item">
-      <img src="/images/${slug}/photos/compressed/${f}" alt="Photo ${i+1}" />
+      <img src="/images/${encodeURIComponent(slug)}/photos/compressed/${encodeURIComponent(f)}" alt="Photo ${i+1}" />
       <div class="photo-actions">
-        ${i===0 ? '<span class="primary-badge">Primary</span>' : `<button onclick="setPrimary('${slug}','${f}')">Set Primary</button>`}
-        <button onclick="deletePhoto('${slug}','${f}')" class="del">Delete</button>
+        ${i===0 ? '<span class="primary-badge">Primary</span>' : `<button onclick="setPrimary(${JSON.stringify(slug)},${JSON.stringify(f)})">Set Primary</button>`}
+        <button onclick="deletePhoto(${JSON.stringify(slug)},${JSON.stringify(f)})" class="del">Delete</button>
       </div>
     </div>`).join('');
 
   res.send(adminShell('Upload Photos', `
     <div class="dash-header">
-      <h1>Photos — ${p ? p.address : slug}</h1>
+      <h1>Photos — ${escapeHtml(p ? p.address : slug)}</h1>
       <a href="/admin" class="btn-outline">← Back</a>
     </div>
     <div class="upload-zone" id="dropZone">
@@ -568,7 +581,7 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
     <h3 style="margin:1.5rem 0 1rem">Uploaded Photos (${photos.length})</h3>
     <div class="photo-grid" id="photoGrid">${photoGrid}</div>
     <script>
-      const slug = '${slug}';
+      const slug = ${JSON.stringify(slug)};
       const dropZone = document.getElementById('dropZone');
       const fileInput = document.getElementById('fileInput');
 
@@ -648,8 +661,8 @@ app.post('/admin/upload/:slug', requireAuth, upload.single('photo'), async (req,
 
   if (process.platform === 'darwin') {
     // sips is macOS-only — use it when available for lossless resize
-    exec(`sips -Z 1200 "${rawPath}" --out "${compPath}"`, () => {
-      exec(`sips -Z 1024 "${rawPath}" --out "${mlsPath}"`, afterCompress);
+    execFile('sips', ['-Z', '1200', rawPath, '--out', compPath], () => {
+      execFile('sips', ['-Z', '1024', rawPath, '--out', mlsPath], afterCompress);
     });
   } else {
     // Linux/Railway: copy raw file as-is; compression can be added via sharp later
@@ -694,33 +707,33 @@ app.get('/admin/report/:id', requireAuth, (req, res) => {
 
   res.send(adminShell('Report', `
     <div class="dash-header">
-      <h1>Report — ${p.address}</h1>
+      <h1>Report — ${escapeHtml(p.address)}</h1>
       <a href="/admin" class="btn-outline">← Back</a>
     </div>
     <div class="report-grid">
       <div class="report-card">
         <h3>Property Details</h3>
         <table class="detail-table">
-          <tr><td>Address</td><td>${p.address}, ${p.city} ${p.zip}</td></tr>
-          <tr><td>County</td><td>${p.county}</td></tr>
-          <tr><td>Type</td><td>${p.property_type}</td></tr>
+          <tr><td>Address</td><td>${escapeHtml(p.address)}, ${escapeHtml(p.city||'')} ${escapeHtml(p.zip||'')}</td></tr>
+          <tr><td>County</td><td>${escapeHtml(p.county||'')}</td></tr>
+          <tr><td>Type</td><td>${escapeHtml(p.property_type)}</td></tr>
           <tr><td>Acreage</td><td>${p.acreage||'--'}</td></tr>
           <tr><td>Price</td><td>${p.price ? '$'+Number(p.price).toLocaleString() : '--'}</td></tr>
           <tr><td>Price/Acre</td><td>${p.price_per_acre ? '$'+Number(p.price_per_acre).toLocaleString() : '--'}</td></tr>
-          <tr><td>Flood Zone</td><td>${p.flood_zone||'--'}</td></tr>
-          <tr><td>Road Access</td><td>${p.road_access||'--'}</td></tr>
-          <tr><td>MLS #</td><td>${p.mls_number||'--'}</td></tr>
+          <tr><td>Flood Zone</td><td>${escapeHtml(p.flood_zone||'--')}</td></tr>
+          <tr><td>Road Access</td><td>${escapeHtml(p.road_access||'--')}</td></tr>
+          <tr><td>MLS #</td><td>${escapeHtml(p.mls_number||'--')}</td></tr>
         </table>
       </div>
       <div class="report-card">
         <h3>Comparable Sales</h3>
-        <textarea id="compsArea" rows="10">${comps}</textarea>
-        <button onclick="saveComps('${p.id}')">Save Comps</button>
+        <textarea id="compsArea" rows="10">${escapeHtml(comps)}</textarea>
+        <button onclick="saveComps(${JSON.stringify(p.id)})">Save Comps</button>
       </div>
       <div class="report-card full">
         <h3>Due Diligence Notes</h3>
-        <textarea id="ddArea" rows="15">${dd}</textarea>
-        <button onclick="saveDD('${p.id}')">Save Notes</button>
+        <textarea id="ddArea" rows="15">${escapeHtml(dd)}</textarea>
+        <button onclick="saveDD(${JSON.stringify(p.id)})">Save Notes</button>
       </div>
     </div>
     <script>
@@ -744,21 +757,29 @@ app.get('/admin/report/:id', requireAuth, (req, res) => {
   `));
 });
 
+const MAX_REPORT_CONTENT = 512 * 1024; // 512 KB
+
 app.post('/admin/report/:id/comps', requireAuth, (req, res) => {
+  const content = req.body.content;
+  if (typeof content !== 'string') return res.status(400).json({ error: 'Content required' });
+  if (content.length > MAX_REPORT_CONTENT) return res.status(413).json({ error: 'Content too large' });
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
   const slug = p.listing_slug || req.params.id;
   fs.mkdirSync(path.join(PROJECT_ROOT,'listings',slug), { recursive:true });
-  fs.writeFileSync(path.join(PROJECT_ROOT,'listings',slug,'comps.csv'), req.body.content);
+  fs.writeFileSync(path.join(PROJECT_ROOT,'listings',slug,'comps.csv'), content);
   res.json({ ok:true });
 });
 
 app.post('/admin/report/:id/dd', requireAuth, (req, res) => {
+  const content = req.body.content;
+  if (typeof content !== 'string') return res.status(400).json({ error: 'Content required' });
+  if (content.length > MAX_REPORT_CONTENT) return res.status(413).json({ error: 'Content too large' });
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
   const slug = p.listing_slug || req.params.id;
   fs.mkdirSync(path.join(PROJECT_ROOT,'listings',slug), { recursive:true });
-  fs.writeFileSync(path.join(PROJECT_ROOT,'listings',slug,'due_diligence.md'), req.body.content);
+  fs.writeFileSync(path.join(PROJECT_ROOT,'listings',slug,'due_diligence.md'), content);
   res.json({ ok:true });
 });
 
@@ -983,9 +1004,6 @@ app.use(express.static(path.join(PROJECT_ROOT, 'app')));
 app.use((_req,res) => res.status(404).json({ error:'Not found' }));
 app.use((err,_req,res,_next) => { console.error(err); res.status(500).json({ error:'Server error' }); });
 
-app.listen(PORT, () => console.log(`✅ WV Property API → http://localhost:${PORT}\n   Admin Panel  → http://localhost:${PORT}/admin`));
-module.exports = app;
-
 // ── DB Backup (daily, keep last 7) ───────────────────────
 const BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const BACKUP_KEEP = 7; // days of backups to retain
@@ -1132,11 +1150,11 @@ function adminShell(title, body) {
 
 // ── Listing form HTML ─────────────────────────────────────
 function listingForm(p, counties) {
-  const v = (f) => p ? (p[f]||'') : '';
+  const v = (f) => escapeHtml(p ? (p[f]||'') : '');
   const chk = (f) => p && p[f] ? 'checked' : '';
   const sel = (f,val) => p && p[f]===val ? 'selected' : '';
   const countyOpts = counties.map(c =>
-    `<option value="${c.id}" ${p && p.county_id==c.id?'selected':''}>${c.name}</option>`
+    `<option value="${c.id}" ${p && p.county_id==c.id?'selected':''}>${escapeHtml(c.name)}</option>`
   ).join('');
 
   return `
@@ -1274,3 +1292,5 @@ app.get('/advent-drive-land-hampshire-county-wv', (req, res) => {
   `);
 });
 
+app.listen(PORT, () => console.log(`✅ WV Property API → http://localhost:${PORT}\n   Admin Panel  → http://localhost:${PORT}/admin`));
+module.exports = app;
