@@ -839,6 +839,11 @@ app.get('/admin/integrations', requireAuth, (_req, res) => {
 // ── Public API ────────────────────────────────────────────
 app.get('/api/health', (_req, res) => res.json({ status:'ok', ts:new Date() }));
 
+// Public config (GA ID, etc.) — safe to expose
+app.get('/api/config', (_req, res) => {
+  res.json({ gaId: process.env.GA_MEASUREMENT_ID || '' });
+});
+
 app.get('/api/counties', (_req, res) => {
   res.json(db.prepare('SELECT id,name FROM counties ORDER BY name').all());
 });
@@ -1003,6 +1008,14 @@ app.get('/sitemap.xml', (_req, res) => {
   res.send(xml);
 });
 
+// ── Shared helpers ────────────────────────────────────────
+function gaSnippet() {
+  const id = process.env.GA_MEASUREMENT_ID;
+  if (!id) return '';
+  return `<script async src="https://www.googletagmanager.com/gtag/js?id=${id}"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${id}');</script>`;
+}
+
 // ── County SEO pages  /wv/:county-county ──────────────────
 app.get('/wv/:slug', (req, res) => {
   const slug = req.params.slug; // e.g. "hampshire-county"
@@ -1040,7 +1053,26 @@ app.get('/wv/:slug', (req, res) => {
         <a href="${url}" class="lcard-btn">View Listing →</a>
       </div>
     </div>`;
-  }).join('') : `<p style="color:#666;grid-column:1/-1">No active listings right now — <a href="/#contact" style="color:#1B4332;font-weight:700">contact Phil</a> to be the first to know.</p>`;
+  }).join('') : `
+  <div style="grid-column:1/-1;background:#fff;border-radius:12px;padding:2rem;text-align:center;border:1px solid #e0e0e0">
+    <div style="font-size:2.5rem;margin-bottom:.75rem">🌲</div>
+    <h3 style="color:#1B4332;margin-bottom:.5rem">No Active Listings Right Now</h3>
+    <p style="color:#666;margin-bottom:1.25rem">Be the first to know when ${county.name} County listings come available.</p>
+    <form id="notifyForm" style="display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap" onsubmit="return notifySubmit(event,'${county.name}')">
+      <input type="email" placeholder="Your email" required style="padding:.65rem 1rem;border:1px solid #ddd;border-radius:8px;font-size:.9rem;min-width:220px">
+      <button type="submit" style="background:#D4AF37;color:#0a0a0a;border:none;border-radius:8px;padding:.65rem 1.25rem;font-weight:700;cursor:pointer">Notify Me</button>
+    </form>
+    <script>
+    function notifySubmit(e, county) {
+      e.preventDefault();
+      var email = e.target.querySelector('input[type=email]').value;
+      fetch('/api/contacts',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({name:'County Alert',email:email,message:'Notify me for '+county+' County listings',source:'county_notify'})
+      }).then(r=>{if(r.ok)e.target.innerHTML='<p style="color:#1B4332;font-weight:600">✅ You\'re on the list!</p>';}).catch(()=>{});
+      return false;
+    }
+    </script>
+  </div>`;
 
   const jsonLd = JSON.stringify({
     '@context': 'https://schema.org',
@@ -1103,12 +1135,13 @@ app.get('/wv/:slug', (req, res) => {
     footer{background:#0a0a0a;color:#aaa;text-align:center;padding:1.5rem;font-size:.82rem}
     @media(max-width:600px){.hero h1{font-size:1.4rem}.nav-links{display:none}}
   </style>
+  ${gaSnippet()}
 </head>
 <body>
 <nav class="nav">
   <a href="/">MalickLand</a>
   <div>
-    <a href="/listings.html" class="nav-links">All Listings</a>
+    <a href="/#listings" class="nav-links">All Listings</a>
     <a href="/#contact" class="nav-links">Contact</a>
   </div>
 </nav>
@@ -1231,11 +1264,12 @@ app.get('/properties/:slug', (req, res) => {
     footer{background:#0a0a0a;color:#aaa;text-align:center;padding:1.5rem;font-size:.82rem;margin-top:3rem}
     @media(max-width:600px){.hero-price{font-size:1.6rem}}
   </style>
+  ${gaSnippet()}
 </head>
 <body>
 <nav class="nav">
   <a href="/">MalickLand</a>
-  <a href="/listings.html" class="back-link">← All Listings</a>
+  <a href="/#listings" class="back-link">← All Listings</a>
 </nav>
 <div class="hero">
   <div class="hero-inner">
