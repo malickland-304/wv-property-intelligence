@@ -17,6 +17,9 @@ const { promisify } = require('util');
 const execAsync     = promisify(exec);
 
 const { sendContactEmail, uploadPhotoToDrive } = require('./google');
+const { requireApiKey } = require('./middleware/auth');
+let sharp;
+try { sharp = require('sharp'); } catch (_) { sharp = null; }
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -237,6 +240,16 @@ function slugify(str) {
   return str.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 }
 
+// Escape HTML special characters to prevent XSS in server-rendered admin pages
+function esc(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function initListingFolder(slug) {
   const base = path.join(PROJECT_ROOT, 'listings', slug);
   ['photos/raw','photos/compressed','photos/mls'].forEach(p =>
@@ -259,7 +272,8 @@ function initListingFolder(slug) {
 // ── Multer (photo upload) ─────────────────────────────────
 const storage = multer.diskStorage({
   destination: (req, _file, cb) => {
-    const slug = req.params.slug || req.body.slug || 'uploads';
+    // Use path.basename() to strip any path separators from the slug
+    const slug = path.basename(req.params.slug || req.body.slug || 'uploads');
     const dir  = path.join(PROJECT_ROOT, 'listings', slug, 'photos', 'raw');
     fs.mkdirSync(dir, { recursive:true });
     cb(null, dir);
@@ -316,6 +330,24 @@ function requireAuth(req, res, next) {
   res.redirect('/admin/login');
 }
 
+// ── CSRF protection (session-based double-submit token) ───
+function csrfToken(req) {
+  if (!req.session.csrfToken) {
+    req.session.csrfToken = crypto.randomBytes(16).toString('hex');
+  }
+  return req.session.csrfToken;
+}
+
+function requireCsrf(req, res, next) {
+  // Skip CSRF for API endpoints (protected by API key, not session cookie)
+  if (req.path.startsWith('/api/')) return next();
+  const token = req.body._csrf || req.headers['x-csrf-token'];
+  if (!token || token !== req.session.csrfToken) {
+    return res.status(403).send('Invalid CSRF token');
+  }
+  next();
+}
+
 // ── Rate limiters ─────────────────────────────────────────
 const contactsRateLimit = rateLimit({
   windowMs: 60 * 1000,
@@ -333,6 +365,48 @@ const adminLoginRateLimit = rateLimit({
   legacyHeaders: false,
   skipSuccessfulRequests: true,
 });
+
+// 20 description-generate calls per minute per IP
+const generateDescRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many generate requests. Please wait a moment.' },
+});
+
+// 60 API write calls per minute per IP (contacts read + properties CRUD)
+const apiWriteRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many API requests. Please wait a moment.' },
+});
+
+// 30 photo uploads per minute per IP (admin upload handler)
+const uploadRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many upload requests. Please wait a moment.' },
+});
+
+// 60 admin form submissions per minute per IP (listing create/edit, report saves, etc.)
+const adminActionRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many admin actions. Please slow down.',
+});
+
+// Validate that a slug/filename only contains safe characters (alphanumeric, hyphens, underscores)
+const SAFE_PATH_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*(\.[a-zA-Z0-9]+)?$/;
+function isSafePathComponent(str) {
+  return typeof str === 'string' && SAFE_PATH_RE.test(str) && !str.includes('..');
+}
 
 // ── Admin login ───────────────────────────────────────────
 app.get('/admin/login', (_req, res) => {
@@ -407,17 +481,17 @@ app.get('/admin', requireAuth, (_req, res) => {
 
   const rows = listings.map(p => `
     <tr>
-      <td>${p.address}${p.city ? ', '+p.city : ''}</td>
-      <td>${p.county||''}</td>
-      <td>${p.property_type}</td>
+      <td>${esc(p.address)}${p.city ? ', '+esc(p.city) : ''}</td>
+      <td>${esc(p.county||'')}</td>
+      <td>${esc(p.property_type)}</td>
       <td>${p.price ? '$'+Number(p.price).toLocaleString() : '--'}</td>
       <td>${p.acreage ? p.acreage+' ac' : '--'}</td>
-      <td><span class="badge ${p.status}">${p.status}</span></td>
-      <td>${p.mls_status||'draft'}</td>
+      <td><span class="badge ${esc(p.status)}">${esc(p.status)}</span></td>
+      <td>${esc(p.mls_status||'draft')}</td>
       <td>
-        <a href="/admin/edit/${p.id}" class="btn-sm">Edit</a>
-        <a href="/admin/photos/${p.listing_slug||p.id}" class="btn-sm">Photos</a>
-        <a href="/admin/report/${p.id}" class="btn-sm">Report</a>
+        <a href="/admin/edit/${esc(p.id)}" class="btn-sm">Edit</a>
+        <a href="/admin/photos/${esc(p.listing_slug||p.id)}" class="btn-sm">Photos</a>
+        <a href="/admin/report/${esc(p.id)}" class="btn-sm">Report</a>
       </td>
     </tr>`).join('');
 
@@ -433,20 +507,20 @@ app.get('/admin', requireAuth, (_req, res) => {
       </tr></thead>
       <tbody>${rows || '<tr><td colspan="8" style="text-align:center;padding:2rem;color:#999">No listings yet. <a href="/admin/new">Add your first listing →</a></td></tr>'}</tbody>
     </table>
-  `));
+  `, csrfToken(req)));
 });
 
 // ── New listing form ──────────────────────────────────────
 app.get('/admin/new', requireAuth, (req, res) => {
   const counties = db.prepare('SELECT id,name FROM counties ORDER BY name').all();
-  res.send(adminShell('New Listing', listingForm(null, counties)));
+  res.send(adminShell('New Listing', listingForm(null, counties), csrfToken(req)));
 });
 
 function normalizeAcreage(body) {
   return body.acreage ?? body.lot_acres ?? null;
 }
 
-app.post('/admin/new', requireAuth, (req, res) => {
+app.post('/admin/new', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
   const f = req.body;
   const id   = crypto.randomBytes(16).toString('hex');
   const slug = slugify((f.address||'listing') + '-' + (f.city||'wv'));
@@ -496,10 +570,10 @@ app.get('/admin/edit/:id', requireAuth, (req, res) => {
   const p = db.prepare('SELECT * FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.redirect('/admin');
   const counties = db.prepare('SELECT id,name FROM counties ORDER BY name').all();
-  res.send(adminShell('Edit Listing', listingForm(p, counties)));
+  res.send(adminShell('Edit Listing', listingForm(p, counties), csrfToken(req)));
 });
 
-app.post('/admin/edit/:id', requireAuth, (req, res) => {
+app.post('/admin/edit/:id', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
   const f = req.body;
   db.prepare(`
     UPDATE properties SET
@@ -532,6 +606,7 @@ app.post('/admin/edit/:id', requireAuth, (req, res) => {
 // ── Photo upload page ─────────────────────────────────────
 app.get('/admin/photos/:slug', requireAuth, (req, res) => {
   const slug = req.params.slug;
+  if (!isSafePathComponent(slug)) return res.status(400).send('Invalid slug');
   const p = db.prepare('SELECT * FROM properties WHERE listing_slug=?').get(slug);
   const photoDir = path.join(PROJECT_ROOT,'listings',slug,'photos','compressed');
   let photos = [];
@@ -541,16 +616,16 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
 
   const photoGrid = photos.map((f,i) => `
     <div class="photo-item">
-      <img src="/images/${slug}/photos/compressed/${f}" alt="Photo ${i+1}" />
+      <img src="/images/${esc(slug)}/photos/compressed/${esc(f)}" alt="Photo ${i+1}" />
       <div class="photo-actions">
-        ${i===0 ? '<span class="primary-badge">Primary</span>' : `<button onclick="setPrimary('${slug}','${f}')">Set Primary</button>`}
-        <button onclick="deletePhoto('${slug}','${f}')" class="del">Delete</button>
+        ${i===0 ? '<span class="primary-badge">Primary</span>' : `<button onclick="setPrimary('${esc(slug)}','${esc(f)}')">Set Primary</button>`}
+        <button onclick="deletePhoto('${esc(slug)}','${esc(f)}')" class="del">Delete</button>
       </div>
     </div>`).join('');
 
   res.send(adminShell('Upload Photos', `
     <div class="dash-header">
-      <h1>Photos — ${p ? p.address : slug}</h1>
+      <h1>Photos — ${p ? esc(p.address) : esc(slug)}</h1>
       <a href="/admin" class="btn-outline">← Back</a>
     </div>
     <div class="upload-zone" id="dropZone">
@@ -568,7 +643,8 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
     <h3 style="margin:1.5rem 0 1rem">Uploaded Photos (${photos.length})</h3>
     <div class="photo-grid" id="photoGrid">${photoGrid}</div>
     <script>
-      const slug = '${slug}';
+      const slug = '${esc(slug)}';
+      const _csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
       const dropZone = document.getElementById('dropZone');
       const fileInput = document.getElementById('fileInput');
 
@@ -590,7 +666,7 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
         for (const file of files) {
           const fd = new FormData();
           fd.append('photo', file);
-          await fetch('/admin/upload/' + slug, { method:'POST', body:fd });
+          await fetch('/admin/upload/' + slug, { method:'POST', body:fd, headers:{'x-csrf-token':_csrf} });
           done++;
           const pct = Math.round(done/files.length*100);
           fill.style.width = pct+'%';
@@ -603,7 +679,7 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
       async function setPrimary(slug, filename) {
         await fetch('/admin/photos/' + slug + '/primary', {
           method:'POST',
-          headers:{'Content-Type':'application/json'},
+          headers:{'Content-Type':'application/json','x-csrf-token':_csrf},
           body: JSON.stringify({ filename })
         });
         location.reload();
@@ -611,25 +687,38 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
 
       async function deletePhoto(slug, filename) {
         if (!confirm('Delete this photo?')) return;
-        await fetch('/admin/photos/' + slug + '/' + filename, { method:'DELETE' });
+        await fetch('/admin/photos/' + slug + '/' + filename, { method:'DELETE', headers:{'x-csrf-token':_csrf} });
         location.reload();
       }
     </script>
-  `));
+  `, csrfToken(req)));
 });
 
 // Upload handler
-app.post('/admin/upload/:slug', requireAuth, upload.single('photo'), async (req, res) => {
-  const slug = req.params.slug;
+app.post('/admin/upload/:slug', requireAuth, requireCsrf, uploadRateLimit, upload.single('photo'), async (req, res) => {
+  // Sanitise slug via path.basename() to strip any path separators, then validate
+  const slug = path.basename(req.params.slug || '');
+  if (!isSafePathComponent(slug)) return res.status(400).json({ error: 'Invalid slug' });
   if (!req.file) return res.status(400).json({ error: 'No file' });
 
-  const rawPath = req.file.path;
+  // Sanitise multer-generated filename via path.basename() (should always be safe, but belt-and-suspenders)
+  const filename = path.basename(req.file.filename || '');
+  if (!isSafePathComponent(filename)) {
+    // Clean up by deleting the file multer placed in the raw dir
+    const rawDir = path.join(PROJECT_ROOT, 'listings', slug, 'photos', 'raw');
+    fs.unlink(path.join(rawDir, filename), err => {
+      if (err) console.error('[upload] cleanup failed:', err.message);
+    });
+    return res.status(400).json({ error: 'Invalid filename' });
+  }
+
+  // Use sanitised slug/filename for all path operations
+  const rawPath = path.join(PROJECT_ROOT, 'listings', slug, 'photos', 'raw', filename);
   const compDir = path.join(PROJECT_ROOT,'listings',slug,'photos','compressed');
   const mlsDir  = path.join(PROJECT_ROOT,'listings',slug,'photos','mls');
   fs.mkdirSync(compDir, { recursive:true });
   fs.mkdirSync(mlsDir,  { recursive:true });
 
-  const filename = req.file.filename;
   const compPath = path.join(compDir, filename);
   const mlsPath  = path.join(mlsDir,  filename);
 
@@ -646,13 +735,26 @@ app.post('/admin/upload/:slug', requireAuth, upload.single('photo'), async (req,
     res.json({ ok:true, filename });
   }
 
-  if (process.platform === 'darwin') {
-    // sips is macOS-only — use it when available for lossless resize
+  if (process.platform === 'darwin' && !sharp) {
+    // sips is macOS-only fallback when sharp is unavailable
     exec(`sips -Z 1200 "${rawPath}" --out "${compPath}"`, () => {
       exec(`sips -Z 1024 "${rawPath}" --out "${mlsPath}"`, afterCompress);
     });
+  } else if (sharp) {
+    // Use sharp for cross-platform image compression (Linux / Railway / macOS)
+    Promise.all([
+      sharp(rawPath).resize({ width: 1200, withoutEnlargement: true }).jpeg({ quality: 85 }).toFile(compPath),
+      sharp(rawPath).resize({ width: 1024, withoutEnlargement: true }).jpeg({ quality: 80 }).toFile(mlsPath),
+    ])
+      .then(afterCompress)
+      .catch(err => {
+        console.error('[sharp] compression failed, using original:', err.message);
+        fs.copyFileSync(rawPath, compPath);
+        fs.copyFileSync(rawPath, mlsPath);
+        afterCompress();
+      });
   } else {
-    // Linux/Railway: copy raw file as-is; compression can be added via sharp later
+    // Last resort: copy raw file as-is
     fs.copyFileSync(rawPath, compPath);
     fs.copyFileSync(rawPath, mlsPath);
     afterCompress();
@@ -660,16 +762,21 @@ app.post('/admin/upload/:slug', requireAuth, upload.single('photo'), async (req,
 });
 
 // Set primary photo
-app.post('/admin/photos/:slug/primary', requireAuth, (req, res) => {
+app.post('/admin/photos/:slug/primary', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
+  const { slug } = req.params;
   const { filename } = req.body;
+  if (!isSafePathComponent(slug) || !isSafePathComponent(filename||''))
+    return res.status(400).json({ error: 'Invalid slug or filename' });
   db.prepare('UPDATE properties SET image_url=? WHERE listing_slug=?')
-    .run(`/images/${req.params.slug}/photos/compressed/${filename}`, req.params.slug);
+    .run(`/images/${slug}/photos/compressed/${filename}`, slug);
   res.json({ ok:true });
 });
 
 // Delete photo
-app.delete('/admin/photos/:slug/:filename', requireAuth, (req, res) => {
+app.delete('/admin/photos/:slug/:filename', requireAuth, requireCsrf, (req, res) => {
   const { slug, filename } = req.params;
+  if (!isSafePathComponent(slug) || !isSafePathComponent(filename))
+    return res.status(400).json({ error: 'Invalid slug or filename' });
   ['raw','compressed','mls'].forEach(dir => {
     const fp = path.join(PROJECT_ROOT,'listings',slug,'photos',dir,filename);
     if (fs.existsSync(fp)) fs.unlinkSync(fp);
@@ -694,40 +801,41 @@ app.get('/admin/report/:id', requireAuth, (req, res) => {
 
   res.send(adminShell('Report', `
     <div class="dash-header">
-      <h1>Report — ${p.address}</h1>
+      <h1>Report — ${esc(p.address)}</h1>
       <a href="/admin" class="btn-outline">← Back</a>
     </div>
     <div class="report-grid">
       <div class="report-card">
         <h3>Property Details</h3>
         <table class="detail-table">
-          <tr><td>Address</td><td>${p.address}, ${p.city} ${p.zip}</td></tr>
-          <tr><td>County</td><td>${p.county}</td></tr>
-          <tr><td>Type</td><td>${p.property_type}</td></tr>
+          <tr><td>Address</td><td>${esc(p.address)}, ${esc(p.city)} ${esc(p.zip)}</td></tr>
+          <tr><td>County</td><td>${esc(p.county)}</td></tr>
+          <tr><td>Type</td><td>${esc(p.property_type)}</td></tr>
           <tr><td>Acreage</td><td>${p.acreage||'--'}</td></tr>
           <tr><td>Price</td><td>${p.price ? '$'+Number(p.price).toLocaleString() : '--'}</td></tr>
           <tr><td>Price/Acre</td><td>${p.price_per_acre ? '$'+Number(p.price_per_acre).toLocaleString() : '--'}</td></tr>
-          <tr><td>Flood Zone</td><td>${p.flood_zone||'--'}</td></tr>
-          <tr><td>Road Access</td><td>${p.road_access||'--'}</td></tr>
-          <tr><td>MLS #</td><td>${p.mls_number||'--'}</td></tr>
+          <tr><td>Flood Zone</td><td>${esc(p.flood_zone||'--')}</td></tr>
+          <tr><td>Road Access</td><td>${esc(p.road_access||'--')}</td></tr>
+          <tr><td>MLS #</td><td>${esc(p.mls_number||'--')}</td></tr>
         </table>
       </div>
       <div class="report-card">
         <h3>Comparable Sales</h3>
-        <textarea id="compsArea" rows="10">${comps}</textarea>
-        <button onclick="saveComps('${p.id}')">Save Comps</button>
+        <textarea id="compsArea" rows="10">${esc(comps)}</textarea>
+        <button onclick="saveComps('${esc(p.id)}')">Save Comps</button>
       </div>
       <div class="report-card full">
         <h3>Due Diligence Notes</h3>
-        <textarea id="ddArea" rows="15">${dd}</textarea>
-        <button onclick="saveDD('${p.id}')">Save Notes</button>
+        <textarea id="ddArea" rows="15">${esc(dd)}</textarea>
+        <button onclick="saveDD('${esc(p.id)}')">Save Notes</button>
       </div>
     </div>
     <script>
+      const _csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
       async function saveComps(id) {
         const content = document.getElementById('compsArea').value;
         await fetch('/admin/report/'+id+'/comps', {
-          method:'POST', headers:{'Content-Type':'application/json'},
+          method:'POST', headers:{'Content-Type':'application/json','x-csrf-token':_csrf},
           body: JSON.stringify({ content })
         });
         alert('Comps saved');
@@ -735,16 +843,16 @@ app.get('/admin/report/:id', requireAuth, (req, res) => {
       async function saveDD(id) {
         const content = document.getElementById('ddArea').value;
         await fetch('/admin/report/'+id+'/dd', {
-          method:'POST', headers:{'Content-Type':'application/json'},
+          method:'POST', headers:{'Content-Type':'application/json','x-csrf-token':_csrf},
           body: JSON.stringify({ content })
         });
         alert('Due diligence saved');
       }
     </script>
-  `));
+  `, csrfToken(req)));
 });
 
-app.post('/admin/report/:id/comps', requireAuth, (req, res) => {
+app.post('/admin/report/:id/comps', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
   const slug = p.listing_slug || req.params.id;
@@ -753,7 +861,7 @@ app.post('/admin/report/:id/comps', requireAuth, (req, res) => {
   res.json({ ok:true });
 });
 
-app.post('/admin/report/:id/dd', requireAuth, (req, res) => {
+app.post('/admin/report/:id/dd', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
   const slug = p.listing_slug || req.params.id;
@@ -763,7 +871,7 @@ app.post('/admin/report/:id/dd', requireAuth, (req, res) => {
 });
 
 // ── Integrations status page ──────────────────────────────
-app.get('/admin/integrations', requireAuth, (_req, res) => {
+app.get('/admin/integrations', requireAuth, (req, res) => {
   const gmailUser    = process.env.GOOGLE_GMAIL_USER    || '';
   const notifyEmail  = process.env.NOTIFICATION_EMAIL   || '';
   const driveFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID || '';
@@ -827,7 +935,7 @@ app.get('/admin/integrations', requireAuth, (_req, res) => {
         </ol>
       </div>
     </div>
-  `));
+  `, csrfToken(req)));
 });
 
 // ── Public API ────────────────────────────────────────────
@@ -905,7 +1013,100 @@ app.post('/api/contacts', contactsRateLimit, (req, res) => {
   res.status(201).json({ id:result.lastInsertRowid });
 });
 
-app.post('/api/listings/generate-description', (req, res) => {
+// List contacts / leads (API-key protected — used by app/admin.html)
+app.get('/api/contacts', apiWriteRateLimit, requireApiKey, (_req, res) => {
+  const contacts = db.prepare(`
+    SELECT c.id, c.name, c.email, c.phone, c.property_id, c.message, c.source, c.created_at,
+           p.address AS property_address
+    FROM contacts c
+    LEFT JOIN properties p ON p.id = c.property_id
+    ORDER BY c.created_at DESC
+  `).all();
+  res.json(contacts);
+});
+
+// Create property via REST (API-key protected — used by app/admin.html)
+app.post('/api/properties', apiWriteRateLimit, requireApiKey, (req, res) => {
+  try {
+    const f = req.body;
+    if (!f.address) return res.status(400).json({ error: 'address is required' });
+    const id   = crypto.randomBytes(16).toString('hex');
+    const slug = slugify((f.address||'listing') + '-' + (f.city||'wv')) + '-' + id.slice(0,6);
+    db.prepare(`
+      INSERT INTO properties (
+        id, county_id, address, city, state, zip, parcel_id, subdivision,
+        property_type, status, acreage, lot_size, road_access, utilities_available,
+        septic, well, electric, internet,
+        price, recommended_list_price, price_per_acre, tax_assessed, annual_tax,
+        mls_status, mls_number, listing_agent, listing_office,
+        latitude, longitude, flood_zone, school_district,
+        bedrooms, bathrooms, sqft, year_built,
+        property_description, marketing_description, seller_notes, internal_notes,
+        listing_slug
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `).run(
+      id, f.county_id||1, f.address, f.city||null, f.state||'WV', f.zip||null,
+      f.parcel_id||null, f.subdivision||null, f.property_type||'land', f.status||'draft',
+      f.acreage||null, f.lot_size||null, f.road_access||null, f.utilities_available||null,
+      f.septic?1:0, f.well?1:0, f.electric?1:0, f.internet?1:0,
+      f.price||null, f.recommended_list_price||null, f.price_per_acre||null,
+      f.tax_assessed||null, f.annual_tax||null,
+      f.mls_status||'draft', f.mls_number||null, f.listing_agent||'Phil Malick',
+      f.listing_office||'WV Real Estate Agency',
+      f.latitude||null, f.longitude||null, f.flood_zone||null, f.school_district||null,
+      f.bedrooms||null, f.bathrooms||null, f.sqft||null, f.year_built||null,
+      f.property_description||null, f.marketing_description||null,
+      f.seller_notes||null, f.internal_notes||null, slug
+    );
+    res.status(201).json({ id, listing_slug: slug });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to create property' }); }
+});
+
+// Update property via REST (API-key protected — used by app/admin.html)
+app.put('/api/properties/:id', apiWriteRateLimit, requireApiKey, (req, res) => {
+  try {
+    const f = req.body;
+    const existing = db.prepare('SELECT id FROM properties WHERE id=?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+    db.prepare(`
+      UPDATE properties SET
+        county_id=?, address=?, city=?, state=?, zip=?, parcel_id=?, subdivision=?,
+        property_type=?, status=?, acreage=?, lot_size=?, road_access=?, utilities_available=?,
+        septic=?, well=?, electric=?, internet=?,
+        price=?, recommended_list_price=?, price_per_acre=?, tax_assessed=?, annual_tax=?,
+        mls_status=?, mls_number=?, listing_agent=?, listing_office=?,
+        latitude=?, longitude=?, flood_zone=?, school_district=?,
+        bedrooms=?, bathrooms=?, sqft=?, year_built=?,
+        property_description=?, marketing_description=?, seller_notes=?, internal_notes=?,
+        updated_at=datetime('now')
+      WHERE id=?
+    `).run(
+      f.county_id||1, f.address, f.city||null, f.state||'WV', f.zip||null,
+      f.parcel_id||null, f.subdivision||null, f.property_type||'land', f.status||'draft',
+      f.acreage||null, f.lot_size||null, f.road_access||null, f.utilities_available||null,
+      f.septic?1:0, f.well?1:0, f.electric?1:0, f.internet?1:0,
+      f.price||null, f.recommended_list_price||null, f.price_per_acre||null,
+      f.tax_assessed||null, f.annual_tax||null,
+      f.mls_status||'draft', f.mls_number||null, f.listing_agent||null, f.listing_office||null,
+      f.latitude||null, f.longitude||null, f.flood_zone||null, f.school_district||null,
+      f.bedrooms||null, f.bathrooms||null, f.sqft||null, f.year_built||null,
+      f.property_description||null, f.marketing_description||null,
+      f.seller_notes||null, f.internal_notes||null,
+      req.params.id
+    );
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to update property' }); }
+});
+
+// Delete property via REST (API-key protected — used by app/admin.html)
+app.delete('/api/properties/:id', apiWriteRateLimit, requireApiKey, (req, res) => {
+  const existing = db.prepare('SELECT id FROM properties WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+  db.prepare('DELETE FROM properties WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/properties/generate-description', generateDescRateLimit, (req, res) => {
   const { acreage, county, property_type, features } = req.body;
   if (!county) return res.status(400).json({ error: 'county is required' });
   const type = (property_type || 'land').toLowerCase();
@@ -1027,10 +1228,11 @@ setTimeout(runDbBackup, 10 * 60 * 1000);
 setInterval(runDbBackup, BACKUP_INTERVAL_MS);
 
 // ── Admin HTML shell ──────────────────────────────────────
-function adminShell(title, body) {
+function adminShell(title, body, csrf) {
   return `<!DOCTYPE html><html lang="en"><head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${title} — WVREA Admin</title>
+  <meta name="csrf-token" content="${esc(csrf||'')}">
+  <title>${esc(title)} — WVREA Admin</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Segoe UI',sans-serif;background:#f5f2eb;color:#222}
@@ -1104,6 +1306,20 @@ function adminShell(title, body) {
   </div>
   <div class="main">${body}</div>
   <script>
+  // Read CSRF token from meta tag for use in all admin fetch/form submissions
+  const _csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+  // Patch all forms to include CSRF hidden field before submit
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(form => {
+      if (!form.querySelector('[name=_csrf]')) {
+        const field = document.createElement('input');
+        field.type = 'hidden'; field.name = '_csrf'; field.value = _csrf;
+        form.appendChild(field);
+      }
+    });
+  });
+
   async function generateDescription() {
     const acreage = document.querySelector('[name=acreage]')?.value || '';
     const county = document.querySelector('[name=county_id] option:checked')?.textContent?.trim() || '';
@@ -1116,7 +1332,7 @@ function adminShell(title, body) {
     const btn = event.target;
     btn.disabled = true; btn.textContent = '...';
     try {
-      const res = await fetch('/api/listings/generate-description', {
+      const res = await fetch('/api/properties/generate-description', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ acreage: acreage ? Number(acreage) : undefined, county, property_type, features })
@@ -1132,11 +1348,11 @@ function adminShell(title, body) {
 
 // ── Listing form HTML ─────────────────────────────────────
 function listingForm(p, counties) {
-  const v = (f) => p ? (p[f]||'') : '';
+  const v = (f) => esc(p ? (p[f]||'') : '');
   const chk = (f) => p && p[f] ? 'checked' : '';
   const sel = (f,val) => p && p[f]===val ? 'selected' : '';
   const countyOpts = counties.map(c =>
-    `<option value="${c.id}" ${p && p.county_id==c.id?'selected':''}>${c.name}</option>`
+    `<option value="${esc(c.id)}" ${p && p.county_id==c.id?'selected':''}>${esc(c.name)}</option>`
   ).join('');
 
   return `
