@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MalickLand Admin</title>
+  <style>
+    :root {
+      --green:  #1B4332;
+      --gold:   #D4AF37;
+      --bg:     #F9F6F0;
+      --card:   #ffffff;
+      --border: #e0ddd6;
+      --text:   #1a1a1a;
+      --muted:  #666;
+      --red:    #c0392b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); }
+
+    /* ---- AUTH GATE ---- */
+    #authGate {
+      display: none; position: fixed; inset: 0; background: var(--green);
+      z-index: 9999; align-items: center; justify-content: center;
+    }
+    #authGate.open { display: flex; }
+    .auth-box {
+      background: var(--card); border-radius: 12px; padding: 2.5rem;
+      max-width: 360px; width: 100%; text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .auth-box h2 { color: var(--green); margin-bottom: .25rem; }
+    .auth-box p  { color: var(--muted); font-size: .9rem; margin-bottom: 1.5rem; }
+    .auth-box input {
+      width: 100%; padding: .75rem 1rem; border: 1px solid var(--border);
+      border-radius: 8px; font-size: 1rem; margin-bottom: 1rem;
+    }
+    .auth-error { color: var(--red); font-size: .85rem; margin-bottom: .75rem; display: none; }
+
+    /* ---- LAYOUT ---- */
+    .layout { display: flex; min-height: 100vh; }
+    .sidebar {
+      width: 220px; background: var(--green); padding: 1.5rem 1rem;
+      display: flex; flex-direction: column; position: sticky; top: 0;
+      height: 100vh; flex-shrink: 0;
+    }
+    .sidebar .logo { color: var(--gold); font-weight: 800; font-size: 1.1rem; margin-bottom: 2rem; }
+    .sidebar nav a {
+      display: block; color: rgba(255,255,255,.85); text-decoration: none;
+      padding: .6rem .75rem; border-radius: 6px; font-size: .9rem; margin-bottom: .25rem;
+    }
+    .sidebar nav a:hover, .sidebar nav a.active { background: rgba(255,255,255,.12); color: #fff; }
+    .sidebar .logout {
+      margin-top: auto; background: none; border: 1px solid rgba(255,255,255,.2);
+      color: rgba(255,255,255,.65); padding: .6rem; border-radius: 6px;
+      cursor: pointer; font-size: .85rem; width: 100%;
+    }
+    .sidebar .logout:hover { border-color: rgba(255,255,255,.5); color: #fff; }
+
+    .main { flex: 1; padding: 2rem; overflow-x: auto; }
+
+    /* ---- HEADER ---- */
+    .page-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 1.5rem;
+    }
+    .page-header h1 { font-size: 1.4rem; color: var(--green); }
+
+    /* ---- BUTTONS ---- */
+    .btn {
+      background: var(--gold); color: var(--green); border: none;
+      padding: .6rem 1.25rem; border-radius: 6px; font-weight: 700;
+      font-size: .9rem; cursor: pointer; text-decoration: none; display: inline-block;
+    }
+    .btn:hover { opacity: .87; }
+    .btn-green {
+      background: var(--green); color: var(--gold); border: none;
+      padding: .6rem 1.25rem; border-radius: 6px; font-weight: 700;
+      font-size: .9rem; cursor: pointer;
+    }
+    .btn-green:hover { opacity: .87; }
+    .btn-outline {
+      background: transparent; border: 2px solid var(--green); color: var(--green);
+      padding: .55rem 1.1rem; border-radius: 6px; font-weight: 600;
+      font-size: .9rem; cursor: pointer;
+    }
+    .btn-sm {
+      background: var(--green); color: var(--gold); border: none;
+      padding: .3rem .65rem; border-radius: 4px; font-size: .78rem; cursor: pointer;
+    }
+    .btn-del {
+      background: var(--red); color: #fff; border: none;
+      padding: .3rem .65rem; border-radius: 4px; font-size: .78rem; cursor: pointer;
+    }
+
+    /* ---- TABS ---- */
+    .tabs { display: flex; gap: .5rem; margin-bottom: 1.5rem; }
+    .tab {
+      padding: .55rem 1.25rem; border-radius: 6px; cursor: pointer;
+      font-weight: 600; font-size: .9rem; border: 2px solid var(--border);
+      background: var(--card); color: var(--muted);
+    }
+    .tab.active { background: var(--green); color: var(--gold); border-color: var(--green); }
+
+    /* ---- SECTIONS ---- */
+    .section { display: none; }
+    .section.active { display: block; }
+
+    /* ---- TABLE ---- */
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%; border-collapse: collapse; background: var(--card);
+      border-radius: 10px; overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    }
+    thead th {
+      background: var(--green); color: var(--gold);
+      padding: .85rem 1rem; text-align: left; font-size: .82rem; white-space: nowrap;
+    }
+    tbody td { padding: .8rem 1rem; border-bottom: 1px solid var(--border); font-size: .85rem; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #f9f6f0; }
+    .badge {
+      padding: .2rem .55rem; border-radius: 4px; font-size: .74rem; font-weight: 700;
+    }
+    .badge.active  { background: #d4edda; color: #155724; }
+    .badge.draft   { background: #fff3cd; color: #856404; }
+    .badge.pending { background: #cce5ff; color: #004085; }
+    .badge.sold    { background: #f8d7da; color: #721c24; }
+    .no-data { padding: 2.5rem; text-align: center; color: var(--muted); }
+
+    /* ---- FORM ---- */
+    .form-card {
+      background: var(--card); border-radius: 10px; padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,.06); margin-bottom: 1.5rem;
+    }
+    .form-card h2 { font-size: 1.1rem; color: var(--green); margin-bottom: 1.25rem; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .9rem; }
+    .form-grid .full { grid-column: 1 / -1; }
+    label { display: block; font-size: .8rem; font-weight: 600; color: #555; margin-bottom: .3rem; }
+    input[type=text], input[type=number], input[type=email], input[type=file],
+    select, textarea {
+      width: 100%; padding: .65rem .9rem; border: 1px solid var(--border);
+      border-radius: 6px; font-size: .9rem; font-family: inherit; background: #fff;
+    }
+    textarea { resize: vertical; }
+    .form-actions { display: flex; gap: .75rem; align-items: center; margin-top: 1rem; flex-wrap: wrap; }
+    .form-msg { font-size: .85rem; color: var(--green); font-weight: 600; }
+    .form-err { font-size: .85rem; color: var(--red); font-weight: 600; }
+
+    /* ---- TOAST ---- */
+    #toast {
+      position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--green);
+      color: var(--gold); padding: .85rem 1.5rem; border-radius: 8px;
+      font-weight: 700; font-size: .9rem; display: none; z-index: 8000;
+      box-shadow: 0 8px 24px rgba(0,0,0,.2);
+    }
+
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .form-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- AUTH GATE -->
+<div id="authGate" class="open">
+  <div class="auth-box">
+    <h2>🏡 MalickLand Admin</h2>
+    <p>Enter your API key to continue.</p>
+    <input id="apiKeyInput" type="password" placeholder="API Key" />
+    <div class="auth-error" id="authError">Invalid API key. Try again.</div>
+    <button class="btn" style="width:100%;" onclick="doAuth()">Sign In</button>
+  </div>
+</div>
+
+<!-- LAYOUT -->
+<div class="layout">
+  <aside class="sidebar">
+    <div class="logo">🏡 MalickLand</div>
+    <nav>
+      <a href="#" class="active" onclick="showTab('listings',this)">📋 Listings</a>
+      <a href="#" onclick="showTab('leads',this)">📬 Leads</a>
+      <a href="#" onclick="showTab('add',this)">➕ Add Listing</a>
+      <a href="/" target="_blank">🌐 Public Site</a>
+    </nav>
+    <button class="logout" onclick="doLogout()">🚪 Sign Out</button>
+  </aside>
+
+  <main class="main">
+    <!-- LISTINGS -->
+    <div class="section active" id="section-listings">
+      <div class="page-header">
+        <h1>Listings</h1>
+        <button class="btn" onclick="showTab('add', document.querySelector('.sidebar nav a:nth-child(3)'))">+ Add Listing</button>
+      </div>
+      <div class="table-wrap">
+        <table id="listingsTable">
+          <thead>
+            <tr>
+              <th>Address</th><th>County</th><th>Price</th>
+              <th>Type</th><th>Status</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="listingsTbody">
+            <tr><td colspan="6" class="no-data">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- LEADS -->
+    <div class="section" id="section-leads">
+      <div class="page-header"><h1>Leads &amp; Contacts</h1></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th><th>Email</th><th>Phone</th>
+              <th>Property</th><th>Message</th><th>Date</th>
+            </tr>
+          </thead>
+          <tbody id="leadsTbody">
+            <tr><td colspan="6" class="no-data">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ADD / EDIT LISTING -->
+    <div class="section" id="section-add">
+      <div class="page-header">
+        <h1 id="formTitle">Add Listing</h1>
+        <button class="btn-outline" onclick="resetForm()">Clear Form</button>
+      </div>
+      <div class="form-card">
+        <form id="listingForm" onsubmit="submitListing(event)">
+          <input type="hidden" id="editId" />
+          <div class="form-grid">
+            <div>
+              <label>Address *</label>
+              <input type="text" id="fAddress" placeholder="37 Advent Dr" required />
+            </div>
+            <div>
+              <label>City</label>
+              <input type="text" id="fCity" placeholder="Romney" />
+            </div>
+            <div>
+              <label>County *</label>
+              <select id="fCounty" required>
+                <option value="">Select county...</option>
+              </select>
+            </div>
+            <div>
+              <label>Price ($)</label>
+              <input type="number" id="fPrice" placeholder="219900" min="0" step="100" />
+            </div>
+            <div>
+              <label>Acreage</label>
+              <input type="number" id="fAcreage" placeholder="10.5" min="0" step="0.01" />
+            </div>
+            <div>
+              <label>Property Type</label>
+              <select id="fType">
+                <option value="land">Land</option>
+                <option value="residential">Residential</option>
+                <option value="commercial">Commercial</option>
+                <option value="multi-family">Multi-Family</option>
+                <option value="industrial">Industrial</option>
+              </select>
+            </div>
+            <div>
+              <label>Status</label>
+              <select id="fStatus">
+                <option value="active">Active</option>
+                <option value="draft">Draft</option>
+                <option value="pending">Pending</option>
+                <option value="sold">Sold</option>
+                <option value="withdrawn">Withdrawn</option>
+              </select>
+            </div>
+            <div>
+              <label>MLS Number</label>
+              <input type="text" id="fMls" placeholder="WVHS2007442" />
+            </div>
+            <div class="full">
+              <label>Description
+                <button type="button" class="btn-sm" style="margin-left:.75rem;" onclick="generateDesc()">✨ Generate AI Description</button>
+              </label>
+              <textarea id="fDesc" rows="4" placeholder="Property description..."></textarea>
+            </div>
+            <div class="full">
+              <label>Photo Upload</label>
+              <input type="file" id="fPhoto" accept="image/*" multiple />
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn">💾 Save Listing</button>
+            <button type="button" class="btn-outline" onclick="resetForm()">Cancel</button>
+            <span class="form-msg" id="formMsg"></span>
+            <span class="form-err" id="formErr"></span>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── Config ─────────────────────────────────────────────────
+const API = '/api';
+let apiKey = '';
+
+// ── Auth ───────────────────────────────────────────────────
+async function doAuth() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (!key) return;
+  // Validate by hitting a write-protected endpoint (POST contacts returns 401 on bad key)
+  // For simplicity, just store and do a test GET (GETs are always public)
+  apiKey = key;
+  localStorage.setItem('admin_api_key', key);
+  document.getElementById('authGate').classList.remove('open');
+  initAdmin();
+}
+
+function doLogout() {
+  localStorage.removeItem('admin_api_key');
+  location.reload();
+}
+
+function authHeaders(extra = {}) {
+  return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`, ...extra };
+}
+
+document.getElementById('apiKeyInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doAuth();
+});
+
+// ── Init ───────────────────────────────────────────────────
+(function checkAuth() {
+  const stored = localStorage.getItem('admin_api_key');
+  if (stored) {
+    apiKey = stored;
+    document.getElementById('authGate').classList.remove('open');
+    initAdmin();
+  }
+})();
+
+function initAdmin() {
+  loadCounties();
+  loadListings();
+}
+
+// ── Tabs ───────────────────────────────────────────────────
+function showTab(name, link) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.sidebar nav a').forEach(a => a.classList.remove('active'));
+  document.getElementById('section-' + name).classList.add('active');
+  if (link) link.classList.add('active');
+  if (name === 'leads') loadLeads();
+  if (name === 'listings') loadListings();
+}
+
+// ── Toast ──────────────────────────────────────────────────
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+// ── Counties ───────────────────────────────────────────────
+async function loadCounties() {
+  try {
+    const res = await fetch(`${API}/counties`);
+    const counties = await res.json();
+    const sel = document.getElementById('fCounty');
+    counties.forEach(c => {
+      const o = document.createElement('option');
+      o.value = c.id; o.textContent = c.name;
+      sel.appendChild(o);
+    });
+  } catch (e) {}
+}
+
+// ── Listings ───────────────────────────────────────────────
+async function loadListings() {
+  const tbody = document.getElementById('listingsTbody');
+  tbody.innerHTML = '<tr><td colspan="6" class="no-data">Loading...</td></tr>';
+  try {
+    const res  = await fetch(`${API}/properties?limit=100`);
+    const data = await res.json();
+    const rows = data.properties || [];
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="no-data">No listings yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(p => `
+      <tr>
+        <td>${p.address}${p.city ? ', ' + p.city : ''}</td>
+        <td>${p.county}</td>
+        <td>${p.price ? '$' + Number(p.price).toLocaleString() : '—'}</td>
+        <td>${p.property_type}</td>
+        <td><span class="badge ${p.status}">${p.status}</span></td>
+        <td>
+          <button class="btn-sm" onclick="editListing('${p.id}')">Edit</button>
+          <button class="btn-del" onclick="deleteListing('${p.id}', '${(p.address||'').replace(/'/g,"\\'")}')">Delete</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="6" class="no-data" style="color:var(--red)">Failed to load listings.</td></tr>';
+  }
+}
+
+async function editListing(id) {
+  const res = await fetch(`${API}/properties/${id}`);
+  const p   = await res.json();
+  document.getElementById('editId').value = p.id;
+  document.getElementById('fAddress').value = p.address || '';
+  document.getElementById('fCity').value    = p.city || '';
+  document.getElementById('fCounty').value  = p.county_id || '';
+  document.getElementById('fPrice').value   = p.price || '';
+  document.getElementById('fAcreage').value = p.lot_acres || '';
+  document.getElementById('fType').value    = p.property_type || 'land';
+  document.getElementById('fStatus').value  = p.status || 'active';
+  document.getElementById('fMls').value     = p.mls_number || '';
+  document.getElementById('fDesc').value    = p.description || '';
+  document.getElementById('formTitle').textContent = 'Edit Listing';
+  showTab('add', document.querySelector('.sidebar nav a:nth-child(3)'));
+}
+
+async function deleteListing(id, address) {
+  if (!confirm(`Delete listing: ${address}?\n\nThis cannot be undone.`)) return;
+  try {
+    const res = await fetch(`${API}/properties/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    if (res.ok || res.status === 404) {
+      toast('Listing deleted.');
+      loadListings();
+    } else {
+      toast('Delete failed — check API key.');
+    }
+  } catch (e) { toast('Delete failed: ' + e.message); }
+}
+
+async function submitListing(e) {
+  e.preventDefault();
+  const msg = document.getElementById('formMsg');
+  const err = document.getElementById('formErr');
+  msg.textContent = ''; err.textContent = '';
+
+  const id = document.getElementById('editId').value;
+  const body = {
+    address:       document.getElementById('fAddress').value,
+    city:          document.getElementById('fCity').value,
+    county_id:     document.getElementById('fCounty').value,
+    price:         document.getElementById('fPrice').value || null,
+    acreage:       document.getElementById('fAcreage').value || null,
+    property_type: document.getElementById('fType').value,
+    status:        document.getElementById('fStatus').value,
+    mls_number:    document.getElementById('fMls').value,
+    property_description: document.getElementById('fDesc').value,
+  };
+
+  try {
+    const url    = id ? `${API}/properties/${id}` : `${API}/properties`;
+    const method = id ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+      method,
+      headers: authHeaders(),
+      body: JSON.stringify(body),
+    });
+    if (res.ok || res.status === 201) {
+      msg.textContent = id ? '✅ Listing updated!' : '✅ Listing created!';
+      toast(id ? 'Listing updated.' : 'Listing created.');
+      resetForm();
+      loadListings();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      err.textContent = data.error || `Error ${res.status}`;
+    }
+  } catch (e) { err.textContent = e.message; }
+}
+
+function resetForm() {
+  document.getElementById('listingForm').reset();
+  document.getElementById('editId').value = '';
+  document.getElementById('formTitle').textContent = 'Add Listing';
+  document.getElementById('formMsg').textContent = '';
+  document.getElementById('formErr').textContent = '';
+}
+
+// ── Leads ──────────────────────────────────────────────────
+async function loadLeads() {
+  const tbody = document.getElementById('leadsTbody');
+  tbody.innerHTML = '<tr><td colspan="6" class="no-data">Loading...</td></tr>';
+  try {
+    const res  = await fetch(`${API}/contacts`, { headers: authHeaders() });
+    if (!res.ok) {
+      tbody.innerHTML = '<tr><td colspan="6" class="no-data" style="color:var(--red)">Access denied — check API key.</td></tr>';
+      return;
+    }
+    const leads = await res.json();
+    if (!leads.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="no-data">No leads yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = leads.map(l => `
+      <tr>
+        <td>${l.name || '—'}</td>
+        <td>${l.email || '—'}</td>
+        <td>${l.phone || '—'}</td>
+        <td>${l.property_id || '—'}</td>
+        <td style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.message || '—'}</td>
+        <td style="white-space:nowrap">${l.created_at ? l.created_at.slice(0,10) : '—'}</td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="6" class="no-data" style="color:var(--red)">Failed to load leads.</td></tr>';
+  }
+}
+
+// ── AI Description Generator ───────────────────────────────
+async function generateDesc() {
+  const county = document.getElementById('fCounty').options[document.getElementById('fCounty').selectedIndex]?.text;
+  const acreage = document.getElementById('fAcreage').value;
+  const property_type = document.getElementById('fType').value;
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const res = await fetch(`${API}/properties/generate-description`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ acreage: acreage ? Number(acreage) : undefined, county, property_type, features: [] }),
+    });
+    const data = await res.json();
+    if (data.description) {
+      document.getElementById('fDesc').value = data.description;
+      toast('Description generated!');
+    }
+  } catch (e) { toast('Generate failed: ' + e.message); }
+  btn.disabled = false; btn.textContent = '✨ Generate AI Description';
+}
+</script>
+</body>
+</html>

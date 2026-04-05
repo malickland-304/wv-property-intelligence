@@ -171,12 +171,21 @@ Central hub to create, manage, and analyze property listings focused on WV Easte
 
 ### API Endpoints
 
-| Method | Endpoint             | Action                         |
-|--------|----------------------|--------------------------------|
-| POST   | /api/properties      | Create listing + upload photos |
-| GET    | /api/properties      | Get all listings               |
-| GET    | /api/properties/:id  | Get single listing             |
-| DELETE | /api/properties/:id  | Remove listing                 |
+| Method | Endpoint                             | Auth         | Action                                  |
+|--------|--------------------------------------|-------------|------------------------------------------|
+| GET    | /api/health                          | Public       | Health check                            |
+| GET    | /api/counties                        | Public       | List all 55 WV counties                 |
+| GET    | /api/properties                      | Public       | List active properties (paginated, filterable) |
+| GET    | /api/properties/:id                  | Public       | Get single property detail              |
+| POST   | /api/properties                      | API Key      | Create property listing                 |
+| PUT    | /api/properties/:id                  | API Key      | Update property listing                 |
+| DELETE | /api/properties/:id                  | API Key      | Delete property listing                 |
+| GET    | /api/analytics                       | Public       | Aggregate stats (avg price, DOM, etc.)  |
+| POST   | /api/contacts                        | Public       | Submit contact / lead inquiry           |
+| GET    | /api/contacts                        | API Key      | List all contacts / leads               |
+| POST   | /api/properties/generate-description | Public       | Generate AI-style property description  |
+
+`GET /api/properties` query params: `q`, `county`, `type`, `minPrice`, `maxPrice`, `page`, `limit`
 
 ### Public Listing Page Displays
 

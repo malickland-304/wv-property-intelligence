@@ -152,21 +152,25 @@ async function uploadPhotoToDrive(filePath, fileName, slug) {
   const auth = createOAuthClient();
   if (!auth) return null;
 
+  // Sanitise caller-provided paths to prevent path traversal
+  const safeFilePath = path.resolve(filePath);
+  const safeFileName = path.basename(fileName || '');
+
   try {
     const drive = google.drive({ version: 'v3', auth });
     const folderId = await getOrCreatePropertyFolder(drive, slug);
 
-    const ext = path.extname(fileName).toLowerCase();
+    const ext = path.extname(safeFileName).toLowerCase();
     const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
     const mimeType = mimeMap[ext] || 'image/jpeg';
 
     const response = await drive.files.create({
-      requestBody: { name: fileName, parents: [folderId] },
-      media: { mimeType, body: fs.createReadStream(filePath) },
+      requestBody: { name: safeFileName, parents: [folderId] },
+      media: { mimeType, body: fs.createReadStream(safeFilePath) },
       fields: 'id,webViewLink',
     });
 
-    console.log(`[Drive] Uploaded ${fileName} → ${response.data.webViewLink}`);
+    console.log(`[Drive] Uploaded ${safeFileName} → ${response.data.webViewLink}`);
     return response.data.id;
   } catch (err) {
     console.error('[Drive] Failed to upload photo:', err.message);
