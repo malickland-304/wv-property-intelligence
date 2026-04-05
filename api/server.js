@@ -493,21 +493,24 @@ app.get('/admin', requireAuth, (_req, res) => {
     ORDER BY p.listed_at DESC
   `).all();
 
-  const rows = listings.map(p => `
+  const rows = listings.map(p => {
+    const safeStatus = VALID_PROP_STATUSES.includes(p.status) ? p.status : 'draft';
+    return `
     <tr>
       <td>${esc(p.address)}${p.city ? ', '+esc(p.city) : ''}</td>
       <td>${esc(p.county||'')}</td>
       <td>${esc(p.property_type)}</td>
       <td>${p.price ? '$'+Number(p.price).toLocaleString() : '--'}</td>
       <td>${p.acreage ? p.acreage+' ac' : '--'}</td>
-      <td><span class="badge ${esc(p.status)}">${esc(p.status)}</span></td>
+      <td><span class="badge ${safeStatus}">${safeStatus}</span></td>
       <td>${esc(p.mls_status||'draft')}</td>
       <td>
         <a href="/admin/edit/${esc(p.id)}" class="btn-sm">Edit</a>
         <a href="/admin/photos/${esc(p.listing_slug||p.id)}" class="btn-sm">Photos</a>
         <a href="/admin/report/${esc(p.id)}" class="btn-sm">Report</a>
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 
   res.send(adminShell('Dashboard', `
     <div class="dash-header">
