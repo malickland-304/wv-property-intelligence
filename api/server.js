@@ -46,6 +46,25 @@ function isSafePathComponent(str) {
   return typeof str === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_-]*(\.[a-zA-Z0-9]+)?$/.test(str);
 }
 
+// ── CSRF helpers ──────────────────────────────────────────
+function csrfToken(req) {
+  if (!req.session.csrf) {
+    req.session.csrf = crypto.randomBytes(24).toString('hex');
+  }
+  return req.session.csrf;
+}
+
+function requireCsrf(req, res, next) {
+  const token = req.body._csrf || req.headers['x-csrf-token'];
+  if (!token || token !== (req.session && req.session.csrf)) {
+    if (req.xhr || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+      return res.status(403).json({ error: 'Invalid CSRF token' });
+    }
+    return res.status(403).send('Forbidden');
+  }
+  next();
+}
+
 // ── DB ────────────────────────────────────────────────────
 // DATABASE_PATH env var must point to the Railway persistent volume (/data/wv_property.db).
 // Without it, Railway redeploys wipe the database silently.
@@ -362,6 +381,15 @@ const uploadRateLimit = rateLimit({
   message: { error: 'Too many uploads. Please wait a moment.' },
 });
 
+// 60 admin writes per 10 minutes per IP — prevent report write abuse
+const adminWriteRateLimit = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please wait a moment.' },
+});
+
 // ── Admin login ───────────────────────────────────────────
 app.get('/admin/login', (_req, res) => {
   res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -423,7 +451,7 @@ app.get('/admin/logout', (req, res) => {
 });
 
 // ── Admin dashboard ───────────────────────────────────────
-app.get('/admin', requireAuth, (_req, res) => {
+app.get('/admin', requireAuth, (req, res) => {
   const listings = db.prepare(`
     SELECT p.id, p.address, p.city, p.price, p.property_type, p.status,
            p.listing_slug, p.acreage, p.photos_uploaded, p.mls_status,
@@ -461,20 +489,20 @@ app.get('/admin', requireAuth, (_req, res) => {
       </tr></thead>
       <tbody>${rows || '<tr><td colspan="8" style="text-align:center;padding:2rem;color:#999">No listings yet. <a href="/admin/new">Add your first listing →</a></td></tr>'}</tbody>
     </table>
-  `));
+  `, csrfToken(req)));
 });
 
 // ── New listing form ──────────────────────────────────────
 app.get('/admin/new', requireAuth, (req, res) => {
   const counties = db.prepare('SELECT id,name FROM counties ORDER BY name').all();
-  res.send(adminShell('New Listing', listingForm(null, counties)));
+  res.send(adminShell('New Listing', listingForm(null, counties, csrfToken(req)), csrfToken(req)));
 });
 
 function normalizeAcreage(body) {
   return body.acreage ?? body.lot_acres ?? null;
 }
 
-app.post('/admin/new', requireAuth, (req, res) => {
+app.post('/admin/new', requireAuth, requireCsrf, (req, res) => {
   const f = req.body;
   const id   = crypto.randomBytes(16).toString('hex');
   const slug = slugify((f.address||'listing') + '-' + (f.city||'wv'));
@@ -524,10 +552,10 @@ app.get('/admin/edit/:id', requireAuth, (req, res) => {
   const p = db.prepare('SELECT * FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.redirect('/admin');
   const counties = db.prepare('SELECT id,name FROM counties ORDER BY name').all();
-  res.send(adminShell('Edit Listing', listingForm(p, counties)));
+  res.send(adminShell('Edit Listing', listingForm(p, counties, csrfToken(req)), csrfToken(req)));
 });
 
-app.post('/admin/edit/:id', requireAuth, (req, res) => {
+app.post('/admin/edit/:id', requireAuth, requireCsrf, (req, res) => {
   const f = req.body;
   db.prepare(`
     UPDATE properties SET
@@ -644,11 +672,11 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
         location.reload();
       }
     </script>
-  `));
+  `, csrfToken(req)));
 });
 
 // Upload handler
-app.post('/admin/upload/:slug', requireAuth, uploadRateLimit, upload.single('photo'), async (req, res) => {
+app.post('/admin/upload/:slug', requireAuth, requireCsrf, uploadRateLimit, upload.single('photo'), async (req, res) => {
   const slug = req.params.slug;
   if (!isSafePathComponent(slug)) return res.status(400).json({ error: 'Invalid slug' });
   if (!req.file) return res.status(400).json({ error: 'No file' });
@@ -690,7 +718,7 @@ app.post('/admin/upload/:slug', requireAuth, uploadRateLimit, upload.single('pho
 });
 
 // Set primary photo
-app.post('/admin/photos/:slug/primary', requireAuth, (req, res) => {
+app.post('/admin/photos/:slug/primary', requireAuth, requireCsrf, (req, res) => {
   const slug = req.params.slug;
   const { filename } = req.body;
   if (!isSafePathComponent(slug) || !isSafePathComponent(filename)) {
@@ -702,7 +730,7 @@ app.post('/admin/photos/:slug/primary', requireAuth, (req, res) => {
 });
 
 // Delete photo
-app.delete('/admin/photos/:slug/:filename', requireAuth, (req, res) => {
+app.delete('/admin/photos/:slug/:filename', requireAuth, requireCsrf, (req, res) => {
   const { slug, filename } = req.params;
   if (!isSafePathComponent(slug) || !isSafePathComponent(filename)) {
     return res.status(400).json({ error: 'Invalid slug or filename' });
@@ -778,31 +806,31 @@ app.get('/admin/report/:id', requireAuth, (req, res) => {
         alert('Due diligence saved');
       }
     </script>
-  `));
+  `, csrfToken(req)));
 });
 
 const MAX_REPORT_CONTENT = 512 * 1024; // 512 KB
 
-app.post('/admin/report/:id/comps', requireAuth, (req, res) => {
+app.post('/admin/report/:id/comps', requireAuth, requireCsrf, adminWriteRateLimit, (req, res) => {
   const content = req.body.content;
   if (typeof content !== 'string') return res.status(400).json({ error: 'Content required' });
   if (content.length > MAX_REPORT_CONTENT) return res.status(413).json({ error: 'Content too large' });
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
-  const slug = p.listing_slug || req.params.id;
+  const slug = path.basename(p.listing_slug || req.params.id);
   if (!isSafePathComponent(slug)) return res.status(400).json({ error: 'Invalid listing slug' });
   fs.mkdirSync(path.join(PROJECT_ROOT,'listings',slug), { recursive:true });
   fs.writeFileSync(path.join(PROJECT_ROOT,'listings',slug,'comps.csv'), content);
   res.json({ ok:true });
 });
 
-app.post('/admin/report/:id/dd', requireAuth, (req, res) => {
+app.post('/admin/report/:id/dd', requireAuth, requireCsrf, adminWriteRateLimit, (req, res) => {
   const content = req.body.content;
   if (typeof content !== 'string') return res.status(400).json({ error: 'Content required' });
   if (content.length > MAX_REPORT_CONTENT) return res.status(413).json({ error: 'Content too large' });
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
-  const slug = p.listing_slug || req.params.id;
+  const slug = path.basename(p.listing_slug || req.params.id);
   if (!isSafePathComponent(slug)) return res.status(400).json({ error: 'Invalid listing slug' });
   fs.mkdirSync(path.join(PROJECT_ROOT,'listings',slug), { recursive:true });
   fs.writeFileSync(path.join(PROJECT_ROOT,'listings',slug,'due_diligence.md'), content);
@@ -810,7 +838,7 @@ app.post('/admin/report/:id/dd', requireAuth, (req, res) => {
 });
 
 // ── Integrations status page ──────────────────────────────
-app.get('/admin/integrations', requireAuth, (_req, res) => {
+app.get('/admin/integrations', requireAuth, (req, res) => {
   const gmailUser    = process.env.GOOGLE_GMAIL_USER    || '';
   const notifyEmail  = process.env.NOTIFICATION_EMAIL   || '';
   const driveFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID || '';
@@ -874,7 +902,7 @@ app.get('/admin/integrations', requireAuth, (_req, res) => {
         </ol>
       </div>
     </div>
-  `));
+  `, csrfToken(req)));
 });
 
 // ── Public API ────────────────────────────────────────────
@@ -1071,9 +1099,10 @@ setTimeout(runDbBackup, 10 * 60 * 1000);
 setInterval(runDbBackup, BACKUP_INTERVAL_MS);
 
 // ── Admin HTML shell ──────────────────────────────────────
-function adminShell(title, body) {
+function adminShell(title, body, csrf = '') {
   return `<!DOCTYPE html><html lang="en"><head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="csrf-token" content="${escapeHtml(csrf)}">
   <title>${title} — WVREA Admin</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
@@ -1148,6 +1177,17 @@ function adminShell(title, body) {
   </div>
   <div class="main">${body}</div>
   <script>
+  // Automatically attach CSRF token to all non-GET admin AJAX requests
+  const _csrfMeta = document.querySelector('meta[name="csrf-token"]');
+  const _csrf = _csrfMeta ? _csrfMeta.content : '';
+  const _origFetch = window.fetch.bind(window);
+  window.fetch = function(url, opts = {}) {
+    const method = (opts.method || 'GET').toUpperCase();
+    if (method !== 'GET' && method !== 'HEAD') {
+      opts.headers = Object.assign({ 'X-CSRF-Token': _csrf }, opts.headers);
+    }
+    return _origFetch(url, opts);
+  };
   async function generateDescription() {
     const acreage = document.querySelector('[name=acreage]')?.value || '';
     const county = document.querySelector('[name=county_id] option:checked')?.textContent?.trim() || '';
@@ -1175,7 +1215,7 @@ function adminShell(title, body) {
 }
 
 // ── Listing form HTML ─────────────────────────────────────
-function listingForm(p, counties) {
+function listingForm(p, counties, csrf = '') {
   const v = (f) => escapeHtml(p ? (p[f]||'') : '');
   const chk = (f) => p && p[f] ? 'checked' : '';
   const sel = (f,val) => p && p[f]===val ? 'selected' : '';
@@ -1189,6 +1229,7 @@ function listingForm(p, counties) {
     <a href="/admin" class="btn-outline">← Cancel</a>
   </div>
   <form method="POST" action="${p ? '/admin/edit/'+p.id : '/admin/new'}">
+    <input type="hidden" name="_csrf" value="${escapeHtml(csrf)}" />
     <div class="form-grid">
 
       <div class="form-section"><h3>📍 Property Details</h3></div>
