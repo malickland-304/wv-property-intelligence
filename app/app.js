@@ -106,10 +106,12 @@ function renderListings({ properties, total, page }) {
       ? (p.lot_acres ? `🌿 ${p.lot_acres} acres` : '')
       : [p.bedrooms?`🛏 ${p.bedrooms}bd`:'', p.bathrooms?`🚿 ${p.bathrooms}ba`:'', p.sqft?`📐 ${Number(p.sqft).toLocaleString()} sqft`:''].filter(Boolean).join(' · ');
     const driveTag = p.driveTimes ? `<div class="drive-tag">🚗 ${p.driveTimes.dc} to DC</div>` : '';
+    const daysOld = Math.floor((Date.now() - new Date(p.listed_at)) / 86400000);
+    const isNew = daysOld <= 14;
     return `
     <div class="property-card" onclick="openDetail('${p.id}')">
       <div class="card-img" style="background-image:url('${p.image_url || 'https://placehold.co/400x240/1a3a2a/gold?text=No+Photo'}')">
-        ${p.price_reduced ? '<span class="badge reduced">Price Reduced</span>' : ''}
+        ${p.price_reduced ? '<span class="badge reduced">Price Reduced</span>' : isNew ? '<span class="badge new-listing">New</span>' : ''}
         <span class="badge type">${isLand ? '🌲 Land' : '🏡 '+p.property_type}</span>
       </div>
       <div class="card-body">

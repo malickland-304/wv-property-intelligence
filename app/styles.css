@@ -63,8 +63,9 @@ button:hover { opacity:.85; }
   position:relative; background-color:#ccc; }
 .badge { position:absolute; top:.6rem; padding:.25rem .6rem; border-radius:4px;
   font-size:.75rem; font-weight:700; }
-.badge.type     { right:.6rem; background:var(--green); color:var(--gold); }
-.badge.reduced  { left:.6rem;  background:#c0392b; color:#fff; }
+.badge.type        { right:.6rem; background:var(--green); color:var(--gold); }
+.badge.reduced     { left:.6rem;  background:#c0392b; color:#fff; }
+.badge.new-listing { left:.6rem;  background:#D4AF37; color:#1B4332; }
 .card-body { padding:1rem; }
 .card-price   { font-size:1.3rem; font-weight:700; color:var(--green); }
 .card-address { font-size:.95rem; margin:.25rem 0; }

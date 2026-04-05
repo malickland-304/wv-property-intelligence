@@ -773,8 +773,61 @@ app.get('/admin/report/:id', requireAuth, (req, res) => {
         <textarea id="ddArea" rows="15">${dd}</textarea>
         <button onclick="saveDD('${p.id}')">Save Notes</button>
       </div>
+
+      <!-- FB MARKETPLACE POST GENERATOR -->
+      <div class="report-card full" style="border:2px solid #1877F2">
+        <h3 style="color:#1877F2">📘 Facebook Marketplace Post</h3>
+        <p style="font-size:.85rem;color:#666;margin-bottom:.75rem">Auto-generated from listing data. Edit before posting.</p>
+        <textarea id="fbPost" rows="18" style="font-family:monospace;font-size:.85rem">${(() => {
+          const price = p.price ? '$' + Number(p.price).toLocaleString() : 'Contact for Price';
+          const ppa   = p.acreage && p.price ? ` ($${Math.round(p.price/p.acreage).toLocaleString()}/acre)` : '';
+          const acres = p.acreage ? `\n🌿 ${p.acreage} acres` : '';
+          const beds  = p.bedrooms ? `\n🛏 ${p.bedrooms} bed` : '';
+          const baths = p.bathrooms ? `  🚿 ${p.bathrooms} bath` : '';
+          const sqft  = p.sqft ? `\n📐 ${Number(p.sqft).toLocaleString()} sqft` : '';
+          const road  = p.road_access ? `\n🛣 Road: ${p.road_access}` : '';
+          const bb    = p.broadband_type ? `\n📶 ${p.broadband_type}` : '';
+          const water = p.water_features ? `\n💧 ${p.water_features}` : '';
+          const mins  = p.mineral_rights && p.mineral_rights !== 'unknown' ? `\n⛏ Minerals: ${p.mineral_rights}` : '';
+          const town  = p.nearest_town ? `\n📍 ${p.miles_to_town ? p.miles_to_town + ' mi to ' : ''}${p.nearest_town}` : '';
+          const desc  = p.description ? '\n\n' + p.description.slice(0, 800) : '';
+          const feat  = p.features ? '\n\n✅ ' + p.features.split(',').map(f=>f.trim()).join('\n✅ ') : '';
+          const slug  = p.listing_slug || p.id;
+          return `${price}${ppa} — ${p.property_type === 'land' ? 'Land / Acreage' : p.property_type} in ${p.county} County, WV
+
+📍 ${p.address}${p.city ? ', ' + p.city : ''}, WV${p.zip ? ' ' + p.zip : ''}${acres}${beds}${baths}${sqft}${road}${bb}${water}${mins}${town}${feat}${desc}
+
+🚗 ~2 hrs from DC & Northern Virginia
+
+📞 Phil Malick — WV Land Specialist
+📱 (540) 246-1421 — Call or Text
+🌐 malickland.net/properties/${slug}
+
+#WestVirginia #WVLand #${p.county.replace(' ','') || ''}County #LandForSale #WVRealEstate #MalickLand`;
+        })()}</textarea>
+        <div style="display:flex;gap:.75rem;margin-top:.75rem;flex-wrap:wrap">
+          <button onclick="copyFbPost()" style="background:#1877F2;color:#fff;padding:.6rem 1.25rem;border-radius:6px;font-weight:700;font-size:.9rem">📋 Copy Post</button>
+          <a href="https://www.facebook.com/marketplace/create/item" target="_blank" rel="noopener"
+             style="background:#fff;border:2px solid #1877F2;color:#1877F2;padding:.6rem 1.25rem;border-radius:6px;font-weight:700;font-size:.9rem;text-decoration:none">
+            🚀 Open FB Marketplace
+          </a>
+          <a href="https://www.facebook.com/malickland.phil" target="_blank" rel="noopener"
+             style="background:#fff;border:1px solid #ccc;color:#555;padding:.6rem 1.25rem;border-radius:6px;font-weight:600;font-size:.9rem;text-decoration:none">
+            📘 Phil's FB Page
+          </a>
+        </div>
+        <p id="copyMsg" style="color:green;font-size:.82rem;margin-top:.5rem;display:none">✅ Copied to clipboard!</p>
+      </div>
     </div>
     <script>
+      function copyFbPost() {
+        const txt = document.getElementById('fbPost').value;
+        navigator.clipboard.writeText(txt).then(() => {
+          const msg = document.getElementById('copyMsg');
+          msg.style.display = 'block';
+          setTimeout(() => msg.style.display = 'none', 3000);
+        });
+      }
       async function saveComps(id) {
         const content = document.getElementById('compsArea').value;
         await fetch('/admin/report/'+id+'/comps', {
