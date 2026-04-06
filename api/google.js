@@ -152,9 +152,20 @@ async function uploadPhotoToDrive(filePath, fileName, slug) {
   const auth = createOAuthClient();
   if (!auth) return null;
 
-  // Sanitise caller-provided paths to prevent path traversal
-  const safeFilePath = path.resolve(filePath);
+  // Reject empty/missing filenames immediately
   const safeFileName = path.basename(fileName || '');
+  if (!safeFileName) {
+    console.error('[Drive] Rejected upload: empty filename');
+    return null;
+  }
+
+  // Enforce that filePath must resolve inside the allowed listings directory
+  const LISTINGS_ROOT = path.resolve(path.join(__dirname, '..', 'listings'));
+  const safeFilePath  = path.resolve(filePath);
+  if (!safeFilePath.startsWith(LISTINGS_ROOT + path.sep) && safeFilePath !== LISTINGS_ROOT) {
+    console.error(`[Drive] Rejected upload: path '${safeFilePath}' is outside allowed directory`);
+    return null;
+  }
 
   try {
     const drive = google.drive({ version: 'v3', auth });
