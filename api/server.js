@@ -12,9 +12,7 @@ const multer     = require('multer');
 const session    = require('express-session');
 const rateLimit  = require('express-rate-limit');
 require('dotenv').config();
-const { exec }    = require('child_process');
-const { promisify } = require('util');
-const execAsync     = promisify(exec);
+const { execFile } = require('child_process');
 
 const { sendContactEmail, uploadPhotoToDrive } = require('./google');
 const { requireApiKey } = require('./middleware/auth');
@@ -27,8 +25,24 @@ const PORT = process.env.PORT || 3000;
 // Trust one proxy hop (Cloudflare → Railway). Required for correct req.ip,
 // X-Forwarded-For in logs, and rate-limiter keying.
 app.set('trust proxy', 1);
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'wvrea2026';
-const PROJECT_ROOT   = path.join(__dirname, '..');
+const ADMIN_PASSWORD  = process.env.ADMIN_PASSWORD || 'wvrea2026';
+const PROJECT_ROOT    = path.join(__dirname, '..');
+
+const VALID_PROP_TYPES   = ['residential','commercial','land','multi-family','industrial'];
+const VALID_PROP_STATUSES = ['active','pending','sold','withdrawn','draft'];
+
+function isValidEmail(s) {
+  const at = s.indexOf('@');
+  if (at < 1 || s.indexOf('@', at + 1) !== -1) return false;
+  const domain = s.slice(at + 1);
+  const dot = domain.lastIndexOf('.');
+  return dot > 0 && dot < domain.length - 1;
+}
+
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.ADMIN_PASSWORD) console.warn('[WARN] ADMIN_PASSWORD env var is not set — using insecure default');
+  if (!process.env.SESSION_SECRET) console.warn('[WARN] SESSION_SECRET env var is not set — using insecure default');
+}
 
 // ── DB ────────────────────────────────────────────────────
 // DATABASE_PATH env var must point to the Railway persistent volume (/data/wv_property.db).
@@ -357,6 +371,15 @@ const contactsRateLimit = rateLimit({
   message: { error: 'Too many inquiries. Please wait a moment.' },
 });
 
+// 120 public read requests per minute per IP
+const publicReadRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please wait a moment.' },
+});
+
 // 10 login attempts per 15 minutes per IP — brute-force guard
 const adminLoginRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -517,7 +540,12 @@ app.get('/admin/new', requireAuth, (req, res) => {
 });
 
 function normalizeAcreage(body) {
-  return body.acreage ?? body.lot_acres ?? null;
+  const raw = body.acreage ?? body.lot_acres ?? null;
+  if (raw == null) return null;
+  const trimmed = typeof raw === 'string' ? raw.trim() : raw;
+  if (trimmed === '') return null;
+  const n = Number(trimmed);
+  return Number.isNaN(n) ? null : n;
 }
 
 app.post('/admin/new', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
@@ -737,8 +765,12 @@ app.post('/admin/upload/:slug', requireAuth, requireCsrf, uploadRateLimit, uploa
 
   if (process.platform === 'darwin' && !sharp) {
     // sips is macOS-only fallback when sharp is unavailable
-    exec(`sips -Z 1200 "${rawPath}" --out "${compPath}"`, () => {
-      exec(`sips -Z 1024 "${rawPath}" --out "${mlsPath}"`, afterCompress);
+    execFile('sips', ['-Z', '1200', rawPath, '--out', compPath], (err) => {
+      if (err) console.error('[sips] compress failed:', err.message);
+      execFile('sips', ['-Z', '1024', rawPath, '--out', mlsPath], (err2) => {
+        if (err2) console.error('[sips] mls resize failed:', err2.message);
+        afterCompress();
+      });
     });
   } else if (sharp) {
     // Use sharp for cross-platform image compression (Linux / Railway / macOS)
@@ -945,7 +977,7 @@ app.get('/api/counties', (_req, res) => {
   res.json(db.prepare('SELECT id,name FROM counties ORDER BY name').all());
 });
 
-app.get('/api/properties', (req, res) => {
+app.get('/api/properties', publicReadRateLimit, (req, res) => {
   try {
     const { q='',county='',type='',minPrice='',maxPrice='',page=1,limit=12 } = req.query;
     const conditions = ["p.status = 'active'"];
@@ -960,7 +992,7 @@ app.get('/api/properties', (req, res) => {
     const total  = db.prepare(`SELECT COUNT(*) as c FROM properties p ${where}`).get(...values).c;
     // DB stores `acreage`; the public API exposes `lot_acres` (aliased) for the UI
     const properties = db.prepare(`
-      SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
+      SELECT p.id, p.listing_slug, p.address, p.city, p.zip, p.price, p.property_type,
              p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
              p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
              c.name AS county
@@ -971,16 +1003,22 @@ app.get('/api/properties', (req, res) => {
   } catch(err) { console.error(err); res.status(500).json({ error:'Failed' }); }
 });
 
-app.get('/api/properties/:id', (req, res) => {
+app.get('/api/properties/:id', publicReadRateLimit, (req, res) => {
   const row = db.prepare(`
-    SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
+    SELECT p.id, p.listing_slug, p.address, p.city, p.zip, p.price, p.property_type,
            p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
            p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
-           p.county_id, c.name AS county, p.property_description AS description
-    FROM properties p JOIN counties c ON c.id=p.county_id WHERE p.id=?
-  `).get(req.params.id);
+           p.county_id, c.name AS county,
+           p.property_description, p.marketing_description,
+           p.mls_number, p.road_access, p.flood_zone,
+           p.listing_agent, p.listing_office,
+           p.utilities_available, p.septic, p.well, p.electric, p.internet
+    FROM properties p JOIN counties c ON c.id=p.county_id
+    WHERE (p.id=? OR p.listing_slug=?) AND p.status='active'
+  `).get(req.params.id, req.params.id);
   if (!row) return res.status(404).json({ error:'Not found' });
-  res.json(row);
+  const description = row.marketing_description || row.property_description || '';
+  res.json({ ...row, description });
 });
 
 app.get('/api/analytics', (_req, res) => {
@@ -998,6 +1036,8 @@ app.get('/api/analytics', (_req, res) => {
 app.post('/api/contacts', contactsRateLimit, (req, res) => {
   const { property_id,name,email,phone,message } = req.body;
   if (!name||!email) return res.status(400).json({ error:'Name and email required' });
+  if (!isValidEmail(email))
+    return res.status(400).json({ error: 'Invalid email address' });
   const result = db.prepare(
     `INSERT INTO contacts (property_id,name,email,phone,message) VALUES (?,?,?,?,?)`
   ).run(property_id||null,name,email,phone,message);
@@ -1030,6 +1070,10 @@ app.post('/api/properties', apiWriteRateLimit, requireApiKey, (req, res) => {
   try {
     const f = req.body;
     if (!f.address) return res.status(400).json({ error: 'address is required' });
+    if (f.property_type && !VALID_PROP_TYPES.includes(f.property_type))
+      return res.status(400).json({ error: 'Invalid property_type' });
+    if (f.status && !VALID_PROP_STATUSES.includes(f.status))
+      return res.status(400).json({ error: 'Invalid status' });
     const id   = crypto.randomBytes(16).toString('hex');
     const slug = slugify((f.address||'listing') + '-' + (f.city||'wv')) + '-' + id.slice(0,6);
     db.prepare(`
@@ -1068,6 +1112,10 @@ app.put('/api/properties/:id', apiWriteRateLimit, requireApiKey, (req, res) => {
     const f = req.body;
     const existing = db.prepare('SELECT id FROM properties WHERE id=?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Not found' });
+    if (f.property_type && !VALID_PROP_TYPES.includes(f.property_type))
+      return res.status(400).json({ error: 'Invalid property_type' });
+    if (f.status && !VALID_PROP_STATUSES.includes(f.status))
+      return res.status(400).json({ error: 'Invalid status' });
     db.prepare(`
       UPDATE properties SET
         county_id=?, address=?, city=?, state=?, zip=?, parcel_id=?, subdivision=?,
