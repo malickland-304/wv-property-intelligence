@@ -25,8 +25,9 @@ const PORT = process.env.PORT || 3000;
 // Trust one proxy hop (Cloudflare → Railway). Required for correct req.ip,
 // X-Forwarded-For in logs, and rate-limiter keying.
 app.set('trust proxy', 1);
-const ADMIN_PASSWORD  = process.env.ADMIN_PASSWORD || 'wvrea2026';
-const PROJECT_ROOT    = path.join(__dirname, '..');
+const ADMIN_PASSWORD    = process.env.ADMIN_PASSWORD || 'wvrea2026';
+const CANONICAL_DOMAIN  = process.env.CANONICAL_DOMAIN || 'malickland.net';
+const PROJECT_ROOT      = path.join(__dirname, '..');
 
 const VALID_PROP_TYPES   = ['residential','commercial','land','multi-family','industrial'];
 const VALID_PROP_STATUSES = ['active','pending','sold','withdrawn','draft'];
@@ -314,14 +315,14 @@ app.use(cors());
 app.use((req, res, next) => {
   const host = req.hostname || '';
   if (host.startsWith('www.')) {
-    const target = 'https://malickland.net' + req.originalUrl;
+    const target = `https://${CANONICAL_DOMAIN}${req.originalUrl}`;
     return res.redirect(301, target);
   }
   next();
 });
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'tiny' : 'dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended:true }));
+app.use(express.json({ limit: '200kb' }));
+app.use(express.urlencoded({ extended:true, limit: '200kb' }));
 app.use(session({
   secret: process.env.SESSION_SECRET || 'wvrea-secret-2026',
   resave: false,
@@ -879,8 +880,11 @@ app.post('/admin/report/:id/comps', requireAuth, requireCsrf, adminActionRateLim
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
   const slug = p.listing_slug || req.params.id;
+  if (!isSafePathComponent(slug)) return res.status(400).json({ error:'Invalid slug' });
+  const content = req.body.content;
+  if (typeof content !== 'string') return res.status(400).json({ error:'content must be a string' });
   fs.mkdirSync(path.join(PROJECT_ROOT,'listings',slug), { recursive:true });
-  fs.writeFileSync(path.join(PROJECT_ROOT,'listings',slug,'comps.csv'), req.body.content);
+  fs.writeFileSync(path.join(PROJECT_ROOT,'listings',slug,'comps.csv'), content);
   res.json({ ok:true });
 });
 
@@ -888,8 +892,11 @@ app.post('/admin/report/:id/dd', requireAuth, requireCsrf, adminActionRateLimit,
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
   const slug = p.listing_slug || req.params.id;
+  if (!isSafePathComponent(slug)) return res.status(400).json({ error:'Invalid slug' });
+  const content = req.body.content;
+  if (typeof content !== 'string') return res.status(400).json({ error:'content must be a string' });
   fs.mkdirSync(path.join(PROJECT_ROOT,'listings',slug), { recursive:true });
-  fs.writeFileSync(path.join(PROJECT_ROOT,'listings',slug,'due_diligence.md'), req.body.content);
+  fs.writeFileSync(path.join(PROJECT_ROOT,'listings',slug,'due_diligence.md'), content);
   res.json({ ok:true });
 });
 
@@ -1021,6 +1028,10 @@ app.get('/api/analytics', (_req, res) => {
 app.post('/api/contacts', contactsRateLimit, (req, res) => {
   const { property_id,name,email,phone,message } = req.body;
   if (!name||!email) return res.status(400).json({ error:'Name and email required' });
+  if (typeof name === 'string' && name.length > 200)
+    return res.status(400).json({ error: 'Name is too long' });
+  if (typeof message === 'string' && message.length > 5000)
+    return res.status(400).json({ error: 'Message is too long' });
   if (!isValidEmail(email))
     return res.status(400).json({ error: 'Invalid email address' });
   const result = db.prepare(
@@ -1163,18 +1174,17 @@ app.get('/robots.txt', (_req, res) => {
 Allow: /
 Disallow: /admin
 Disallow: /api/
-Sitemap: https://malickland.net/sitemap.xml`
+Sitemap: https://${CANONICAL_DOMAIN}/sitemap.xml`
   );
 });
 
 app.get('/sitemap.xml', (_req, res) => {
-  const SITE = 'https://malickland.net';
+  const SITE = `https://${CANONICAL_DOMAIN}`;
   const now  = new Date().toISOString().split('T')[0];
 
-  // Static pages
+  // Static pages (admin is intentionally excluded — robots.txt disallows it)
   const staticPages = [
     { loc: SITE + '/',        changefreq: 'weekly',  priority: '1.0' },
-    { loc: SITE + '/admin',   changefreq: 'never',   priority: '0.1' },
   ];
 
   // Dynamic property pages
