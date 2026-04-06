@@ -385,12 +385,36 @@ const uploadRateLimit = rateLimit({
 });
 
 // 60 admin writes per 10 minutes per IP — prevent report write abuse
+function sendAdminRateLimitResponse(req, res) {
+  const wantsJson = req.xhr || (req.accepts('html') === false && req.accepts('json') !== false);
+  if (wantsJson) {
+    return res.status(429).json({ error: 'Too many requests. Please wait a moment.' });
+  }
+  return res.status(429).send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Too Many Requests</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',sans-serif;background:#1a3a2a;display:flex;
+      align-items:center;justify-content:center;min-height:100vh;padding:1rem}
+    .box{background:#fff;padding:2rem;border-radius:12px;width:100%;max-width:460px;text-align:center}
+    h2{color:#1a3a2a;margin-bottom:1rem}
+    p{color:#333;line-height:1.5;margin-bottom:1.5rem}
+    a{display:inline-block;padding:.85rem 1.25rem;background:#c9a84c;color:#1a3a2a;
+      text-decoration:none;border-radius:6px;font-weight:700}
+  </style></head><body>
+  <div class="box">
+    <h2>Too Many Requests</h2>
+    <p>Too many requests. Please wait a moment.</p>
+    <a href="javascript:history.back()">Go Back</a>
+  </div></body></html>`);
+}
+
 const adminWriteRateLimit = rateLimit({
   windowMs: 10 * 60 * 1000,
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many requests. Please wait a moment.' },
+  handler: sendAdminRateLimitResponse,
 });
 
 // 60 API write calls per minute per IP (contacts read + properties CRUD)
@@ -751,7 +775,7 @@ app.post('/admin/photos/:slug/primary', requireAuth, requireCsrf, adminWriteRate
 });
 
 // Delete photo
-app.delete('/admin/photos/:slug/:filename', requireAuth, requireCsrf, (req, res) => {
+app.delete('/admin/photos/:slug/:filename', requireAuth, requireCsrf, adminWriteRateLimit, (req, res) => {
   const { slug, filename } = req.params;
   if (!isSafePathComponent(slug) || !isSafePathComponent(filename)) {
     return res.status(400).json({ error: 'Invalid slug or filename' });

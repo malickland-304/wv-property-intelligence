@@ -90,7 +90,7 @@ function renderListings({ properties, total, page }) {
 
   grid.innerHTML = properties.map(p => `
     <div class="property-card" onclick="openDetail(${JSON.stringify(p.id)})">
-      <div class="card-img" style="background-image:url('${escapeHtml(p.image_url || 'https://placehold.co/400x240/1a3a2a/gold?text=No+Photo')}')">
+      <div class="card-img" data-img="${escapeHtml(p.image_url || '')}">
         ${p.price_reduced ? '<span class="badge reduced">Price Reduced</span>' : ''}
         <span class="badge type">${escapeHtml(p.property_type)}</span>
       </div>
@@ -109,6 +109,13 @@ function renderListings({ properties, total, page }) {
       </div>
     </div>
   `).join('');
+
+  // Set background images via DOM API to avoid CSS injection through inline style interpolation
+  grid.querySelectorAll('.card-img[data-img]').forEach(el => {
+    const url = el.getAttribute('data-img') || 'https://placehold.co/400x240/1a3a2a/gold?text=No+Photo';
+    el.style.backgroundImage = `url(${JSON.stringify(url)})`;
+    el.removeAttribute('data-img');
+  });
 
   renderPagination(total, page);
 }
