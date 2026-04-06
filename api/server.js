@@ -31,6 +31,8 @@ const PROJECT_ROOT      = path.join(__dirname, '..');
 
 const VALID_PROP_TYPES   = ['residential','commercial','land','multi-family','industrial'];
 const VALID_PROP_STATUSES = ['active','pending','sold','withdrawn','draft'];
+const MAX_CONTACT_NAME_LENGTH    = 200;
+const MAX_CONTACT_MESSAGE_LENGTH = 5000;
 
 function isValidEmail(s) {
   const at = s.indexOf('@');
@@ -879,7 +881,7 @@ app.get('/admin/report/:id', requireAuth, (req, res) => {
 app.post('/admin/report/:id/comps', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
-  const slug = p.listing_slug || req.params.id;
+  const slug = path.basename(p.listing_slug || req.params.id);
   if (!isSafePathComponent(slug)) return res.status(400).json({ error:'Invalid slug' });
   const content = req.body.content;
   if (typeof content !== 'string') return res.status(400).json({ error:'content must be a string' });
@@ -891,7 +893,7 @@ app.post('/admin/report/:id/comps', requireAuth, requireCsrf, adminActionRateLim
 app.post('/admin/report/:id/dd', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
-  const slug = p.listing_slug || req.params.id;
+  const slug = path.basename(p.listing_slug || req.params.id);
   if (!isSafePathComponent(slug)) return res.status(400).json({ error:'Invalid slug' });
   const content = req.body.content;
   if (typeof content !== 'string') return res.status(400).json({ error:'content must be a string' });
@@ -1028,10 +1030,10 @@ app.get('/api/analytics', (_req, res) => {
 app.post('/api/contacts', contactsRateLimit, (req, res) => {
   const { property_id,name,email,phone,message } = req.body;
   if (!name||!email) return res.status(400).json({ error:'Name and email required' });
-  if (typeof name === 'string' && name.length > 200)
-    return res.status(400).json({ error: 'Name is too long' });
-  if (typeof message === 'string' && message.length > 5000)
-    return res.status(400).json({ error: 'Message is too long' });
+  if (typeof name !== 'string' || name.length > MAX_CONTACT_NAME_LENGTH)
+    return res.status(400).json({ error: 'Name must be a string of at most 200 characters' });
+  if (message !== undefined && message !== null && (typeof message !== 'string' || message.length > MAX_CONTACT_MESSAGE_LENGTH))
+    return res.status(400).json({ error: 'Message must be a string of at most 5000 characters' });
   if (!isValidEmail(email))
     return res.status(400).json({ error: 'Invalid email address' });
   const result = db.prepare(
