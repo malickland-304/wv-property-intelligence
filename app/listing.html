@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Property | Malickland</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="listing-page">
+  <header>
+    <nav class="navbar">
+      <a href="/" class="logo">
+        <span class="logo-mark" aria-hidden="true">◆</span>
+        <span>Malickland</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="/#listings">Listings</a></li>
+        <li><a href="/#analytics">Analytics</a></li>
+        <li><a href="/#contact">Contact</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main class="listing-main">
+    <p id="listingLoading" class="listing-loading">Loading property…</p>
+    <div id="listingError" class="listing-error" hidden></div>
+    <article id="listingContent" class="listing-content" hidden></article>
+  </main>
+
+  <footer class="listing-footer">
+    <p>&copy; 2026 Malickland | WV Property Intelligence</p>
+  </footer>
+
+  <script src="/listing.js"></script>
+</body>
+</html>

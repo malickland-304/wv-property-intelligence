@@ -371,6 +371,15 @@ const contactsRateLimit = rateLimit({
   message: { error: 'Too many inquiries. Please wait a moment.' },
 });
 
+// 120 public read requests per minute per IP
+const publicReadRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please wait a moment.' },
+});
+
 // 10 login attempts per 15 minutes per IP — brute-force guard
 const adminLoginRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -968,7 +977,7 @@ app.get('/api/counties', (_req, res) => {
   res.json(db.prepare('SELECT id,name FROM counties ORDER BY name').all());
 });
 
-app.get('/api/properties', (req, res) => {
+app.get('/api/properties', publicReadRateLimit, (req, res) => {
   try {
     const { q='',county='',type='',minPrice='',maxPrice='',page=1,limit=12 } = req.query;
     const conditions = ["p.status = 'active'"];
@@ -983,7 +992,7 @@ app.get('/api/properties', (req, res) => {
     const total  = db.prepare(`SELECT COUNT(*) as c FROM properties p ${where}`).get(...values).c;
     // DB stores `acreage`; the public API exposes `lot_acres` (aliased) for the UI
     const properties = db.prepare(`
-      SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
+      SELECT p.id, p.listing_slug, p.address, p.city, p.zip, p.price, p.property_type,
              p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
              p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
              c.name AS county
@@ -994,16 +1003,22 @@ app.get('/api/properties', (req, res) => {
   } catch(err) { console.error(err); res.status(500).json({ error:'Failed' }); }
 });
 
-app.get('/api/properties/:id', (req, res) => {
+app.get('/api/properties/:id', publicReadRateLimit, (req, res) => {
   const row = db.prepare(`
-    SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
+    SELECT p.id, p.listing_slug, p.address, p.city, p.zip, p.price, p.property_type,
            p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
            p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
-           p.county_id, c.name AS county, p.property_description AS description
-    FROM properties p JOIN counties c ON c.id=p.county_id WHERE p.id=? AND p.status='active'
-  `).get(req.params.id);
+           p.county_id, c.name AS county,
+           p.property_description, p.marketing_description,
+           p.mls_number, p.road_access, p.flood_zone,
+           p.listing_agent, p.listing_office,
+           p.utilities_available, p.septic, p.well, p.electric, p.internet
+    FROM properties p JOIN counties c ON c.id=p.county_id
+    WHERE (p.id=? OR p.listing_slug=?) AND p.status='active'
+  `).get(req.params.id, req.params.id);
   if (!row) return res.status(404).json({ error:'Not found' });
-  res.json(row);
+  const description = row.marketing_description || row.property_description || '';
+  res.json({ ...row, description });
 });
 
 app.get('/api/analytics', (_req, res) => {
