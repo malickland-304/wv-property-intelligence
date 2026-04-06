@@ -1030,10 +1030,10 @@ app.get('/api/analytics', (_req, res) => {
 app.post('/api/contacts', contactsRateLimit, (req, res) => {
   const { property_id,name,email,phone,message } = req.body;
   if (!name||!email) return res.status(400).json({ error:'Name and email required' });
-  if (typeof name !== 'string' || name.length > MAX_CONTACT_NAME_LENGTH)
-    return res.status(400).json({ error: 'Name must be a string of at most 200 characters' });
-  if (message !== undefined && message !== null && (typeof message !== 'string' || message.length > MAX_CONTACT_MESSAGE_LENGTH))
-    return res.status(400).json({ error: 'Message must be a string of at most 5000 characters' });
+  if (typeof name !== 'string' || !name.trim() || name.length > MAX_CONTACT_NAME_LENGTH)
+    return res.status(400).json({ error: `Name must be a non-empty string of at most ${MAX_CONTACT_NAME_LENGTH} characters` });
+  if (message && (typeof message !== 'string' || message.length > MAX_CONTACT_MESSAGE_LENGTH))
+    return res.status(400).json({ error: `Message must be a string of at most ${MAX_CONTACT_MESSAGE_LENGTH} characters` });
   if (!isValidEmail(email))
     return res.status(400).json({ error: 'Invalid email address' });
   const result = db.prepare(
