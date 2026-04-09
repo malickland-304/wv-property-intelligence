@@ -416,8 +416,8 @@ async function loadListings() {
         <td>${escapeHtml(p.property_type)}</td>
         <td><span class="badge ${escapeHtml(p.status)}">${escapeHtml(p.status)}</span></td>
         <td>
-          <button class="btn-sm" onclick="editListing(${JSON.stringify(p.id)})">Edit</button>
-          <button class="btn-del" onclick="deleteListing(${JSON.stringify(p.id)}, ${JSON.stringify(p.address||'')})">Delete</button>
+          <button class="btn-sm" onclick="editListing(${escapeHtml(JSON.stringify(p.id))})">Edit</button>
+          <button class="btn-del" onclick="deleteListing(${escapeHtml(JSON.stringify(p.id))}, ${escapeHtml(JSON.stringify(p.address||''))})">Delete</button>
         </td>
       </tr>
     `).join('');
