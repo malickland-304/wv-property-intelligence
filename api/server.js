@@ -888,6 +888,7 @@ app.post('/admin/report/:id/comps', requireAuth, requireCsrf, adminActionRateLim
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
   const slug = p.listing_slug || req.params.id;
+  if (!isSafePathComponent(slug)) return res.status(400).json({ error: 'Invalid slug' });
   fs.mkdirSync(path.join(PROJECT_ROOT,'listings',slug), { recursive:true });
   fs.writeFileSync(path.join(PROJECT_ROOT,'listings',slug,'comps.csv'), req.body.content);
   res.json({ ok:true });
@@ -897,6 +898,7 @@ app.post('/admin/report/:id/dd', requireAuth, requireCsrf, adminActionRateLimit,
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
   const slug = p.listing_slug || req.params.id;
+  if (!isSafePathComponent(slug)) return res.status(400).json({ error: 'Invalid slug' });
   fs.mkdirSync(path.join(PROJECT_ROOT,'listings',slug), { recursive:true });
   fs.writeFileSync(path.join(PROJECT_ROOT,'listings',slug,'due_diligence.md'), req.body.content);
   res.json({ ok:true });
