@@ -10,12 +10,16 @@ const fs         = require('fs');
 const crypto     = require('crypto');
 const multer     = require('multer');
 const session    = require('express-session');
+const SqliteStoreFactory = require('better-sqlite3-session-store');
 const rateLimit  = require('express-rate-limit');
 require('dotenv').config();
 const { execFile } = require('child_process');
 
 const { sendContactEmail, uploadPhotoToDrive } = require('./google');
+const createLeadsRouter = require('./routes/leads');
 const { requireApiKey } = require('./middleware/auth');
+const { buildPropertyMarketing } = require('./utils/propertyMarketing');
+const { startLeadFollowupWorker } = require('./services/leadFollowupWorker');
 let sharp;
 try { sharp = require('sharp'); } catch (_) { sharp = null; }
 
@@ -49,6 +53,14 @@ if (process.env.NODE_ENV === 'production') {
 // Without it, Railway redeploys wipe the database silently.
 const DB_PATH = process.env.DATABASE_PATH || path.join(PROJECT_ROOT, 'database', 'wv_property.db');
 const db = new Database(DB_PATH);
+const SqliteStore = SqliteStoreFactory(session);
+const sessionStore = new SqliteStore({
+  client: db,
+  expired: {
+    clear: true,
+    intervalMs: 15 * 60 * 1000,
+  },
+});
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 db.pragma('cache_size = -32000');   // 32MB SQLite cache cap
@@ -127,10 +139,52 @@ db.exec(`
     source      TEXT DEFAULT 'web',
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
   );
+  CREATE TABLE IF NOT EXISTS leads (
+    id                TEXT PRIMARY KEY,
+    property_id       TEXT REFERENCES properties(id) ON DELETE SET NULL,
+    property_slug     TEXT,
+    property_address  TEXT,
+    name              TEXT NOT NULL,
+    email             TEXT,
+    phone             TEXT,
+    lead_type         TEXT NOT NULL DEFAULT 'property_packet',
+    buyer_intent      TEXT,
+    financing_type    TEXT,
+    timeline          TEXT,
+    message           TEXT,
+    sms_consent       INTEGER DEFAULT 0,
+    source            TEXT DEFAULT 'web',
+    utm_source        TEXT,
+    utm_medium        TEXT,
+    utm_campaign      TEXT,
+    status            TEXT NOT NULL DEFAULT 'new',
+    follow_up_status  TEXT NOT NULL DEFAULT 'scheduled',
+    next_follow_up_at TEXT,
+    created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS lead_followups (
+    id            TEXT PRIMARY KEY,
+    lead_id       TEXT NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+    step_code     TEXT NOT NULL,
+    channel       TEXT NOT NULL DEFAULT 'email',
+    template_name TEXT,
+    subject       TEXT,
+    body          TEXT,
+    due_at        TEXT NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'pending',
+    sent_at       TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
   CREATE INDEX IF NOT EXISTS idx_properties_county ON properties(county_id);
   CREATE INDEX IF NOT EXISTS idx_properties_status ON properties(status);
   CREATE INDEX IF NOT EXISTS idx_properties_type   ON properties(property_type);
   CREATE INDEX IF NOT EXISTS idx_properties_price  ON properties(price);
+  CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
+  CREATE INDEX IF NOT EXISTS idx_leads_property_slug ON leads(property_slug);
+  CREATE INDEX IF NOT EXISTS idx_leads_next_follow_up ON leads(next_follow_up_at);
+  CREATE INDEX IF NOT EXISTS idx_lead_followups_lead_id ON lead_followups(lead_id);
+  CREATE INDEX IF NOT EXISTS idx_lead_followups_due_at ON lead_followups(due_at);
 `);
 
 // Seed counties
@@ -228,6 +282,7 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
           mls_number='WVHS2007442',
           price=219900,
           property_description=?,
+          marketing_description=COALESCE(marketing_description, 'Land opportunity in Hampshire County with quick access to hunting, recreation, and the kind of West Virginia privacy buyers actually want.'),
           updated_at=datetime('now')
         WHERE id=?
       `).run(newDesc, existing.id);
@@ -244,6 +299,11 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
         'land', 'active', 219900,
         'WVHS2007442', 'Phil Malick', 'advent-dr-hampshire-wv', descSuffix
       );
+      db.prepare(`
+        UPDATE properties SET
+          marketing_description='Land opportunity in Hampshire County with quick access to hunting, recreation, and the kind of West Virginia privacy buyers actually want.'
+        WHERE id=?
+      `).run(newId);
       console.log('Inserted Advent Dr listing →', newId);
     }
   }
@@ -262,6 +322,39 @@ function esc(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function escNl(str) {
+  return esc(str).replace(/\n/g, '<br>');
+}
+
+function formatCurrency(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 'Contact for Price';
+  return '$' + n.toLocaleString();
+}
+
+function formatNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toLocaleString() : null;
+}
+
+function formatDateTime(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function labelizePropertyType(value) {
+  const raw = String(value || 'property');
+  return raw.charAt(0).toUpperCase() + raw.slice(1).replace(/-/g, ' ');
 }
 
 function initListingFolder(slug) {
@@ -324,6 +417,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended:true }));
 app.use(session({
   secret: process.env.SESSION_SECRET || 'wvrea-secret-2026',
+  store: sessionStore,
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -431,6 +525,95 @@ function isSafePathComponent(str) {
   return typeof str === 'string' && SAFE_PATH_RE.test(str) && !str.includes('..');
 }
 
+function renderPropertyLeadForm({
+  formId,
+  propertySlug,
+  title,
+  intro,
+  submitLabel,
+  leadType = 'property_packet',
+  compact = false,
+  showLeadTypeSelect = false,
+  defaultMessage = '',
+}) {
+  return `
+    <div class="lead-form-wrap">
+      <h3>${esc(title)}</h3>
+      <p>${esc(intro)}</p>
+      <form class="lead-form${compact ? ' compact' : ''}" id="${esc(formId)}" data-property-slug="${esc(propertySlug)}">
+        ${showLeadTypeSelect ? `
+          <label>
+            <span>What do you want next?</span>
+            <select name="leadType">
+              <option value="property_packet" ${leadType === 'property_packet' ? 'selected' : ''}>Full property packet</option>
+              <option value="request_showing" ${leadType === 'request_showing' ? 'selected' : ''}>Request showing / walk-through</option>
+              <option value="similar_land_alert" ${leadType === 'similar_land_alert' ? 'selected' : ''}>Send similar land</option>
+            </select>
+          </label>
+        ` : `<input type="hidden" name="leadType" value="${esc(leadType)}">`}
+        <div class="lead-grid">
+          <label>
+            <span>Name</span>
+            <input type="text" name="name" placeholder="Your name" required>
+          </label>
+          <label>
+            <span>Email</span>
+            <input type="email" name="email" placeholder="you@example.com" required>
+          </label>
+          <label>
+            <span>Phone</span>
+            <input type="tel" name="phone" placeholder="Best number" required>
+          </label>
+          <label>
+            <span>Buyer type</span>
+            <select name="buyerType" required>
+              <option value="">Select one</option>
+              <option value="Hunting / recreation">Hunting / recreation</option>
+              <option value="Weekend cabin / Airbnb">Weekend cabin / Airbnb</option>
+              <option value="Investment / long-term hold">Investment / long-term hold</option>
+              <option value="Primary home / homesite">Primary home / homesite</option>
+              <option value="Not sure yet">Not sure yet</option>
+            </select>
+          </label>
+          <label>
+            <span>Cash or financing</span>
+            <select name="cashOrFinancing" required>
+              <option value="">Select one</option>
+              <option value="Cash">Cash</option>
+              <option value="Financing">Financing</option>
+              <option value="Either">Either</option>
+            </select>
+          </label>
+          <label>
+            <span>Timeline</span>
+            <select name="timeline">
+              <option value="">Just starting to look</option>
+              <option value="Ready now">Ready now</option>
+              <option value="30-90 days">30-90 days</option>
+              <option value="3-6 months">3-6 months</option>
+              <option value="6+ months">6+ months</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          <span>Anything helpful Phil should know?</span>
+          <textarea name="message" rows="${compact ? '3' : '4'}" placeholder="Questions, access needs, or what you're really looking for.">${esc(defaultMessage)}</textarea>
+        </label>
+        <label class="checkline">
+          <input type="checkbox" name="smsConsent" value="true">
+          <span>You can text me if that speeds things up.</span>
+        </label>
+        <input type="hidden" name="source" value="property-page-${esc(propertySlug)}">
+        <input type="hidden" name="utm_source" value="">
+        <input type="hidden" name="utm_medium" value="">
+        <input type="hidden" name="utm_campaign" value="">
+        <button type="submit">${esc(submitLabel)}</button>
+        <div class="lead-status" data-role="status"></div>
+      </form>
+    </div>
+  `;
+}
+
 // ── Admin login ───────────────────────────────────────────
 app.get('/admin/login', (_req, res) => {
   res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -529,6 +712,78 @@ app.get('/admin', requireAuth, (_req, res) => {
         <th>Acres</th><th>Status</th><th>MLS</th><th>Actions</th>
       </tr></thead>
       <tbody>${rows || '<tr><td colspan="8" style="text-align:center;padding:2rem;color:#999">No listings yet. <a href="/admin/new">Add your first listing →</a></td></tr>'}</tbody>
+    </table>
+  `, csrfToken(req)));
+});
+
+app.get('/admin/leads', requireAuth, (req, res) => {
+  const leads = db.prepare(`
+    SELECT
+      l.id,
+      l.property_address,
+      l.name,
+      l.email,
+      l.phone,
+      l.lead_type,
+      l.buyer_intent,
+      l.financing_type,
+      l.timeline,
+      l.status,
+      l.follow_up_status,
+      l.next_follow_up_at,
+      l.created_at,
+      (
+        SELECT lf.step_code
+        FROM lead_followups lf
+        WHERE lf.lead_id = l.id AND lf.status = 'pending'
+        ORDER BY lf.due_at ASC
+        LIMIT 1
+      ) AS next_step_code
+    FROM leads l
+    ORDER BY l.created_at DESC
+    LIMIT 250
+  `).all();
+
+  const rows = leads.map((lead) => `
+    <tr>
+      <td>${esc(lead.property_address || 'General inquiry')}</td>
+      <td>
+        <strong>${esc(lead.name)}</strong><br>
+        <span style="color:#666">${esc(lead.email || 'No email')} · ${esc(lead.phone || 'No phone')}</span>
+      </td>
+      <td>${esc(lead.lead_type.replace(/_/g, ' '))}</td>
+      <td>${esc(lead.buyer_intent || '—')}</td>
+      <td>${esc(lead.financing_type || '—')}</td>
+      <td>${esc(lead.timeline || '—')}</td>
+      <td>${esc(lead.status)}</td>
+      <td>${esc(lead.next_step_code ? lead.next_step_code.replace(/_/g, ' ') : '—')}</td>
+      <td>${esc(formatDateTime(lead.next_follow_up_at))}</td>
+      <td>${esc(formatDateTime(lead.created_at))}</td>
+    </tr>
+  `).join('');
+
+  res.send(adminShell('Leads', `
+    <div class="dash-header">
+      <div>
+        <h1>Lead Pipeline</h1>
+        <p style="color:#666;margin-top:.35rem">Structured packet requests, showing requests, and similar-land alerts with follow-up dates.</p>
+      </div>
+      <a href="/admin" class="btn-outline">← Back to Listings</a>
+    </div>
+    <table class="listings-table">
+      <thead><tr>
+        <th>Property</th>
+        <th>Lead</th>
+        <th>Type</th>
+        <th>Intent</th>
+        <th>Financing</th>
+        <th>Timeline</th>
+        <th>Status</th>
+        <th>Next Step</th>
+        <th>Follow Up Due</th>
+        <th>Created</th>
+      </tr></thead>
+      <tbody>${rows || '<tr><td colspan="10" style="text-align:center;padding:2rem;color:#999">No leads captured yet.</td></tr>'}</tbody>
     </table>
   `, csrfToken(req)));
 });
@@ -994,8 +1249,8 @@ function sendPropertyList(req, res) {
     const total  = db.prepare(`SELECT COUNT(*) as c FROM properties p ${where}`).get(...values).c;
     // DB stores `acreage`; the public API exposes `lot_acres` (aliased) for the UI
     const properties = db.prepare(`
-      SELECT p.id, p.listing_slug, p.address, p.city, p.zip, p.price, p.property_type,
-             p.bedrooms, p.bathrooms, p.sqft, COALESCE(p.acreage, p.lot_acres) AS lot_acres,
+      SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
+             p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
              p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
              c.name AS county
       FROM properties p JOIN counties c ON c.id=p.county_id
@@ -1010,8 +1265,8 @@ app.get('/api/listings', publicReadRateLimit, sendPropertyList);
 
 function sendPropertyDetail(req, res) {
   const row = db.prepare(`
-    SELECT p.id, p.listing_slug, p.address, p.city, p.zip, p.price, p.property_type,
-           p.bedrooms, p.bathrooms, p.sqft, COALESCE(p.acreage, p.lot_acres) AS lot_acres,
+    SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
+           p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
            p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
            p.county_id, c.name AS county,
            p.description, p.property_description, p.marketing_description,
@@ -1061,6 +1316,8 @@ app.post('/api/contacts', contactsRateLimit, (req, res) => {
   res.status(201).json({ id:result.lastInsertRowid });
 });
 
+app.use('/api/leads', createLeadsRouter({ db }));
+
 // List contacts / leads (API-key protected — used by app/admin.html)
 app.get('/api/contacts', apiWriteRateLimit, requireApiKey, (_req, res) => {
   const contacts = db.prepare(`
@@ -1071,6 +1328,24 @@ app.get('/api/contacts', apiWriteRateLimit, requireApiKey, (_req, res) => {
     ORDER BY c.created_at DESC
   `).all();
   res.json(contacts);
+});
+
+app.get('/api/leads', apiWriteRateLimit, requireApiKey, (_req, res) => {
+  const leads = db.prepare(`
+    SELECT
+      l.*,
+      (
+        SELECT lf.step_code
+        FROM lead_followups lf
+        WHERE lf.lead_id = l.id AND lf.status = 'pending'
+        ORDER BY lf.due_at ASC
+        LIMIT 1
+      ) AS next_step_code
+    FROM leads l
+    ORDER BY l.created_at DESC
+    LIMIT 250
+  `).all();
+  res.json(leads);
 });
 
 // Create property via REST (API-key protected — used by app/admin.html)
@@ -1200,8 +1475,8 @@ app.get('/sitemap.xml', (_req, res) => {
     { loc: SITE + '/admin',   changefreq: 'never',   priority: '0.1' },
   ];
 
-  // Dynamic property pages
   let propertyPages = [];
+  let countyPages = [];
   try {
     const props = db.prepare(`
       SELECT listing_slug, id, updated_at
@@ -1216,7 +1491,23 @@ app.get('/sitemap.xml', (_req, res) => {
     }));
   } catch (_) {}
 
-  const allPages = [...staticPages, ...propertyPages];
+  try {
+    const counties = db.prepare(`
+      SELECT DISTINCT c.name
+      FROM counties c
+      JOIN properties p ON p.county_id = c.id
+      WHERE p.status = 'active'
+      ORDER BY c.name
+    `).all();
+    countyPages = counties.map((county) => ({
+      loc: `${SITE}/counties/${slugify(county.name)}`,
+      lastmod: now,
+      changefreq: 'weekly',
+      priority: '0.6',
+    }));
+  } catch (_) {}
+
+  const allPages = [...staticPages, ...countyPages, ...propertyPages];
 
   const xml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -1296,6 +1587,7 @@ function pruneOldBackups() {
 // Run once 10 min after startup, then every 24h
 setTimeout(runDbBackup, 10 * 60 * 1000);
 setInterval(runDbBackup, BACKUP_INTERVAL_MS);
+startLeadFollowupWorker({ db });
 
 // ── Admin HTML shell ──────────────────────────────────────
 function adminShell(title, body, csrf) {
@@ -1369,6 +1661,7 @@ function adminShell(title, body, csrf) {
   <div class="sidebar">
     <span class="logo">🏡 WVREA Admin</span>
     <a href="/admin">📋 Listings</a>
+    <a href="/admin/leads">🧲 Leads</a>
     <a href="/admin/new">➕ New Listing</a>
     <a href="/admin/integrations">🔗 Integrations</a>
     <a href="/" target="_blank">🌐 Public Site</a>
@@ -1533,29 +1826,5 @@ function listingForm(p, counties) {
 }
 
 app.get('/advent-drive-land-hampshire-county-wv', (req, res) => {
-  res.send(`
-  <!DOCTYPE html>
-  <html>
-  <head>
-    <title>Land for Sale Hampshire County WV | Advent Dr</title>
-    <meta name="description" content="Land for sale in Hampshire County WV on Advent Drive. Hunting, recreation, or build opportunity near VA/DC.">
-
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "RealEstateListing",
-      "name": "Land for Sale – Advent Drive, Hampshire County WV",
-      "description": "Land for sale in Hampshire County West Virginia on Advent Drive.",
-      "url": "https://malickland.net/advent-drive-land-hampshire-county-wv"
-    }
-    </script>
-  </head>
-  <body>
-    <h1>Land for Sale – Advent Drive, Hampshire County WV</h1>
-    <p>This property offers privacy, usable acreage, and strong long-term value.</p>
-    <p><strong>Contact now to walk the property.</strong></p>
-    <a href="https://malickland.net">Back to MalickLand</a>
-  </body>
-  </html>
-  `);
+  res.redirect(301, '/properties/advent-dr-hampshire-wv');
 });

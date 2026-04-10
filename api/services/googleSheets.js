@@ -21,6 +21,27 @@ const fs         = require('fs');
 
 const LISTINGS_COLS = ['id','address','city','county','price','lot_acres','property_type','status','description','image_url','listed_at'];
 const LEADS_COLS    = ['id','name','email','phone','property_id','message','created_at'];
+const CAPTURE_COLS  = [
+  'timestamp',
+  'lead_id',
+  'listing_slug',
+  'property_address',
+  'lead_type',
+  'name',
+  'phone',
+  'email',
+  'buyer_intent',
+  'financing_type',
+  'timeline',
+  'message',
+  'sms_consent',
+  'source',
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'status',
+  'next_follow_up_at',
+];
 
 // ── Auth ──────────────────────────────────────────────────
 function getAuth() {
@@ -29,6 +50,18 @@ function getAuth() {
     const credentials = JSON.parse(keyStr);
     return new google.auth.GoogleAuth({
       credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+  }
+
+  const { GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY } = process.env;
+  if (GOOGLE_SERVICE_ACCOUNT_EMAIL && GOOGLE_PRIVATE_KEY) {
+    return new google.auth.GoogleAuth({
+      credentials: {
+        type: 'service_account',
+        client_email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        private_key: GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      },
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
   }
@@ -65,26 +98,36 @@ function leadToRow(lead) {
   });
 }
 
+function captureLeadToRow(lead) {
+  return CAPTURE_COLS.map(k => {
+    const val = lead[k] ?? '';
+    return val === null || val === undefined ? '' : String(val);
+  });
+}
+
 async function getAllRows(sheets, spreadsheetId, range) {
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range });
   return res.data.values || [];
 }
 
-// ── Listings ──────────────────────────────────────────────
-async function appendListing(listing) {
+async function appendValues({ spreadsheetId, range, values }) {
   const sheets = getSheetsClient();
-  if (!sheets) return null;
-  const sid = process.env.LISTINGS_SHEET_ID;
-  if (!sid) return null;
+  if (!sheets || !spreadsheetId || !range) return null;
 
   await sheets.spreadsheets.values.append({
-    spreadsheetId: sid,
-    range: 'Sheet1!A:K',
+    spreadsheetId,
+    range,
     valueInputOption: 'RAW',
     insertDataOption: 'INSERT_ROWS',
-    requestBody: { values: [listingToRow(listing)] },
+    requestBody: { values },
   });
   return true;
+}
+
+// ── Listings ──────────────────────────────────────────────
+async function appendListing(listing) {
+  const sid = process.env.LISTINGS_SHEET_ID;
+  return appendValues({ spreadsheetId: sid, range: 'Sheet1!A:K', values: [listingToRow(listing)] });
 }
 
 async function updateListing(id, listing) {
@@ -131,19 +174,42 @@ async function getLeads() {
 }
 
 async function appendLead(lead) {
-  const sheets = getSheetsClient();
-  if (!sheets) return null;
   const sid = process.env.LEADS_SHEET_ID;
-  if (!sid) return null;
-
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: sid,
-    range: 'Sheet1!A:G',
-    valueInputOption: 'RAW',
-    insertDataOption: 'INSERT_ROWS',
-    requestBody: { values: [leadToRow(lead)] },
-  });
-  return true;
+  return appendValues({ spreadsheetId: sid, range: 'Sheet1!A:G', values: [leadToRow(lead)] });
 }
 
-module.exports = { appendListing, updateListing, getListing, getLeads, appendLead };
+function isLeadCaptureConfigured() {
+  return Boolean(
+    getAuth() &&
+    process.env.GOOGLE_SHEETS_SPREADSHEET_ID &&
+    process.env.GOOGLE_SHEETS_LEADS_TAB
+  );
+}
+
+async function append37AdventLead(lead) {
+  const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+  const tabName = process.env.GOOGLE_SHEETS_LEADS_TAB;
+  if (!spreadsheetId || !tabName) return null;
+
+  return appendValues({
+    spreadsheetId,
+    range: `${tabName}!A:S`,
+    values: [captureLeadToRow(lead)],
+  });
+}
+
+async function appendPropertyLead(lead) {
+  return append37AdventLead(lead);
+}
+
+module.exports = {
+  appendListing,
+  updateListing,
+  getListing,
+  getLeads,
+  appendLead,
+  append37AdventLead,
+  appendPropertyLead,
+  appendValues,
+  isLeadCaptureConfigured,
+};
