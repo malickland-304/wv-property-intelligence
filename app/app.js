@@ -88,7 +88,7 @@ function renderListings({ properties, total, page }) {
   }
 
   grid.innerHTML = properties.map(p => `
-    <div class="property-card" onclick="openDetail(${JSON.stringify(p.id)})">
+    <div class="property-card" onclick="openPropertyPage(${JSON.stringify(p.listing_slug || p.id)})">
       <div class="card-img" style="background-image:url('${escapeHtml(p.image_url || 'https://placehold.co/400x240/1a3a2a/gold?text=No+Photo')}')">
         ${p.price_reduced ? '<span class="badge reduced">Price Reduced</span>' : ''}
         <span class="badge type">${escapeHtml(p.property_type)}</span>
@@ -104,7 +104,7 @@ function renderListings({ properties, total, page }) {
           ${p.lot_acres ? `<span>🌿 ${escapeHtml(p.lot_acres)} ac</span>` : ''}
         </div>
         <div class="card-listed">Listed ${timeAgo(p.listed_at)}</div>
-        <button class="request-info-btn" onclick="event.stopPropagation();openRequestInfo(${JSON.stringify(p.id)},${JSON.stringify(p.address||'')})">Request Info</button>
+        <button class="request-info-btn" onclick="event.stopPropagation();openPropertyPage(${JSON.stringify(p.listing_slug || p.id)})">View Details</button>
       </div>
     </div>
   `).join('');
@@ -125,6 +125,10 @@ function renderPagination(total, page) {
 }
 
 function goPage(p) { currentPage = p; loadListings(); window.scrollTo(0,0); }
+
+function openPropertyPage(slug) {
+  window.location.href = `/properties/${encodeURIComponent(slug)}`;
+}
 
 // ── Detail modal ─────────────────────────────────────────
 async function openDetail(id) {

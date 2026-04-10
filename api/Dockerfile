@@ -16,17 +16,23 @@ RUN apt-get update \
 WORKDIR /workspace
 
 # Copy production node_modules (includes native better-sqlite3 binaries)
-COPY --from=builder /workspace/api/node_modules ./api/node_modules
+COPY --from=builder --chown=65532:65532 /workspace/api/node_modules ./api/node_modules
 
 # Copy application source
-COPY api ./api
-COPY app ./app
+COPY --chown=65532:65532 api ./api
+COPY --chown=65532:65532 app ./app
 
+<<<<<<< HEAD
 # Create runtime directories and drop to non-root user
 RUN mkdir -p data uploads \
     && groupadd --system --gid 1001 appgroup \
     && useradd --system --uid 1001 --gid appgroup --no-create-home appuser \
     && chown -R appuser:appgroup /workspace
+=======
+# Create runtime directories and set ownership to distroless nonroot user.
+# These paths are used by the app for SQLite and listing/report assets.
+RUN mkdir -p data database listings uploads reports
+>>>>>>> c62238a (Add end-to-end lead capture, follow-ups, property pages, and admin)
 
 USER appuser
 

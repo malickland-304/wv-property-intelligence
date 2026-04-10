@@ -8,12 +8,17 @@
     "dev": "nodemon server.js",
     "test": "echo \"No tests configured\" && exit 0"
   },
-  "keywords": ["real-estate", "west-virginia", "land"],
+  "keywords": [
+    "real-estate",
+    "west-virginia",
+    "land"
+  ],
   "author": "Phil Malick",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
     "better-sqlite3": "^12.8.0",
+    "better-sqlite3-session-store": "^0.1.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
@@ -23,7 +28,8 @@
     "helmet": "^8.1.0",
     "morgan": "^1.10.1",
     "multer": "^2.1.1",
-    "sharp": "^0.33.5"
+    "sharp": "^0.33.5",
+    "twilio": "^5.13.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"
