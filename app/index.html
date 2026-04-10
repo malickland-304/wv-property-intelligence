@@ -1001,6 +1001,7 @@
   </a>
   <ul class="nav-links">
     <li><a href="#listings">Listings</a></li>
+    <li><a href="/37-advent">37 Advent</a></li>
     <li><a href="#why">About</a></li>
     <li><a href="#contact-form">Contact</a></li>
     <li><a href="/admin" style="opacity:0.5;font-size:0.8rem">Admin</a></li>
@@ -1230,6 +1231,7 @@
       <h5>Quick Links</h5>
       <ul>
         <li><a href="#listings">Browse Listings</a></li>
+        <li><a href="/37-advent">37 Advent Dr</a></li>
         <li><a href="#sell">Sell Property</a></li>
         <li><a href="#guide">Free Land Guide</a></li>
         <li><a href="#why">About MalickLand</a></li>
@@ -1370,7 +1372,11 @@ async function loadListings() {
           <div class="card-address">${p.address}${p.city ? ', ' + p.city : ''}</div>
           <div class="card-price">${price}</div>
           ${details ? `<div class="card-details">${details}</div>` : ''}
+<<<<<<< HEAD
           <a href="/property/${p.id}" class="card-btn">View Details →</a>
+=======
+          <a href="/properties/${encodeURIComponent(p.listing_slug || p.id)}" class="card-btn">View Details →</a>
+>>>>>>> c62238a (Add end-to-end lead capture, follow-ups, property pages, and admin)
         </div>
       </div>`;
     }).join('');
