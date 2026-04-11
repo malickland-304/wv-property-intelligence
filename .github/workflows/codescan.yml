@@ -48,6 +48,7 @@ jobs:
                     login: ${{ secrets.CODESCAN_AUTH_TOKEN }}
                     organization: ${{ secrets.CODESCAN_ORGANIZATION_KEY }}
                     projectKey: ${{ secrets.CODESCAN_PROJECT_KEY }}
+                    generateSarif: "1"
             -   name: Upload SARIF file
                 uses: github/codeql-action/upload-sarif@v3
                 with:
