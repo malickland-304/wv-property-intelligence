@@ -17,6 +17,7 @@ const { promisify } = require('util');
 const execAsync     = promisify(exec);
 
 const { sendContactEmail, uploadPhotoToDrive } = require('./google');
+const { appendListing, updateListing, appendLead } = require('./services/googleSheets');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -395,6 +396,7 @@ app.post('/admin/new', requireAuth, (req, res) => {
     JSON.stringify({ id, ...f, listing_slug: uniqueSlug }, null, 2)
   );
 
+  appendListing({ id, ...f, listing_slug: uniqueSlug }).catch(() => {});
   res.redirect(`/admin/photos/${uniqueSlug}`);
 });
 
@@ -433,6 +435,7 @@ app.post('/admin/edit/:id', requireAuth, (req, res) => {
     f.property_description, f.marketing_description, f.seller_notes, f.internal_notes,
     req.params.id
   );
+  updateListing(req.params.id, f).catch(() => {});
   res.redirect('/admin');
 });
 
@@ -808,6 +811,7 @@ app.post('/api/contacts', contactsRateLimit, (req, res) => {
                   WHERE p.id=?`).get(property_id)
     : null;
   sendContactEmail({ name, email, phone, message }, property).catch(() => {});
+  appendLead({ id: result.lastInsertRowid, name, email, phone, property_id, message }).catch(() => {});
 
   res.status(201).json({ id:result.lastInsertRowid });
 });
@@ -871,7 +875,11 @@ app.get('/sitemap.xml', (_req, res) => {
 });
 
 app.use(express.static(path.join(PROJECT_ROOT, 'app')));
-app.use((_req,res) => res.status(404).json({ error:'Not found' }));
+// SPA fallback — serves index.html for any unmatched GET so client-side routing works.
+// API routes return their own 404s inline; this only fires for unknown frontend paths.
+// Uses readFileSync to avoid Express 5 / send module path-resolution quirks.
+const INDEX_HTML = fs.readFileSync(path.join(PROJECT_ROOT, 'app', 'index.html'), 'utf8');
+app.use((_req, res) => res.type('html').send(INDEX_HTML));
 app.use((err,_req,res,_next) => { console.error(err); res.status(500).json({ error:'Server error' }); });
 
 app.listen(PORT, () => console.log(`✅ WV Property API → http://localhost:${PORT}\n   Admin Panel  → http://localhost:${PORT}/admin`));
@@ -1138,4 +1146,5 @@ app.get('/advent-drive-land-hampshire-county-wv', (req, res) => {
   </html>
   `);
 });
+
 
