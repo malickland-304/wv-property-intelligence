@@ -979,7 +979,7 @@ app.get('/api/counties', (_req, res) => {
   res.json(db.prepare('SELECT id,name FROM counties ORDER BY name').all());
 });
 
-app.get('/api/properties', publicReadRateLimit, (req, res) => {
+function sendPropertyList(req, res) {
   try {
     const { q='',county='',type='',minPrice='',maxPrice='',page=1,limit=12 } = req.query;
     const conditions = ["p.status = 'active'"];
@@ -995,7 +995,7 @@ app.get('/api/properties', publicReadRateLimit, (req, res) => {
     // DB stores `acreage`; the public API exposes `lot_acres` (aliased) for the UI
     const properties = db.prepare(`
       SELECT p.id, p.listing_slug, p.address, p.city, p.zip, p.price, p.property_type,
-             p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
+             p.bedrooms, p.bathrooms, p.sqft, COALESCE(p.acreage, p.lot_acres) AS lot_acres,
              p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
              c.name AS county
       FROM properties p JOIN counties c ON c.id=p.county_id
@@ -1003,15 +1003,18 @@ app.get('/api/properties', publicReadRateLimit, (req, res) => {
     `).all(...values, Number(limit), offset);
     res.json({ total, page:Number(page), properties });
   } catch(err) { console.error(err); res.status(500).json({ error:'Failed' }); }
-});
+}
 
-app.get('/api/properties/:id', publicReadRateLimit, (req, res) => {
+app.get('/api/properties', publicReadRateLimit, sendPropertyList);
+app.get('/api/listings', publicReadRateLimit, sendPropertyList);
+
+function sendPropertyDetail(req, res) {
   const row = db.prepare(`
     SELECT p.id, p.listing_slug, p.address, p.city, p.zip, p.price, p.property_type,
-           p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
+           p.bedrooms, p.bathrooms, p.sqft, COALESCE(p.acreage, p.lot_acres) AS lot_acres,
            p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
            p.county_id, c.name AS county,
-           p.property_description, p.marketing_description,
+           p.description, p.property_description, p.marketing_description,
            p.mls_number, p.road_access, p.flood_zone,
            p.listing_agent, p.listing_office,
            p.utilities_available, p.septic, p.well, p.electric, p.internet
@@ -1019,9 +1022,12 @@ app.get('/api/properties/:id', publicReadRateLimit, (req, res) => {
     WHERE (p.id=? OR p.listing_slug=?) AND p.status='active'
   `).get(req.params.id, req.params.id);
   if (!row) return res.status(404).json({ error:'Not found' });
-  const description = row.marketing_description || row.property_description || '';
+  const description = row.marketing_description || row.property_description || row.description || '';
   res.json({ ...row, description });
-});
+}
+
+app.get('/api/properties/:id', publicReadRateLimit, sendPropertyDetail);
+app.get('/api/listings/:id', publicReadRateLimit, sendPropertyDetail);
 
 app.get('/api/analytics', (_req, res) => {
   const row = db.prepare(`
@@ -1029,7 +1035,7 @@ app.get('/api/analytics', (_req, res) => {
       CAST(ROUND(AVG(price)) AS INTEGER) AS avgPrice,
       COUNT(*) AS totalListings,
       CAST(ROUND(AVG(julianday('now')-julianday(listed_at))) AS INTEGER) AS medianDom,
-      CAST(ROUND(AVG(price/MAX(sqft,1))) AS INTEGER) AS pricePerSqft
+      CAST(ROUND(AVG(CASE WHEN sqft IS NOT NULL AND sqft > 0 THEN CAST(price AS REAL) / sqft END)) AS INTEGER) AS pricePerSqft
     FROM properties WHERE status='active'
   `).get();
   res.json(row);
@@ -1093,7 +1099,7 @@ app.post('/api/properties', apiWriteRateLimit, requireApiKey, (req, res) => {
     `).run(
       id, f.county_id||1, f.address, f.city||null, f.state||'WV', f.zip||null,
       f.parcel_id||null, f.subdivision||null, f.property_type||'land', f.status||'draft',
-      f.acreage||null, f.lot_size||null, f.road_access||null, f.utilities_available||null,
+      normalizeAcreage(f), f.lot_size||null, f.road_access||null, f.utilities_available||null,
       f.septic?1:0, f.well?1:0, f.electric?1:0, f.internet?1:0,
       f.price||null, f.recommended_list_price||null, f.price_per_acre||null,
       f.tax_assessed||null, f.annual_tax||null,
@@ -1133,7 +1139,7 @@ app.put('/api/properties/:id', apiWriteRateLimit, requireApiKey, (req, res) => {
     `).run(
       f.county_id||1, f.address, f.city||null, f.state||'WV', f.zip||null,
       f.parcel_id||null, f.subdivision||null, f.property_type||'land', f.status||'draft',
-      f.acreage||null, f.lot_size||null, f.road_access||null, f.utilities_available||null,
+      normalizeAcreage(f), f.lot_size||null, f.road_access||null, f.utilities_available||null,
       f.septic?1:0, f.well?1:0, f.electric?1:0, f.internet?1:0,
       f.price||null, f.recommended_list_price||null, f.price_per_acre||null,
       f.tax_assessed||null, f.annual_tax||null,
@@ -1230,8 +1236,22 @@ app.get('/sitemap.xml', (_req, res) => {
   res.send(xml);
 });
 
+// Public listing detail page
+app.get('/listing/:id', publicReadRateLimit, (_req, res) => {
+  const listingHtml = path.join(PROJECT_ROOT, 'app', 'listing.html');
+  const indexHtml = path.join(PROJECT_ROOT, 'app', 'index.html');
+  res.sendFile(fs.existsSync(listingHtml) ? listingHtml : indexHtml);
+});
+
 app.use(express.static(path.join(PROJECT_ROOT, 'app')));
-app.use((_req,res) => res.status(404).json({ error:'Not found' }));
+app.use((req, res) => {
+  if (req.path.startsWith('/api')) return res.status(404).json({ error:'Not found' });
+  return res.status(404).type('html').send(
+    `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Not found</title></head>
+    <body style="font-family:system-ui;background:#0f1411;color:#e8e4dc;text-align:center;padding:3rem">
+    <h1>Page not found</h1><p><a href="/" style="color:#c9a84c">Return home</a></p></body></html>`
+  );
+});
 app.use((err,_req,res,_next) => { console.error(err); res.status(500).json({ error:'Server error' }); });
 
 app.listen(PORT, () => console.log(`✅ WV Property API → http://localhost:${PORT}\n   Admin Panel  → http://localhost:${PORT}/admin`));
@@ -1539,4 +1559,3 @@ app.get('/advent-drive-land-hampshire-county-wv', (req, res) => {
   </html>
   `);
 });
-
