@@ -1,0 +1,11 @@
+{
+  "name": "malickland",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "cd api && npm install",
+    "start": "cd api && node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0 <22.0.0"
+  }
+}

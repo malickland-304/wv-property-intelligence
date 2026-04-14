@@ -1,16 +1,28 @@
 # Dependencies
+node_modules/
 api/node_modules/
 
 # Environment secrets
 .env
 api/.env
+secrets/
 
-# SQLite WAL files
+# SQLite databases
+*.db
 *.db-shm
 *.db-wal
+*.sqlite-wal
+*.sqlite-shm
+
+# Uploads
+uploads/
 
 # macOS
 .DS_Store
 
+# Build output
+dist/
+
 # Uploaded/generated listing assets
 listings/
+listings/*/photos/raw/

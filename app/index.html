@@ -3,85 +3,1479 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Malickland | WV Property Intelligence</title>
-  <link rel="stylesheet" href="styles.css" />
+  <title>MalickLand | West Virginia Land & Property</title>
+  <meta name="description" content="Find land, farms, cabin lots, and rural property across all 55 West Virginia counties. AI-powered pricing, local expertise, fast response." />
+  <!-- Open Graph -->
+  <meta property="og:title" content="MalickLand | West Virginia Land & Property" />
+  <meta property="og:description" content="Find land, farms, and rural property across all 55 WV counties. AI-powered pricing, local WV expertise." />
+  <meta property="og:url" content="https://malickland.net" />
+  <meta property="og:type" content="website" />
+  <link rel="canonical" href="https://malickland.net" />
+  <!-- Schema Markup -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": ["RealEstateAgent", "LocalBusiness"],
+    "name": "MalickLand",
+    "url": "https://malickland.net",
+    "telephone": "(540) 246-1421",
+    "areaServed": "West Virginia",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "Romney",
+      "addressRegion": "WV",
+      "addressCountry": "US"
+    },
+    "employee": {
+      "@type": "Person",
+      "name": "Phil Malick"
+    },
+    "sameAs": [
+      "https://www.facebook.com/malickland.phil",
+      "https://www.instagram.com/malickland_wvrea"
+    ]
+  }
+  </script>
+  <style>
+    :root {
+      --green: #1B4332;
+      --green-mid: #2d5c42;
+      --green-light: #3a7a58;
+      --gold: #D4AF37;
+      --gold-dark: #b8962e;
+      --cream: #F9F6F0;
+      --gray: #6b7280;
+      --gray-light: #F9F6F0;
+      --border: #e5e7eb;
+      --text: #1a1a1a;
+      --white: #ffffff;
+      --shadow: 0 4px 24px rgba(27,67,50,0.12);
+      --radius: 12px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text);
+      background: var(--white);
+      line-height: 1.6;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    img { max-width: 100%; display: block; }
+
+    /* ---- NAVBAR ---- */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      background: var(--green);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+      height: 68px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      color: var(--white);
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+
+    .nav-logo-icon {
+      width: 38px;
+      height: 38px;
+      background: var(--gold);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+    }
+
+    .nav-logo span em {
+      color: var(--gold);
+      font-style: normal;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: rgba(255,255,255,0.85);
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--gold); }
+
+    .nav-cta {
+      background: var(--gold);
+      color: var(--green);
+      border: none;
+      padding: 0.6rem 1.4rem;
+      border-radius: 50px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    .nav-cta:hover { background: var(--gold-dark); transform: translateY(-1px); }
+
+    .nav-mobile-toggle {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--white);
+      font-size: 1.5rem;
+      cursor: pointer;
+    }
+
+    /* ---- HERO ---- */
+    .hero {
+      background: linear-gradient(135deg, var(--green) 0%, var(--green-mid) 60%, #1e4a30 100%);
+      min-height: 85vh;
+      display: flex;
+      align-items: center;
+      padding: 4rem 2rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 70% 50%, rgba(201,168,76,0.08) 0%, transparent 70%);
+    }
+
+    .hero-content {
+      max-width: 720px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero-badge {
+      display: inline-block;
+      background: rgba(201,168,76,0.15);
+      border: 1px solid rgba(201,168,76,0.4);
+      color: var(--gold);
+      padding: 0.35rem 1rem;
+      border-radius: 50px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 1.25rem;
+    }
+
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 900;
+      color: var(--white);
+      line-height: 1.15;
+      margin-bottom: 1rem;
+    }
+
+    .hero h1 em {
+      font-style: normal;
+      color: var(--gold);
+    }
+
+    .hero-sub {
+      font-size: 1.1rem;
+      color: rgba(255,255,255,0.8);
+      margin-bottom: 2.5rem;
+      max-width: 560px;
+    }
+
+    .hero-form {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 2rem;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+      max-width: 540px;
+    }
+
+    .hero-form h3 {
+      color: var(--green);
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 1.25rem;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .form-group.full { grid-column: 1 / -1; }
+
+    .form-group label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--gray);
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      padding: 0.7rem 0.9rem;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      color: var(--text);
+      transition: border-color 0.2s;
+      background: var(--white);
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: var(--green);
+    }
+
+    .form-group textarea { resize: vertical; min-height: 80px; }
+
+    .btn-submit {
+      width: 100%;
+      background: var(--gold);
+      color: var(--green);
+      border: none;
+      padding: 0.9rem;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      margin-top: 0.5rem;
+    }
+
+    .btn-submit:hover { background: var(--gold-dark); transform: translateY(-1px); }
+
+    .consent-text {
+      font-size: 0.72rem;
+      color: var(--gray);
+      margin-top: 0.65rem;
+      line-height: 1.45;
+    }
+
+    .form-success {
+      display: none;
+      text-align: center;
+      padding: 1.5rem;
+      color: var(--green);
+      font-weight: 600;
+    }
+
+    /* ---- TRUST BAR ---- */
+    .trust-bar {
+      background: var(--cream);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .trust-bar-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1.5rem 2rem;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+
+    .trust-item {
+      text-align: center;
+      padding: 1rem;
+    }
+
+    .trust-num {
+      font-size: 1.8rem;
+      font-weight: 900;
+      color: var(--green);
+      display: block;
+    }
+
+    .trust-label {
+      font-size: 0.8rem;
+      color: var(--gray);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    /* ---- SECTIONS ---- */
+    .section {
+      padding: 5rem 2rem;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .section-header {
+      margin-bottom: 3rem;
+    }
+
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--gold);
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+
+    .section-title {
+      font-size: clamp(1.6rem, 3vw, 2.4rem);
+      font-weight: 800;
+      color: var(--green);
+      line-height: 1.2;
+    }
+
+    /* ---- LISTINGS GRID ---- */
+    .listings-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.75rem;
+    }
+
+    .card {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(26,58,42,0.18);
+    }
+
+    .card-img {
+      height: 200px;
+      background: var(--green-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3.5rem;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .card-img img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      position: absolute;
+      inset: 0;
+    }
+
+    .card-county {
+      position: absolute;
+      top: 0.75rem;
+      left: 0.75rem;
+      background: var(--green);
+      color: var(--white);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.25rem 0.6rem;
+      border-radius: 50px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .card-body { padding: 1.25rem; }
+
+    .card-type {
+      font-size: 0.75rem;
+      color: var(--gray);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+    }
+
+    .card-address {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+      line-height: 1.3;
+    }
+
+    .card-price {
+      font-size: 1.4rem;
+      font-weight: 900;
+      color: var(--green);
+      margin-bottom: 0.75rem;
+    }
+
+    .card-details {
+      font-size: 0.82rem;
+      color: var(--gray);
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .card-btn {
+      display: block;
+      background: var(--green);
+      color: var(--white);
+      text-align: center;
+      padding: 0.65rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+    }
+
+    .card-btn:hover { background: var(--green-light); }
+
+    /* Skeleton loading */
+    .skeleton {
+      background: linear-gradient(90deg, var(--gray-light) 25%, #e5e7eb 50%, var(--gray-light) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: var(--radius);
+      height: 320px;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* ---- LEAD MAGNET ---- */
+    .lead-magnet {
+      background: var(--green);
+      color: var(--white);
+      padding: 5rem 2rem;
+    }
+
+    .lead-magnet-inner {
+      max-width: 700px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .lead-magnet h2 {
+      font-size: clamp(1.6rem, 3vw, 2.4rem);
+      font-weight: 800;
+      margin-bottom: 1rem;
+    }
+
+    .lead-magnet p {
+      color: rgba(255,255,255,0.8);
+      margin-bottom: 2rem;
+      font-size: 1.05rem;
+    }
+
+    .lead-magnet-form {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: var(--radius);
+      padding: 2rem;
+    }
+
+    .lead-magnet-form .form-row { gap: 0.75rem; margin-bottom: 0.75rem; }
+
+    .lead-magnet-form input {
+      background: rgba(255,255,255,0.92);
+      border: 2px solid rgba(201,168,76,0.5);
+      color: var(--text);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      width: 100%;
+    }
+
+    .lead-magnet-form input::placeholder { color: #6b7280; }
+    .lead-magnet-form input:focus { outline: none; border-color: var(--gold); }
+
+    .lead-magnet-form .consent-text { color: rgba(255,255,255,0.5); margin-top: 0.75rem; }
+
+    /* ---- WHY MALICKLAND ---- */
+    .why-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+    }
+
+    .why-card {
+      background: var(--cream);
+      border-radius: var(--radius);
+      padding: 1.75rem;
+      border: 1px solid var(--border);
+    }
+
+    .why-icon {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+
+    .why-card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--green);
+      margin-bottom: 0.5rem;
+    }
+
+    .why-card p {
+      font-size: 0.88rem;
+      color: var(--gray);
+      line-height: 1.55;
+    }
+
+    /* ---- SOCIAL ---- */
+    .social-strip {
+      background: var(--cream);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 3rem 2rem;
+    }
+
+    .social-strip-inner {
+      max-width: 900px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .social-strip h3 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--green);
+      margin-bottom: 0.5rem;
+    }
+
+    .social-strip p {
+      color: var(--gray);
+      margin-bottom: 2rem;
+    }
+
+    .social-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
+    }
+
+    .social-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 1.5rem 1rem;
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+      transition: box-shadow 0.2s;
+    }
+
+    .social-card:hover { box-shadow: var(--shadow); }
+
+    .social-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+    }
+
+    .social-card-name {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--text);
+    }
+
+    .social-card-handle {
+      font-size: 0.82rem;
+      color: var(--gray);
+    }
+
+    .social-btn {
+      display: inline-block;
+      padding: 0.5rem 1.25rem;
+      border-radius: 50px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      border: 1.5px solid var(--border);
+      color: var(--text);
+      transition: all 0.2s;
+    }
+
+    .social-btn:hover {
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    /* ---- CTA SECTION ---- */
+    .cta-section {
+      background: linear-gradient(135deg, var(--green), var(--green-mid));
+      padding: 5rem 2rem;
+      color: var(--white);
+    }
+
+    .cta-inner {
+      max-width: 800px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .cta-inner h2 {
+      font-size: clamp(1.8rem, 3.5vw, 2.8rem);
+      font-weight: 800;
+      margin-bottom: 1rem;
+    }
+
+    .cta-inner p {
+      color: rgba(255,255,255,0.8);
+      font-size: 1.05rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .cta-buttons {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 3rem;
+    }
+
+    .btn-call {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--gold);
+      color: var(--green);
+      padding: 1rem 2rem;
+      border-radius: 50px;
+      font-weight: 700;
+      font-size: 1.05rem;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    .btn-call:hover { background: var(--gold-dark); transform: translateY(-2px); }
+
+    .btn-outline {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      border: 2px solid rgba(255,255,255,0.5);
+      color: var(--white);
+      padding: 1rem 2rem;
+      border-radius: 50px;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      background: transparent;
+      font-family: inherit;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .btn-outline:hover { border-color: var(--white); background: rgba(255,255,255,0.08); }
+
+    /* ---- FOOTER ---- */
+    footer {
+      background: #0d1f16;
+      color: rgba(255,255,255,0.7);
+      padding: 3rem 2rem 2rem;
+    }
+
+    .footer-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 3rem;
+      padding-bottom: 2.5rem;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .footer-brand h4 {
+      color: var(--white);
+      font-size: 1.2rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+    }
+
+    .footer-brand p { font-size: 0.875rem; line-height: 1.6; }
+
+    .footer-links h5, .footer-contact h5 {
+      color: var(--white);
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 1rem;
+    }
+
+    .footer-links ul { list-style: none; }
+    .footer-links li { margin-bottom: 0.5rem; }
+    .footer-links a { font-size: 0.875rem; transition: color 0.2s; }
+    .footer-links a:hover { color: var(--gold); }
+
+    .footer-contact p { font-size: 0.875rem; margin-bottom: 0.5rem; }
+    .footer-contact a { transition: color 0.2s; }
+    .footer-contact a:hover { color: var(--gold); }
+
+    .footer-bottom {
+      max-width: 1100px;
+      margin: 1.5rem auto 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.8rem;
+    }
+
+    .footer-social { display: flex; gap: 1rem; }
+    .footer-social a {
+      width: 36px;
+      height: 36px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      transition: background 0.2s;
+    }
+    .footer-social a:hover { background: var(--gold); }
+
+    /* ---- CHAT WIDGET ---- */
+    .chat-btn {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      width: 58px;
+      height: 58px;
+      background: var(--green);
+      color: var(--white);
+      border: none;
+      border-radius: 50%;
+      font-size: 1.5rem;
+      cursor: pointer;
+      box-shadow: 0 6px 24px rgba(26,58,42,0.4);
+      z-index: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2.5px solid var(--gold);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .chat-btn:hover { transform: scale(1.08); box-shadow: 0 10px 32px rgba(26,58,42,0.5); }
+
+    .chat-panel {
+      position: fixed;
+      bottom: 5.5rem;
+      right: 1.5rem;
+      width: 340px;
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+      z-index: 900;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .chat-panel.open { display: flex; }
+
+    .chat-header {
+      background: var(--green);
+      color: var(--white);
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .chat-avatar {
+      width: 38px;
+      height: 38px;
+      background: var(--gold);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+    }
+
+    .chat-header-text h4 { font-size: 0.95rem; font-weight: 700; }
+    .chat-header-text p { font-size: 0.75rem; color: rgba(255,255,255,0.75); }
+
+    .chat-close {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.7);
+      font-size: 1.2rem;
+      cursor: pointer;
+    }
+
+    .chat-close:hover { color: var(--white); }
+
+    .chat-body { padding: 1.25rem; flex: 1; min-height: 200px; }
+
+    .chat-msg {
+      background: var(--gray-light);
+      border-radius: 12px 12px 12px 4px;
+      padding: 0.75rem 1rem;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      color: var(--text);
+      margin-bottom: 1rem;
+    }
+
+    .chat-options {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .chat-opt {
+      background: var(--white);
+      border: 1.5px solid var(--green);
+      color: var(--green);
+      padding: 0.55rem 1rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.15s;
+    }
+
+    .chat-opt:hover { background: var(--green); color: var(--white); }
+
+    .chat-input-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .chat-input {
+      padding: 0.65rem 0.9rem;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-family: inherit;
+    }
+
+    .chat-input:focus { outline: none; border-color: var(--green); }
+
+    .chat-send {
+      background: var(--gold);
+      color: var(--green);
+      border: none;
+      padding: 0.65rem 1.25rem;
+      border-radius: 8px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 0.9rem;
+      width: 100%;
+    }
+
+    .chat-send:hover { background: var(--gold-dark); }
+
+    .chat-done {
+      text-align: center;
+      padding: 1rem;
+      font-size: 0.9rem;
+      color: var(--green);
+      font-weight: 600;
+    }
+
+    /* ---- LEAD MODAL ---- */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 2000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 2.5rem;
+      max-width: 480px;
+      width: 100%;
+      position: relative;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.3);
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: none;
+      border: none;
+      font-size: 1.3rem;
+      cursor: pointer;
+      color: var(--gray);
+    }
+
+    .modal-close:hover { color: var(--text); }
+
+    .modal h3 {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: var(--green);
+      margin-bottom: 0.35rem;
+    }
+
+    .modal p { color: var(--gray); margin-bottom: 1.5rem; font-size: 0.9rem; }
+
+    /* ---- RESPONSIVE ---- */
+    @media (max-width: 900px) {
+      .nav-links { display: none; }
+      .nav-mobile-toggle { display: block; }
+      .listings-grid, .why-grid { grid-template-columns: repeat(2, 1fr); }
+      .social-cards { grid-template-columns: repeat(2, 1fr); }
+      .footer-inner { grid-template-columns: 1fr 1fr; }
+      .trust-bar-inner { grid-template-columns: repeat(2, 1fr); }
+      .form-row { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 600px) {
+      .hero { padding: 3rem 1.25rem; min-height: auto; }
+      .section { padding: 3.5rem 1.25rem; }
+      .listings-grid, .why-grid, .social-cards { grid-template-columns: 1fr; }
+      .footer-inner { grid-template-columns: 1fr; gap: 2rem; }
+      .footer-bottom { flex-direction: column; gap: 1rem; text-align: center; }
+      .trust-bar-inner { grid-template-columns: repeat(2, 1fr); padding: 1rem; }
+      .chat-panel { width: calc(100vw - 3rem); right: 1.5rem; }
+      .cta-buttons { flex-direction: column; align-items: center; }
+    }
+  </style>
 </head>
 <body>
-  <header>
-    <nav class="navbar">
-      <a href="#hero" class="logo">
-        <img src="logo.png" alt="Malickland" class="nav-logo" />
-        <span>Malickland</span>
-      </a>
-      <ul class="nav-links">
-        <li><a href="#search">Search</a></li>
-        <li><a href="#listings">Listings</a></li>
-        <li><a href="#analytics">Analytics</a></li>
-        <li><a href="#agent">About</a></li>
-        <li><a href="#contact">Contact</a></li>
-      </ul>
-    </nav>
-  </header>
 
-  <main>
-    <section id="hero">
-      <h1>West Virginia Property Intelligence</h1>
-      <p>Search, analyze, and track real estate across West Virginia</p>
-      <div id="search" class="search-bar">
-        <input type="text" id="searchInput" placeholder="Search by address, county, or ZIP..." />
-        <button id="searchBtn">Search</button>
-      </div>
-    </section>
+<!-- NAVBAR -->
+<nav class="nav">
+  <a href="/" class="nav-logo">
+    <div class="nav-logo-icon">🏡</div>
+    <span>Malick<em>Land</em></span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#listings">Listings</a></li>
+    <li><a href="#why">About</a></li>
+    <li><a href="#contact-form">Contact</a></li>
+    <li><a href="/admin" style="opacity:0.5;font-size:0.8rem">Admin</a></li>
+  </ul>
+  <button class="nav-cta" onclick="openModal()">Get Land Alerts</button>
+  <button class="nav-mobile-toggle" onclick="this.parentElement.querySelector('.nav-links').style.display = this.parentElement.querySelector('.nav-links').style.display === 'flex' ? 'none' : 'flex'">☰</button>
+</nav>
 
-    <section id="listings">
-      <h2>Property Listings</h2>
-      <div id="filters" class="filter-bar">
-        <select id="countyFilter"><option value="">All Counties</option></select>
-        <select id="typeFilter">
-          <option value="">All Types</option>
-          <option value="residential">Residential</option>
-          <option value="commercial">Commercial</option>
-          <option value="land">Land</option>
-          <option value="multi-family">Multi-Family</option>
-          <option value="industrial">Industrial</option>
-        </select>
-        <input type="number" id="minPrice" placeholder="Min Price" />
-        <input type="number" id="maxPrice" placeholder="Max Price" />
-        <button id="applyFilters">Apply Filters</button>
-      </div>
-      <div id="listingsGrid" class="listings-grid">
-        <!-- Properties injected by app.js -->
-      </div>
-      <div id="pagination" class="pagination"></div>
-    </section>
+<!-- HERO -->
+<section class="hero" id="hero">
+  <div class="hero-content">
+    <span class="hero-badge">West Virginia Land Specialist</span>
+    <h1>Find Your <em>Wild &amp; Wonderful</em> Piece of West Virginia</h1>
+    <p class="hero-sub">AI-powered property intelligence across all 55 WV counties. Local expertise, fast response.</p>
 
-    <section id="agent">
-      <div class="agent-inner">
-        <img src="agent.jpg" alt="Phil Malick" class="agent-photo" />
-        <div class="agent-bio">
-          <h2>Phil Malick</h2>
-          <p class="agent-title">West Virginia Real Estate Agent</p>
-          <p>With deep knowledge of West Virginia's 55 counties, Phil specializes in land, residential, and rural properties across the Mountain State. Whether you're buying, selling, or just exploring — he's here to help.</p>
-          <a href="#contact" class="agent-cta">Get In Touch</a>
+    <div class="hero-form">
+      <h3>Tell Phil What You're Looking For</h3>
+      <form id="heroForm">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Your Name *</label>
+            <input type="text" name="name" placeholder="Phil Smith" required />
+          </div>
+          <div class="form-group">
+            <label>Phone *</label>
+            <input type="tel" name="phone" placeholder="(304) 555-1234" required />
+          </div>
         </div>
+        <div class="form-group">
+          <label>Email *</label>
+          <input type="email" name="email" placeholder="you@email.com" required />
+        </div>
+        <div class="form-group">
+          <label>What are you looking for?</label>
+          <select name="interest">
+            <option value="Buying Land">Buying Land or Acreage</option>
+            <option value="Selling Property">Selling My Property</option>
+            <option value="Hunting / Recreation Land">Hunting / Recreation Land</option>
+            <option value="Cabin / Rural Retreat">Cabin or Rural Retreat</option>
+            <option value="Investment Property">Investment / Timberland</option>
+            <option value="Just Browsing">Just Browsing</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>County or Area of Interest</label>
+          <input type="text" name="message" placeholder="Hampshire, Tucker, Pocahontas... or any WV county" />
+        </div>
+        <input type="hidden" name="source" value="website_hero" />
+        <button type="submit" class="btn-submit">📬 Connect With Phil — It's Free</button>
+        <p class="consent-text">By submitting, you consent to receive calls and texts from MalickLand at the number provided. Message &amp; data rates may apply. Reply STOP to opt out at any time.</p>
+      </form>
+      <div class="form-success" id="heroSuccess">
+        ✅ Got it! Phil will reach out within 2 hours. Call anytime: <strong>(540) 246-1421</strong>
       </div>
-    </section>
+    </div>
+  </div>
+</section>
 
-    <section id="analytics">
-      <h2>Market Analytics</h2>
-      <div id="analyticsPanel" class="analytics-panel">
-        <div class="stat-card" id="avgPrice"><h3>Avg Price</h3><p>--</p></div>
-        <div class="stat-card" id="totalListings"><h3>Total Listings</h3><p>--</p></div>
-        <div class="stat-card" id="medianDom"><h3>Median DOM</h3><p>--</p></div>
-        <div class="stat-card" id="pricePerSqft"><h3>Price / Sqft</h3><p>--</p></div>
+<!-- TRUST BAR -->
+<div class="trust-bar">
+  <div class="trust-bar-inner">
+    <div class="trust-item">
+      <span class="trust-num">55</span>
+      <span class="trust-label">WV Counties Covered</span>
+    </div>
+    <div class="trust-item">
+      <span class="trust-num">WV</span>
+      <span class="trust-label">Licensed &amp; Local</span>
+    </div>
+    <div class="trust-item">
+      <span class="trust-num">AI</span>
+      <span class="trust-label">Powered Pricing</span>
+    </div>
+    <div class="trust-item">
+      <span class="trust-num">2hr</span>
+      <span class="trust-label">Response Promise</span>
+    </div>
+  </div>
+</div>
+
+<!-- FEATURED LISTINGS -->
+<section class="section" id="listings">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-label">Available Now</span>
+      <h2 class="section-title">Featured Land Opportunities</h2>
+    </div>
+    <div class="listings-grid" id="listingsGrid">
+      <div class="skeleton"></div>
+      <div class="skeleton"></div>
+      <div class="skeleton"></div>
+    </div>
+  </div>
+</section>
+
+<!-- LEAD MAGNET -->
+<section class="lead-magnet" id="guide">
+  <div class="lead-magnet-inner">
+    <h2>Don't Buy Land in WV Until You Read This</h2>
+    <p>Download our free <strong>2026 WV Land Buying Checklist</strong> — everything you need to know about septic, well access, zoning traps, and due diligence before you sign anything.</p>
+    <div class="lead-magnet-form">
+      <form id="alertsForm">
+        <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
+          <input type="text" name="name" placeholder="Your Name" required class="chat-input" style="background:rgba(255,255,255,0.92);border:2px solid rgba(201,168,76,0.5);color:#1f2937;" />
+          <input type="email" name="email" placeholder="Your Email" required class="chat-input" style="background:rgba(255,255,255,0.92);border:2px solid rgba(201,168,76,0.5);color:#1f2937;" />
+        </div>
+        <input type="hidden" name="source" value="website_alerts" />
+        <button type="submit" class="btn-submit" style="background:var(--gold);color:var(--green);">📋 Send Me the Checklist — Free</button>
+        <p class="consent-text" style="color:rgba(255,255,255,0.5);margin-top:0.65rem;font-size:0.72rem;">By submitting, you consent to receive emails and texts from MalickLand. Reply STOP to opt out at any time.</p>
+      </form>
+      <div class="form-success" id="alertsSuccess" style="color:#c9a84c;">
+        ✅ Checklist on the way! Check your email — and Phil may follow up personally.
       </div>
-    </section>
-  </main>
+    </div>
+  </div>
+</section>
 
-  <footer id="contact">
-    <p>&copy; 2026 Malickland | WV Property Intelligence</p>
-  </footer>
+<!-- WHY MALICKLAND -->
+<section class="section" id="why" style="background:var(--white);">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-label">Why MalickLand</span>
+      <h2 class="section-title">The Land Expert West Virginia Deserves</h2>
+    </div>
+    <div class="why-grid">
+      <div class="why-card">
+        <div class="why-icon">🏔️</div>
+        <h3>Local WV Expert</h3>
+        <p>Born and based in West Virginia. Phil knows every county, every road, and what land is truly worth in this market.</p>
+      </div>
+      <div class="why-card">
+        <div class="why-icon">🤖</div>
+        <h3>AI-Powered Pricing</h3>
+        <p>Every listing gets an AI-generated market analysis — comparable sales, price trends, and honest valuations.</p>
+      </div>
+      <div class="why-card">
+        <div class="why-icon">🗺️</div>
+        <h3>All 55 Counties</h3>
+        <p>From Eastern Panhandle to Harpers Ferry, Tucker to Wayne — we cover every corner of Wild &amp; Wonderful WV.</p>
+      </div>
+      <div class="why-card">
+        <div class="why-icon">🌲</div>
+        <h3>Land &amp; Acreage Specialist</h3>
+        <p>Farmland, timberland, hunting tracts, cabin lots, and river frontage. Rural property is what we do best.</p>
+      </div>
+      <div class="why-card">
+        <div class="why-icon">⚡</div>
+        <h3>Fast Response Guarantee</h3>
+        <p>Every inquiry gets a personal response within 2 hours. No automated runaround — real answers from Phil.</p>
+      </div>
+      <div class="why-card">
+        <div class="why-icon">📢</div>
+        <h3>Maximum Seller Exposure</h3>
+        <p>Professional photos, video tours, social media syndication, and AI-crafted descriptions for every listing.</p>
+      </div>
+    </div>
+  </div>
+</section>
 
-  <script src="app.js"></script>
+<!-- SOCIAL STRIP -->
+<section class="social-strip">
+  <div class="social-strip-inner">
+    <h3>Follow MalickLand</h3>
+    <p>Property tours, market updates, land-buying tips, and WV local insights every week.</p>
+    <div class="social-cards">
+      <div class="social-card">
+        <div class="social-icon" style="background:#E1306C22;">📷</div>
+        <div class="social-card-name">Instagram</div>
+        <div class="social-card-handle">@malickland_wvrea</div>
+        <a href="https://www.instagram.com/malickland_wvrea" target="_blank" rel="noopener" class="social-btn">Follow</a>
+      </div>
+      <div class="social-card">
+        <div class="social-icon" style="background:#1877F222;">📘</div>
+        <div class="social-card-name">Facebook</div>
+        <div class="social-card-handle">MalickLand</div>
+        <a href="https://www.facebook.com/malickland.phil" target="_blank" rel="noopener" class="social-btn">Follow</a>
+      </div>
+      <div class="social-card">
+        <div class="social-icon" style="background:#FF000022;">▶️</div>
+        <div class="social-card-name">YouTube</div>
+        <div class="social-card-handle">Property Tours & Tips</div>
+        <a href="https://youtube.com/@malickland" target="_blank" rel="noopener" class="social-btn">Subscribe</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="cta-section" id="sell">
+  <div class="cta-inner">
+    <h2>Ready to Find Your Land?</h2>
+    <p>Whether you're buying, selling, or just curious about WV land values — Phil answers every call personally.</p>
+    <div class="cta-buttons">
+      <a href="tel:+15402461421" class="btn-call">📞 Call (540) 246-1421</a>
+      <button class="btn-outline" onclick="openChat()">💬 Chat With the Assistant</button>
+    </div>
+
+    <!-- Contact Form -->
+    <div id="contact-form" style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:var(--radius);padding:2rem;max-width:520px;margin:0 auto;text-align:left;">
+      <h3 style="color:var(--white);font-size:1.1rem;margin-bottom:1.25rem;">Send Phil a Message</h3>
+      <form id="ctaForm">
+        <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
+          <input class="chat-input" style="background:rgba(255,255,255,0.92);border:2px solid rgba(201,168,76,0.4);color:#1f2937;" type="text" name="name" placeholder="Your Name" required />
+          <input class="chat-input" style="background:rgba(255,255,255,0.92);border:2px solid rgba(201,168,76,0.4);color:#1f2937;" type="tel" name="phone" placeholder="(304) 555-1234" />
+        </div>
+        <input class="chat-input" style="background:rgba(255,255,255,0.92);border:2px solid rgba(201,168,76,0.4);color:#1f2937;width:100%;margin-bottom:0.75rem;" type="email" name="email" placeholder="Email Address" required />
+        <textarea class="chat-input" style="background:rgba(255,255,255,0.92);border:2px solid rgba(201,168,76,0.4);color:#1f2937;width:100%;min-height:90px;margin-bottom:0.75rem;" name="message" placeholder="What kind of property are you looking for? (county, acreage, budget...)"></textarea>
+        <input type="hidden" name="source" value="website_contact" />
+        <button type="submit" class="btn-submit" style="background:var(--gold);color:var(--green);">Send Message</button>
+        <p class="consent-text" style="color:rgba(255,255,255,0.45);">By submitting, you consent to receive calls and texts from MalickLand. Reply STOP to opt out.</p>
+      </form>
+      <div class="form-success" id="ctaSuccess" style="color:var(--gold);">
+        ✅ Message received! Phil will respond within 2 hours.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <h4>🏡 MalickLand</h4>
+      <p>West Virginia's land &amp; rural property specialist. Serving all 55 WV counties with local expertise, AI-powered pricing, and personal service.</p>
+    </div>
+    <div class="footer-links">
+      <h5>Quick Links</h5>
+      <ul>
+        <li><a href="#listings">Browse Listings</a></li>
+        <li><a href="#sell">Sell Property</a></li>
+        <li><a href="#guide">Free Land Guide</a></li>
+        <li><a href="#why">About MalickLand</a></li>
+        <li><a href="/admin">Admin Login</a></li>
+      </ul>
+    </div>
+    <div class="footer-contact">
+      <h5>Contact Phil</h5>
+      <p>📞 <a href="tel:+13045550100">(304) 555-0100</a></p>
+      <p>✉️ <a href="mailto:phil@malickland.net">phil@malickland.net</a></p>
+      <p>📘 <a href="https://www.facebook.com/malickland.phil" target="_blank" rel="noopener">Facebook</a></p>
+      <p>📷 <a href="https://www.instagram.com/malickland_wvrea" target="_blank" rel="noopener">@malickland_wvrea</a></p>
+      <p style="margin-top:0.75rem;font-size:0.82rem;color:rgba(255,255,255,0.4);">Licensed in West Virginia<br/>Romney, West Virginia</p>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>MalickLand WV Real Estate | Phil Malick, Agent | <a href="tel:+13045550100">(304) 555-0100</a> | <a href="mailto:phil@malickland.net">phil@malickland.net</a> | Licensed in West Virginia &nbsp;·&nbsp; © 2026 MalickLand.</p>
+    <div class="footer-social">
+      <a href="https://www.facebook.com/malickland.phil" target="_blank" rel="noopener" title="Facebook">📘</a>
+      <a href="https://www.instagram.com/malickland_wvrea" target="_blank" rel="noopener" title="Instagram">📷</a>
+      <a href="https://youtube.com/@malickland" target="_blank" rel="noopener" title="YouTube">▶️</a>
+    </div>
+  </div>
+</footer>
+
+<!-- CHAT WIDGET -->
+<button class="chat-btn" onclick="openChat()" title="Chat with MalickLand">💬</button>
+
+<div class="chat-panel" id="chatPanel">
+  <div class="chat-header">
+    <div class="chat-avatar">🏡</div>
+    <div class="chat-header-text">
+      <h4>MalickLand Assistant</h4>
+      <p>Usually responds in minutes</p>
+    </div>
+    <button class="chat-close" onclick="document.getElementById('chatPanel').classList.remove('open')">✕</button>
+  </div>
+  <div class="chat-body" id="chatBody">
+    <!-- Injected by JS -->
+  </div>
+</div>
+
+<!-- LEAD MODAL -->
+<div class="modal-overlay" id="leadModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <h3>🌲 Get Land Alerts First</h3>
+    <p>Be the first to know when new WV land hits the market — before it goes public.</p>
+    <form id="modalForm">
+      <div class="form-group">
+        <label>Name *</label>
+        <input type="text" name="name" placeholder="Your Name" required />
+      </div>
+      <div class="form-group">
+        <label>Email *</label>
+        <input type="email" name="email" placeholder="you@email.com" required />
+      </div>
+      <div class="form-group">
+        <label>Phone</label>
+        <input type="tel" name="phone" placeholder="(304) 555-1234" />
+      </div>
+      <input type="hidden" name="source" value="website_modal" />
+      <button type="submit" class="btn-submit">Get My Land Alerts</button>
+      <p class="consent-text">By submitting, you consent to receive calls and texts from MalickLand. Reply STOP to opt out.</p>
+    </form>
+    <div class="form-success" id="modalSuccess">
+      ✅ You're on the list! Phil will be in touch soon.
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- MODAL ----
+function openModal() {
+  document.getElementById('leadModal').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('leadModal').classList.remove('open');
+}
+document.getElementById('leadModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// ---- FORM SUBMISSION ----
+async function submitForm(form, successId) {
+  const data = {};
+  new FormData(form).forEach((v, k) => data[k] = v);
+  try {
+    const res = await fetch('/api/contacts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) return;
+  } catch(e) { return; }
+  form.style.display = 'none';
+  document.getElementById(successId).style.display = 'block';
+}
+
+['heroForm','alertsForm','ctaForm','modalForm'].forEach(id => {
+  const form = document.getElementById(id);
+  if (!form) return;
+  const successId = {heroForm:'heroSuccess',alertsForm:'alertsSuccess',ctaForm:'ctaSuccess',modalForm:'modalSuccess'}[id];
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    submitForm(this, successId);
+  });
+});
+
+// ---- LISTINGS ----
+async function loadListings() {
+  const grid = document.getElementById('listingsGrid');
+  try {
+    const res = await fetch('/api/properties?limit=6');
+    const data = await res.json();
+    const props = data.properties || data;
+    if (!props || !props.length) {
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--gray)"><div style="font-size:3rem;margin-bottom:1rem">🌲</div><p>New listings coming soon — <a href="#contact-form" style="color:var(--green);font-weight:600">contact Phil for off-market opportunities</a>.</p></div>';
+      return;
+    }
+    grid.innerHTML = props.slice(0, 6).map(p => {
+      const imgHtml = p.image_url
+        ? `<img src="${p.image_url}" alt="${p.address}" loading="lazy" />`
+        : `<span style="font-size:3.5rem">🌲</span>`;
+      const acres = p.lot_acres ? `${p.lot_acres} ac` : '';
+      const sqft = p.sqft ? `${p.sqft.toLocaleString()} sqft` : '';
+      const beds = p.bedrooms ? `${p.bedrooms}bd` : '';
+      const price = p.price ? `$${Number(p.price).toLocaleString()}` : 'Contact for Price';
+      const details = [beds, sqft, acres].filter(Boolean).join(' · ');
+      return `
+      <div class="card">
+        <div class="card-img">
+          ${imgHtml}
+          <span class="card-county">${p.county || ''} County</span>
+        </div>
+        <div class="card-body">
+          <div class="card-type">${(p.property_type || 'Property').replace(/-/g,' ')}</div>
+          <div class="card-address">${p.address}${p.city ? ', ' + p.city : ''}</div>
+          <div class="card-price">${price}</div>
+          ${details ? `<div class="card-details">${details}</div>` : ''}
+          <a href="/listing/${encodeURIComponent(p.listing_slug || p.id)}" class="card-btn">View Details →</a>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--gray)">Unable to load listings. Please try refreshing.</div>';
+  }
+}
+loadListings();
+
+// ---- STICKY NAV SHADOW ----
+window.addEventListener('scroll', () => {
+  document.querySelector('.nav').style.boxShadow =
+    window.scrollY > 10 ? '0 4px 20px rgba(0,0,0,0.35)' : '0 2px 12px rgba(0,0,0,0.25)';
+});
+
+// ---- CHAT WIDGET ----
+let chatState = 0;
+let chatData = {};
+
+function openChat() {
+  const panel = document.getElementById('chatPanel');
+  panel.classList.add('open');
+  if (chatState === 0) renderChatStep(0);
+}
+
+const chatSteps = [
+  {
+    msg: "Hi! I'm the MalickLand assistant 🏡. What brings you here today?",
+    type: 'options',
+    opts: ['Buying land or acreage', 'Selling my property', 'Looking for a cabin lot', 'Just browsing'],
+    key: 'intent'
+  },
+  {
+    msg: "Great! Which county or area of WV are you interested in?",
+    type: 'input',
+    placeholder: 'e.g. Hampshire, Tucker, Pocahontas...',
+    key: 'county'
+  },
+  {
+    msg: "What's your budget range?",
+    type: 'options',
+    opts: ['Under $50k', '$50k – $150k', '$150k – $500k', '$500k+', 'Flexible / Not sure'],
+    key: 'budget'
+  },
+  {
+    msg: "Almost done! What's your name and best phone number so Phil can reach you?",
+    type: 'contact',
+    key: 'contact'
+  }
+];
+
+function renderChatStep(step) {
+  const body = document.getElementById('chatBody');
+  const s = chatSteps[step];
+  let html = `<div class="chat-msg">${s.msg}</div>`;
+
+  if (s.type === 'options') {
+    html += `<div class="chat-options">${s.opts.map(o => `<button class="chat-opt" onclick="chatSelect('${o}', ${step})">${o}</button>`).join('')}</div>`;
+  } else if (s.type === 'input') {
+    html += `<div class="chat-input-row"><input class="chat-input" id="chatInput" placeholder="${s.placeholder}" /><button class="chat-send" onclick="chatInputSubmit(${step})">Continue →</button></div>`;
+  } else if (s.type === 'contact') {
+    html += `<div class="chat-input-row"><input class="chat-input" id="chatName" placeholder="Your Name" /><input class="chat-input" id="chatPhone" placeholder="(304) 555-1234" /><button class="chat-send" onclick="chatSubmitContact()">Send to Phil →</button></div>`;
+  }
+
+  body.innerHTML = html;
+}
+
+function chatSelect(val, step) {
+  chatData[chatSteps[step].key] = val;
+  chatState = step + 1;
+  if (chatState >= chatSteps.length) {
+    renderChatStep(chatSteps.length - 1); // re-render contact step
+  } else {
+    renderChatStep(chatState);
+  }
+}
+
+function chatInputSubmit(step) {
+  const val = document.getElementById('chatInput').value.trim();
+  if (!val) return;
+  chatData[chatSteps[step].key] = val;
+  chatState = step + 1;
+  if (chatState >= chatSteps.length) {
+    renderChatStep(chatSteps.length - 1);
+  } else {
+    renderChatStep(chatState);
+  }
+}
+
+async function chatSubmitContact() {
+  const name = document.getElementById('chatName').value.trim();
+  const phone = document.getElementById('chatPhone').value.trim();
+  if (!name) { document.getElementById('chatName').focus(); return; }
+  chatData.name = name;
+  chatData.phone = phone;
+  const msg = `Intent: ${chatData.intent || ''} | County: ${chatData.county || ''} | Budget: ${chatData.budget || ''}`;
+  try {
+    await fetch('/api/contacts', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ name, phone, message: msg, source: 'website_chat' })
+    });
+  } catch(e) {}
+  document.getElementById('chatBody').innerHTML = `<div class="chat-done">✅ Phil will reach out within 2 hours!<br/><br/>Call anytime: <a href="tel:+15402461421" style="color:var(--green);font-weight:700">(540) 246-1421</a></div>`;
+}
+</script>
 </body>
 </html>

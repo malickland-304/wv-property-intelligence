@@ -1,11 +1,11 @@
 /* WV Property Intelligence - MalickLand branded */
 :root {
-  --green:  #1a3a2a;
-  --gold:   #c9a84c;
-  --light:  #f5f2eb;
+  --green:  #1B4332;
+  --gold:   #D4AF37;
+  --light:  #F9F6F0;
   --card:   #ffffff;
   --border: #ddd;
-  --text:   #222;
+  --text:   #1a1a1a;
   --muted:  #666;
 }
 
@@ -108,6 +108,15 @@ button:hover { opacity:.85; }
   border-radius:6px; margin-bottom:.6rem; font-size:.9rem; font-family:inherit; }
 .modal-contact textarea { height:90px; resize:vertical; }
 .modal-contact button { width:100%; padding:.9rem; font-size:1rem; }
+
+/* REQUEST INFO BUTTON */
+.request-info-btn {
+  width: 100%; margin-top: .6rem; padding: .6rem;
+  background: var(--green); color: var(--gold);
+  border: none; border-radius: 6px; font-weight: 700;
+  font-size: .85rem; cursor: pointer; transition: opacity .15s;
+}
+.request-info-btn:hover { opacity: .85; }
 
 /* FOOTER */
 footer { background:var(--green); color:#fff; text-align:center; padding:1.5rem; font-size:.85rem; }

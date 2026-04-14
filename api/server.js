@@ -12,19 +12,52 @@ const multer     = require('multer');
 const session    = require('express-session');
 const rateLimit  = require('express-rate-limit');
 require('dotenv').config();
+const { execFile } = require('child_process');
 
 const { sendContactEmail, uploadPhotoToDrive } = require('./google');
+const { requireApiKey } = require('./middleware/auth');
+let sharp;
+try { sharp = require('sharp'); } catch (_) { sharp = null; }
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'wvrea2026';
-const PROJECT_ROOT   = path.join(__dirname, '..');
+
+// Trust one proxy hop (Cloudflare → Railway). Required for correct req.ip,
+// X-Forwarded-For in logs, and rate-limiter keying.
+app.set('trust proxy', 1);
+const ADMIN_PASSWORD  = process.env.ADMIN_PASSWORD || 'wvrea2026';
+const PROJECT_ROOT    = path.join(__dirname, '..');
+
+const VALID_PROP_TYPES   = ['residential','commercial','land','multi-family','industrial'];
+const VALID_PROP_STATUSES = ['active','pending','sold','withdrawn','draft'];
+
+function isValidEmail(s) {
+  const at = s.indexOf('@');
+  if (at < 1 || s.indexOf('@', at + 1) !== -1) return false;
+  const domain = s.slice(at + 1);
+  const dot = domain.lastIndexOf('.');
+  return dot > 0 && dot < domain.length - 1;
+}
+
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.ADMIN_PASSWORD) console.warn('[WARN] ADMIN_PASSWORD env var is not set — using insecure default');
+  if (!process.env.SESSION_SECRET) console.warn('[WARN] SESSION_SECRET env var is not set — using insecure default');
+}
 
 // ── DB ────────────────────────────────────────────────────
-const DB_PATH = path.join(PROJECT_ROOT, 'database', 'wv_property.db');
+// DATABASE_PATH env var must point to the Railway persistent volume (/data/wv_property.db).
+// Without it, Railway redeploys wipe the database silently.
+const DB_PATH = process.env.DATABASE_PATH || path.join(PROJECT_ROOT, 'database', 'wv_property.db');
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+db.pragma('cache_size = -32000');   // 32MB SQLite cache cap
+db.pragma('mmap_size = 67108864');  // 64MB mmap cap
+
+// Periodic WAL checkpoint every 5 minutes
+setInterval(() => {
+  try { db.pragma('wal_checkpoint(PASSIVE)'); } catch (_) {}
+}, 5 * 60 * 1000);
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS counties (
@@ -100,65 +133,6 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_properties_price  ON properties(price);
 `);
 
-// Align legacy SQLite files with the current properties schema (additive columns only)
-(function migratePropertiesSchema() {
-  const cols = new Set(
-    db.prepare(`PRAGMA table_info(properties)`).all().map((r) => r.name)
-  );
-  const add = (name, sql) => {
-    if (cols.has(name)) return;
-    try {
-      db.exec(`ALTER TABLE properties ADD COLUMN ${name} ${sql}`);
-      cols.add(name);
-    } catch (e) {
-      console.warn('[db] ALTER properties', name, e.message);
-    }
-  };
-  add('state', "TEXT DEFAULT 'WV'");
-  add('parcel_id', 'TEXT');
-  add('subdivision', 'TEXT');
-  add('lot_acres', 'REAL');
-  add('acreage', 'REAL');
-  add('lot_size', 'TEXT');
-  add('road_access', 'TEXT');
-  add('utilities_available', 'TEXT');
-  add('septic', 'INTEGER DEFAULT 0');
-  add('well', 'INTEGER DEFAULT 0');
-  add('electric', 'INTEGER DEFAULT 0');
-  add('internet', 'INTEGER DEFAULT 0');
-  add('recommended_list_price', 'REAL');
-  add('price_per_acre', 'REAL');
-  add('tax_assessed', 'REAL');
-  add('annual_tax', 'REAL');
-  add('mls_status', "TEXT DEFAULT 'draft'");
-  add('mls_number', 'TEXT');
-  add('listing_agent', 'TEXT');
-  add('listing_office', 'TEXT');
-  add('latitude', 'REAL');
-  add('longitude', 'REAL');
-  add('flood_zone', 'TEXT');
-  add('school_district', 'TEXT');
-  add('description', 'TEXT');
-  add('property_description', 'TEXT');
-  add('marketing_description', 'TEXT');
-  add('seller_notes', 'TEXT');
-  add('internal_notes', 'TEXT');
-  add('due_diligence_complete', 'INTEGER DEFAULT 0');
-  add('photos_uploaded', 'INTEGER DEFAULT 0');
-  add('comps_complete', 'INTEGER DEFAULT 0');
-  add('listing_slug', 'TEXT');
-  if (cols.has('lot_acres') && cols.has('acreage')) {
-    try {
-      db.exec(`UPDATE properties SET acreage = COALESCE(acreage, lot_acres) WHERE acreage IS NULL`);
-    } catch (_) { /* ignore */ }
-  }
-  if (cols.has('description') && cols.has('marketing_description')) {
-    try {
-      db.exec(`UPDATE properties SET marketing_description = COALESCE(marketing_description, description) WHERE marketing_description IS NULL AND description IS NOT NULL`);
-    } catch (_) { /* ignore */ }
-  }
-})();
-
 // Seed counties
 if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
   const ins = db.prepare('INSERT OR IGNORE INTO counties (name,fips_code) VALUES (?,?)');
@@ -182,9 +156,112 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
   console.log('Seeded 55 WV counties');
 }
 
+// ── Schema migrations (add missing columns to pre-existing DBs) ──────────────
+{
+  const cols = db.prepare("PRAGMA table_info(properties)").all().map(r => r.name);
+  const add  = (col, def) => {
+    if (!cols.includes(col)) {
+      try { db.exec(`ALTER TABLE properties ADD COLUMN ${col} ${def}`); } catch (_) {}
+    }
+  };
+  add('property_description', 'TEXT');
+  add('marketing_description','TEXT');
+  add('seller_notes',         'TEXT');
+  add('internal_notes',       'TEXT');
+  add('listing_slug',         'TEXT');
+  add('mls_number',           'TEXT');
+  add('mls_status',           'TEXT DEFAULT "draft"');
+  add('listing_agent',        'TEXT');
+  add('listing_office',       'TEXT');
+  add('acreage',              'REAL');
+  add('lot_size',             'TEXT');
+  add('road_access',          'TEXT');
+  add('utilities_available',  'TEXT');
+  add('septic',               'INTEGER DEFAULT 0');
+  add('well',                 'INTEGER DEFAULT 0');
+  add('electric',             'INTEGER DEFAULT 0');
+  add('internet',             'INTEGER DEFAULT 0');
+  add('price_reduced',        'INTEGER DEFAULT 0');
+  add('recommended_list_price','REAL');
+  add('price_per_acre',       'REAL');
+  add('tax_assessed',         'REAL');
+  add('annual_tax',           'REAL');
+  add('latitude',             'REAL');
+  add('longitude',            'REAL');
+  add('flood_zone',           'TEXT');
+  add('school_district',      'TEXT');
+  add('bedrooms',             'INTEGER');
+  add('bathrooms',            'REAL');
+  add('sqft',                 'INTEGER');
+  add('year_built',           'INTEGER');
+  add('subdivision',          'TEXT');
+  add('parcel_id',            'TEXT');
+  add('image_url',            'TEXT');
+  add('due_diligence_complete','INTEGER DEFAULT 0');
+  add('photos_uploaded',      'INTEGER DEFAULT 0');
+  add('comps_complete',       'INTEGER DEFAULT 0');
+  add('sold_at',              'TEXT');
+  add('ai_content',           'TEXT');
+  add('ai_generated_at',      'TEXT');
+  add('state',                "TEXT DEFAULT 'WV'");
+  add('zip',                  'TEXT');
+  add('city',                 'TEXT');
+  add('price',                'REAL');
+}
+
+// ── Advent Dr listing migration ───────────────────────────
+{
+  const hampshire = db.prepare("SELECT id FROM counties WHERE name='Hampshire'").get();
+  if (hampshire) {
+    const existing = db.prepare(
+      "SELECT id, property_description FROM properties WHERE mls_number='WVHS2007442' OR (address LIKE '%Advent%' AND county_id=?)"
+    ).get(hampshire.id);
+    const descSuffix = 'MLS# WVHS2007442 | 37 Advent Dr, Romney, WV 26757 | Hampshire County | Listed at $219,900 | Contact Phil Malick for details.';
+    if (existing) {
+      const cur = existing.property_description || '';
+      const newDesc = cur.includes('WVHS2007442') ? cur : (cur ? cur + '\n\n' + descSuffix : descSuffix);
+      db.prepare(`
+        UPDATE properties SET
+          listing_slug='advent-dr-hampshire-wv',
+          property_type='land',
+          status='active',
+          mls_number='WVHS2007442',
+          price=219900,
+          property_description=?,
+          updated_at=datetime('now')
+        WHERE id=?
+      `).run(newDesc, existing.id);
+      console.log('Updated Advent Dr listing →', existing.id);
+    } else {
+      const newId = crypto.randomBytes(16).toString('hex');
+      db.prepare(`
+        INSERT INTO properties
+          (id,county_id,address,city,state,zip,property_type,status,price,
+           mls_number,listing_agent,listing_slug,property_description)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+      `).run(
+        newId, hampshire.id, '37 Advent Dr', 'Romney', 'WV', '26757',
+        'land', 'active', 219900,
+        'WVHS2007442', 'Phil Malick', 'advent-dr-hampshire-wv', descSuffix
+      );
+      console.log('Inserted Advent Dr listing →', newId);
+    }
+  }
+}
+
 // ── Helpers ───────────────────────────────────────────────
 function slugify(str) {
   return str.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+}
+
+// Escape HTML special characters to prevent XSS in server-rendered admin pages
+function esc(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function initListingFolder(slug) {
@@ -209,7 +286,8 @@ function initListingFolder(slug) {
 // ── Multer (photo upload) ─────────────────────────────────
 const storage = multer.diskStorage({
   destination: (req, _file, cb) => {
-    const slug = req.params.slug || req.body.slug || 'uploads';
+    // Use path.basename() to strip any path separators from the slug
+    const slug = path.basename(req.params.slug || req.body.slug || 'uploads');
     const dir  = path.join(PROJECT_ROOT, 'listings', slug, 'photos', 'raw');
     fs.mkdirSync(dir, { recursive:true });
     cb(null, dir);
@@ -222,7 +300,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: 15 * 1024 * 1024, files: 20, fieldSize: 1 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     cb(null, /\.(jpg|jpeg|png|webp|heic)$/i.test(file.originalname));
   }
@@ -231,14 +309,28 @@ const upload = multer({
 // ── Middleware ────────────────────────────────────────────
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
-app.use(morgan('dev'));
+
+// ── www → apex canonical redirect ───────────────────────
+app.use((req, res, next) => {
+  const host = req.hostname || '';
+  if (host.startsWith('www.')) {
+    const target = 'https://malickland.net' + req.originalUrl;
+    return res.redirect(301, target);
+  }
+  next();
+});
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'tiny' : 'dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended:true }));
 app.use(session({
   secret: process.env.SESSION_SECRET || 'wvrea-secret-2026',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 8 * 60 * 60 * 1000 }
+  cookie: {
+    maxAge: 8 * 60 * 60 * 1000,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+  },
 }));
 
 // Static files
@@ -252,7 +344,25 @@ function requireAuth(req, res, next) {
   res.redirect('/admin/login');
 }
 
-// ── Rate limiter – public contact form ───────────────────
+// ── CSRF protection (session-based double-submit token) ───
+function csrfToken(req) {
+  if (!req.session.csrfToken) {
+    req.session.csrfToken = crypto.randomBytes(16).toString('hex');
+  }
+  return req.session.csrfToken;
+}
+
+function requireCsrf(req, res, next) {
+  // Skip CSRF for API endpoints (protected by API key, not session cookie)
+  if (req.path.startsWith('/api/')) return next();
+  const token = req.body._csrf || req.headers['x-csrf-token'];
+  if (!token || token !== req.session.csrfToken) {
+    return res.status(403).send('Invalid CSRF token');
+  }
+  next();
+}
+
+// ── Rate limiters ─────────────────────────────────────────
 const contactsRateLimit = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
@@ -261,7 +371,7 @@ const contactsRateLimit = rateLimit({
   message: { error: 'Too many inquiries. Please wait a moment.' },
 });
 
-// ── Rate limiter – public read endpoints ─────────────────
+// 120 public read requests per minute per IP
 const publicReadRateLimit = rateLimit({
   windowMs: 60 * 1000,
   max: 120,
@@ -269,6 +379,57 @@ const publicReadRateLimit = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many requests. Please wait a moment.' },
 });
+
+// 10 login attempts per 15 minutes per IP — brute-force guard
+const adminLoginRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+});
+
+// 20 description-generate calls per minute per IP
+const generateDescRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many generate requests. Please wait a moment.' },
+});
+
+// 60 API write calls per minute per IP (contacts read + properties CRUD)
+const apiWriteRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many API requests. Please wait a moment.' },
+});
+
+// 30 photo uploads per minute per IP (admin upload handler)
+const uploadRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many upload requests. Please wait a moment.' },
+});
+
+// 60 admin form submissions per minute per IP (listing create/edit, report saves, etc.)
+const adminActionRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many admin actions. Please slow down.',
+});
+
+// Validate that a slug/filename only contains safe characters (alphanumeric, hyphens, underscores)
+const SAFE_PATH_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*(\.[a-zA-Z0-9]+)?$/;
+function isSafePathComponent(str) {
+  return typeof str === 'string' && SAFE_PATH_RE.test(str) && !str.includes('..');
+}
 
 // ── Admin login ───────────────────────────────────────────
 app.get('/admin/login', (_req, res) => {
@@ -295,7 +456,7 @@ app.get('/admin/login', (_req, res) => {
   </div></body></html>`);
 });
 
-app.post('/admin/login', (req, res) => {
+app.post('/admin/login', adminLoginRateLimit, (req, res) => {
   if (req.body.password === ADMIN_PASSWORD) {
     req.session.admin = true;
     res.redirect('/admin');
@@ -343,17 +504,17 @@ app.get('/admin', requireAuth, (_req, res) => {
 
   const rows = listings.map(p => `
     <tr>
-      <td>${p.address}${p.city ? ', '+p.city : ''}</td>
-      <td>${p.county||''}</td>
-      <td>${p.property_type}</td>
+      <td>${esc(p.address)}${p.city ? ', '+esc(p.city) : ''}</td>
+      <td>${esc(p.county||'')}</td>
+      <td>${esc(p.property_type)}</td>
       <td>${p.price ? '$'+Number(p.price).toLocaleString() : '--'}</td>
       <td>${p.acreage ? p.acreage+' ac' : '--'}</td>
-      <td><span class="badge ${p.status}">${p.status}</span></td>
-      <td>${p.mls_status||'draft'}</td>
+      <td><span class="badge ${esc(p.status)}">${esc(p.status)}</span></td>
+      <td>${esc(p.mls_status||'draft')}</td>
       <td>
-        <a href="/admin/edit/${p.id}" class="btn-sm">Edit</a>
-        <a href="/admin/photos/${p.listing_slug||p.id}" class="btn-sm">Photos</a>
-        <a href="/admin/report/${p.id}" class="btn-sm">Report</a>
+        <a href="/admin/edit/${esc(p.id)}" class="btn-sm">Edit</a>
+        <a href="/admin/photos/${esc(p.listing_slug||p.id)}" class="btn-sm">Photos</a>
+        <a href="/admin/report/${esc(p.id)}" class="btn-sm">Report</a>
       </td>
     </tr>`).join('');
 
@@ -369,20 +530,25 @@ app.get('/admin', requireAuth, (_req, res) => {
       </tr></thead>
       <tbody>${rows || '<tr><td colspan="8" style="text-align:center;padding:2rem;color:#999">No listings yet. <a href="/admin/new">Add your first listing →</a></td></tr>'}</tbody>
     </table>
-  `));
+  `, csrfToken(req)));
 });
 
 // ── New listing form ──────────────────────────────────────
 app.get('/admin/new', requireAuth, (req, res) => {
   const counties = db.prepare('SELECT id,name FROM counties ORDER BY name').all();
-  res.send(adminShell('New Listing', listingForm(null, counties)));
+  res.send(adminShell('New Listing', listingForm(null, counties), csrfToken(req)));
 });
 
 function normalizeAcreage(body) {
-  return body.acreage ?? body.lot_acres ?? null;
+  const raw = body.acreage ?? body.lot_acres ?? null;
+  if (raw == null) return null;
+  const trimmed = typeof raw === 'string' ? raw.trim() : raw;
+  if (trimmed === '') return null;
+  const n = Number(trimmed);
+  return Number.isNaN(n) ? null : n;
 }
 
-app.post('/admin/new', requireAuth, (req, res) => {
+app.post('/admin/new', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
   const f = req.body;
   const id   = crypto.randomBytes(16).toString('hex');
   const slug = slugify((f.address||'listing') + '-' + (f.city||'wv'));
@@ -432,10 +598,10 @@ app.get('/admin/edit/:id', requireAuth, (req, res) => {
   const p = db.prepare('SELECT * FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.redirect('/admin');
   const counties = db.prepare('SELECT id,name FROM counties ORDER BY name').all();
-  res.send(adminShell('Edit Listing', listingForm(p, counties)));
+  res.send(adminShell('Edit Listing', listingForm(p, counties), csrfToken(req)));
 });
 
-app.post('/admin/edit/:id', requireAuth, (req, res) => {
+app.post('/admin/edit/:id', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
   const f = req.body;
   db.prepare(`
     UPDATE properties SET
@@ -468,6 +634,7 @@ app.post('/admin/edit/:id', requireAuth, (req, res) => {
 // ── Photo upload page ─────────────────────────────────────
 app.get('/admin/photos/:slug', requireAuth, (req, res) => {
   const slug = req.params.slug;
+  if (!isSafePathComponent(slug)) return res.status(400).send('Invalid slug');
   const p = db.prepare('SELECT * FROM properties WHERE listing_slug=?').get(slug);
   const photoDir = path.join(PROJECT_ROOT,'listings',slug,'photos','compressed');
   let photos = [];
@@ -477,16 +644,16 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
 
   const photoGrid = photos.map((f,i) => `
     <div class="photo-item">
-      <img src="/images/${slug}/photos/compressed/${f}" alt="Photo ${i+1}" />
+      <img src="/images/${esc(slug)}/photos/compressed/${esc(f)}" alt="Photo ${i+1}" />
       <div class="photo-actions">
-        ${i===0 ? '<span class="primary-badge">Primary</span>' : `<button onclick="setPrimary('${slug}','${f}')">Set Primary</button>`}
-        <button onclick="deletePhoto('${slug}','${f}')" class="del">Delete</button>
+        ${i===0 ? '<span class="primary-badge">Primary</span>' : `<button onclick="setPrimary('${esc(slug)}','${esc(f)}')">Set Primary</button>`}
+        <button onclick="deletePhoto('${esc(slug)}','${esc(f)}')" class="del">Delete</button>
       </div>
     </div>`).join('');
 
   res.send(adminShell('Upload Photos', `
     <div class="dash-header">
-      <h1>Photos — ${p ? p.address : slug}</h1>
+      <h1>Photos — ${p ? esc(p.address) : esc(slug)}</h1>
       <a href="/admin" class="btn-outline">← Back</a>
     </div>
     <div class="upload-zone" id="dropZone">
@@ -504,7 +671,8 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
     <h3 style="margin:1.5rem 0 1rem">Uploaded Photos (${photos.length})</h3>
     <div class="photo-grid" id="photoGrid">${photoGrid}</div>
     <script>
-      const slug = '${slug}';
+      const slug = '${esc(slug)}';
+      const _csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
       const dropZone = document.getElementById('dropZone');
       const fileInput = document.getElementById('fileInput');
 
@@ -526,7 +694,7 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
         for (const file of files) {
           const fd = new FormData();
           fd.append('photo', file);
-          await fetch('/admin/upload/' + slug, { method:'POST', body:fd });
+          await fetch('/admin/upload/' + slug, { method:'POST', body:fd, headers:{'x-csrf-token':_csrf} });
           done++;
           const pct = Math.round(done/files.length*100);
           fill.style.width = pct+'%';
@@ -539,7 +707,7 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
       async function setPrimary(slug, filename) {
         await fetch('/admin/photos/' + slug + '/primary', {
           method:'POST',
-          headers:{'Content-Type':'application/json'},
+          headers:{'Content-Type':'application/json','x-csrf-token':_csrf},
           body: JSON.stringify({ filename })
         });
         location.reload();
@@ -547,63 +715,100 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
 
       async function deletePhoto(slug, filename) {
         if (!confirm('Delete this photo?')) return;
-        await fetch('/admin/photos/' + slug + '/' + filename, { method:'DELETE' });
+        await fetch('/admin/photos/' + slug + '/' + filename, { method:'DELETE', headers:{'x-csrf-token':_csrf} });
         location.reload();
       }
     </script>
-  `));
+  `, csrfToken(req)));
 });
 
 // Upload handler
-app.post('/admin/upload/:slug', requireAuth, upload.single('photo'), async (req, res) => {
-  const slug = req.params.slug;
+app.post('/admin/upload/:slug', requireAuth, requireCsrf, uploadRateLimit, upload.single('photo'), async (req, res) => {
+  // Sanitise slug via path.basename() to strip any path separators, then validate
+  const slug = path.basename(req.params.slug || '');
+  if (!isSafePathComponent(slug)) return res.status(400).json({ error: 'Invalid slug' });
   if (!req.file) return res.status(400).json({ error: 'No file' });
 
-  // Compress using sips (macOS built-in)
-  const rawPath  = req.file.path;
-  const compDir  = path.join(PROJECT_ROOT,'listings',slug,'photos','compressed');
-  const mlsDir   = path.join(PROJECT_ROOT,'listings',slug,'photos','mls');
+  // Sanitise multer-generated filename via path.basename() (should always be safe, but belt-and-suspenders)
+  const filename = path.basename(req.file.filename || '');
+  if (!isSafePathComponent(filename)) {
+    // Clean up by deleting the file multer placed in the raw dir
+    const rawDir = path.join(PROJECT_ROOT, 'listings', slug, 'photos', 'raw');
+    fs.unlink(path.join(rawDir, filename), err => {
+      if (err) console.error('[upload] cleanup failed:', err.message);
+    });
+    return res.status(400).json({ error: 'Invalid filename' });
+  }
+
+  // Use sanitised slug/filename for all path operations
+  const rawPath = path.join(PROJECT_ROOT, 'listings', slug, 'photos', 'raw', filename);
+  const compDir = path.join(PROJECT_ROOT,'listings',slug,'photos','compressed');
+  const mlsDir  = path.join(PROJECT_ROOT,'listings',slug,'photos','mls');
   fs.mkdirSync(compDir, { recursive:true });
   fs.mkdirSync(mlsDir,  { recursive:true });
 
-  const filename    = req.file.filename;
-  const compPath    = path.join(compDir, filename);
-  const mlsPath     = path.join(mlsDir,  filename);
+  const compPath = path.join(compDir, filename);
+  const mlsPath  = path.join(mlsDir,  filename);
 
-  const { exec } = require('child_process');
-  // Compressed: max 1200px wide
-  exec(`sips -Z 1200 "${rawPath}" --out "${compPath}"`, () => {
-    // MLS: max 1024px wide
-    exec(`sips -Z 1024 "${rawPath}" --out "${mlsPath}"`, () => {
-      // Set as primary if first photo
-      const p = db.prepare('SELECT image_url, listing_slug FROM properties WHERE listing_slug=?').get(slug);
-      if (p && !p.image_url) {
-        db.prepare('UPDATE properties SET image_url=?, photos_uploaded=1 WHERE listing_slug=?')
-          .run(`/images/${slug}/photos/compressed/${filename}`, slug);
-      } else {
-        db.prepare('UPDATE properties SET photos_uploaded=1 WHERE listing_slug=?').run(slug);
-      }
+  function afterCompress() {
+    const p = db.prepare('SELECT image_url, listing_slug FROM properties WHERE listing_slug=?').get(slug);
+    if (p && !p.image_url) {
+      db.prepare('UPDATE properties SET image_url=?, photos_uploaded=1 WHERE listing_slug=?')
+        .run(`/images/${slug}/photos/compressed/${filename}`, slug);
+    } else {
+      db.prepare('UPDATE properties SET photos_uploaded=1 WHERE listing_slug=?').run(slug);
+    }
+    const driveSource = fs.existsSync(compPath) ? compPath : rawPath;
+    uploadPhotoToDrive(driveSource, filename, slug).catch(() => {});
+    res.json({ ok:true, filename });
+  }
 
-      // Upload compressed photo to Google Drive (fire-and-forget)
-      const driveSource = fs.existsSync(compPath) ? compPath : rawPath;
-      uploadPhotoToDrive(driveSource, filename, slug).catch(() => {});
-
-      res.json({ ok:true, filename });
+  if (process.platform === 'darwin' && !sharp) {
+    // sips is macOS-only fallback when sharp is unavailable
+    execFile('sips', ['-Z', '1200', rawPath, '--out', compPath], (err) => {
+      if (err) console.error('[sips] compress failed:', err.message);
+      execFile('sips', ['-Z', '1024', rawPath, '--out', mlsPath], (err2) => {
+        if (err2) console.error('[sips] mls resize failed:', err2.message);
+        afterCompress();
+      });
     });
-  });
+  } else if (sharp) {
+    // Use sharp for cross-platform image compression (Linux / Railway / macOS)
+    Promise.all([
+      sharp(rawPath).resize({ width: 1200, withoutEnlargement: true }).jpeg({ quality: 85 }).toFile(compPath),
+      sharp(rawPath).resize({ width: 1024, withoutEnlargement: true }).jpeg({ quality: 80 }).toFile(mlsPath),
+    ])
+      .then(afterCompress)
+      .catch(err => {
+        console.error('[sharp] compression failed, using original:', err.message);
+        fs.copyFileSync(rawPath, compPath);
+        fs.copyFileSync(rawPath, mlsPath);
+        afterCompress();
+      });
+  } else {
+    // Last resort: copy raw file as-is
+    fs.copyFileSync(rawPath, compPath);
+    fs.copyFileSync(rawPath, mlsPath);
+    afterCompress();
+  }
 });
 
 // Set primary photo
-app.post('/admin/photos/:slug/primary', requireAuth, (req, res) => {
+app.post('/admin/photos/:slug/primary', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
+  const { slug } = req.params;
   const { filename } = req.body;
+  if (!isSafePathComponent(slug) || !isSafePathComponent(filename||''))
+    return res.status(400).json({ error: 'Invalid slug or filename' });
   db.prepare('UPDATE properties SET image_url=? WHERE listing_slug=?')
-    .run(`/images/${req.params.slug}/photos/compressed/${filename}`, req.params.slug);
+    .run(`/images/${slug}/photos/compressed/${filename}`, slug);
   res.json({ ok:true });
 });
 
 // Delete photo
-app.delete('/admin/photos/:slug/:filename', requireAuth, (req, res) => {
+app.delete('/admin/photos/:slug/:filename', requireAuth, requireCsrf, (req, res) => {
   const { slug, filename } = req.params;
+  if (!isSafePathComponent(slug) || !isSafePathComponent(filename))
+    return res.status(400).json({ error: 'Invalid slug or filename' });
   ['raw','compressed','mls'].forEach(dir => {
     const fp = path.join(PROJECT_ROOT,'listings',slug,'photos',dir,filename);
     if (fs.existsSync(fp)) fs.unlinkSync(fp);
@@ -628,40 +833,41 @@ app.get('/admin/report/:id', requireAuth, (req, res) => {
 
   res.send(adminShell('Report', `
     <div class="dash-header">
-      <h1>Report — ${p.address}</h1>
+      <h1>Report — ${esc(p.address)}</h1>
       <a href="/admin" class="btn-outline">← Back</a>
     </div>
     <div class="report-grid">
       <div class="report-card">
         <h3>Property Details</h3>
         <table class="detail-table">
-          <tr><td>Address</td><td>${p.address}, ${p.city} ${p.zip}</td></tr>
-          <tr><td>County</td><td>${p.county}</td></tr>
-          <tr><td>Type</td><td>${p.property_type}</td></tr>
+          <tr><td>Address</td><td>${esc(p.address)}, ${esc(p.city)} ${esc(p.zip)}</td></tr>
+          <tr><td>County</td><td>${esc(p.county)}</td></tr>
+          <tr><td>Type</td><td>${esc(p.property_type)}</td></tr>
           <tr><td>Acreage</td><td>${p.acreage||'--'}</td></tr>
           <tr><td>Price</td><td>${p.price ? '$'+Number(p.price).toLocaleString() : '--'}</td></tr>
           <tr><td>Price/Acre</td><td>${p.price_per_acre ? '$'+Number(p.price_per_acre).toLocaleString() : '--'}</td></tr>
-          <tr><td>Flood Zone</td><td>${p.flood_zone||'--'}</td></tr>
-          <tr><td>Road Access</td><td>${p.road_access||'--'}</td></tr>
-          <tr><td>MLS #</td><td>${p.mls_number||'--'}</td></tr>
+          <tr><td>Flood Zone</td><td>${esc(p.flood_zone||'--')}</td></tr>
+          <tr><td>Road Access</td><td>${esc(p.road_access||'--')}</td></tr>
+          <tr><td>MLS #</td><td>${esc(p.mls_number||'--')}</td></tr>
         </table>
       </div>
       <div class="report-card">
         <h3>Comparable Sales</h3>
-        <textarea id="compsArea" rows="10">${comps}</textarea>
-        <button onclick="saveComps('${p.id}')">Save Comps</button>
+        <textarea id="compsArea" rows="10">${esc(comps)}</textarea>
+        <button onclick="saveComps('${esc(p.id)}')">Save Comps</button>
       </div>
       <div class="report-card full">
         <h3>Due Diligence Notes</h3>
-        <textarea id="ddArea" rows="15">${dd}</textarea>
-        <button onclick="saveDD('${p.id}')">Save Notes</button>
+        <textarea id="ddArea" rows="15">${esc(dd)}</textarea>
+        <button onclick="saveDD('${esc(p.id)}')">Save Notes</button>
       </div>
     </div>
     <script>
+      const _csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
       async function saveComps(id) {
         const content = document.getElementById('compsArea').value;
         await fetch('/admin/report/'+id+'/comps', {
-          method:'POST', headers:{'Content-Type':'application/json'},
+          method:'POST', headers:{'Content-Type':'application/json','x-csrf-token':_csrf},
           body: JSON.stringify({ content })
         });
         alert('Comps saved');
@@ -669,35 +875,37 @@ app.get('/admin/report/:id', requireAuth, (req, res) => {
       async function saveDD(id) {
         const content = document.getElementById('ddArea').value;
         await fetch('/admin/report/'+id+'/dd', {
-          method:'POST', headers:{'Content-Type':'application/json'},
+          method:'POST', headers:{'Content-Type':'application/json','x-csrf-token':_csrf},
           body: JSON.stringify({ content })
         });
         alert('Due diligence saved');
       }
     </script>
-  `));
+  `, csrfToken(req)));
 });
 
-app.post('/admin/report/:id/comps', requireAuth, (req, res) => {
+app.post('/admin/report/:id/comps', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
   const slug = p.listing_slug || req.params.id;
+  if (!isSafePathComponent(slug)) return res.status(400).json({ error: 'Invalid slug' });
   fs.mkdirSync(path.join(PROJECT_ROOT,'listings',slug), { recursive:true });
   fs.writeFileSync(path.join(PROJECT_ROOT,'listings',slug,'comps.csv'), req.body.content);
   res.json({ ok:true });
 });
 
-app.post('/admin/report/:id/dd', requireAuth, (req, res) => {
+app.post('/admin/report/:id/dd', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
   const slug = p.listing_slug || req.params.id;
+  if (!isSafePathComponent(slug)) return res.status(400).json({ error: 'Invalid slug' });
   fs.mkdirSync(path.join(PROJECT_ROOT,'listings',slug), { recursive:true });
   fs.writeFileSync(path.join(PROJECT_ROOT,'listings',slug,'due_diligence.md'), req.body.content);
   res.json({ ok:true });
 });
 
 // ── Integrations status page ──────────────────────────────
-app.get('/admin/integrations', requireAuth, (_req, res) => {
+app.get('/admin/integrations', requireAuth, (req, res) => {
   const gmailUser    = process.env.GOOGLE_GMAIL_USER    || '';
   const notifyEmail  = process.env.NOTIFICATION_EMAIL   || '';
   const driveFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID || '';
@@ -761,7 +969,7 @@ app.get('/admin/integrations', requireAuth, (_req, res) => {
         </ol>
       </div>
     </div>
-  `));
+  `, csrfToken(req)));
 });
 
 // ── Public API ────────────────────────────────────────────
@@ -784,11 +992,11 @@ function sendPropertyList(req, res) {
     const where  = 'WHERE ' + conditions.join(' AND ');
     const offset = (Number(page)-1) * Number(limit);
     const total  = db.prepare(`SELECT COUNT(*) as c FROM properties p ${where}`).get(...values).c;
+    // DB stores `acreage`; the public API exposes `lot_acres` (aliased) for the UI
     const properties = db.prepare(`
-      SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
+      SELECT p.id, p.listing_slug, p.address, p.city, p.zip, p.price, p.property_type,
              p.bedrooms, p.bathrooms, p.sqft, COALESCE(p.acreage, p.lot_acres) AS lot_acres,
              p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
-             p.listing_slug,
              c.name AS county
       FROM properties p JOIN counties c ON c.id=p.county_id
       ${where} ORDER BY p.listed_at DESC LIMIT ? OFFSET ?
@@ -802,26 +1010,26 @@ app.get('/api/listings', publicReadRateLimit, sendPropertyList);
 
 function sendPropertyDetail(req, res) {
   const row = db.prepare(`
-    SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
+    SELECT p.id, p.listing_slug, p.address, p.city, p.zip, p.price, p.property_type,
            p.bedrooms, p.bathrooms, p.sqft, COALESCE(p.acreage, p.lot_acres) AS lot_acres,
            p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
            p.county_id, c.name AS county,
-           p.marketing_description, p.property_description, p.description,
-           p.listing_slug, p.mls_number, p.road_access, p.flood_zone,
-           p.listing_agent, p.listing_office, p.utilities_available,
-           p.septic, p.well, p.electric, p.internet
-    FROM properties p JOIN counties c ON c.id=p.county_id WHERE p.id=? OR p.listing_slug=?
+           p.description, p.property_description, p.marketing_description,
+           p.mls_number, p.road_access, p.flood_zone,
+           p.listing_agent, p.listing_office,
+           p.utilities_available, p.septic, p.well, p.electric, p.internet
+    FROM properties p JOIN counties c ON c.id=p.county_id
+    WHERE (p.id=? OR p.listing_slug=?) AND p.status='active'
   `).get(req.params.id, req.params.id);
   if (!row) return res.status(404).json({ error:'Not found' });
-  const description =
-    row.marketing_description || row.property_description || row.description || '';
+  const description = row.marketing_description || row.property_description || row.description || '';
   res.json({ ...row, description });
 }
 
 app.get('/api/properties/:id', publicReadRateLimit, sendPropertyDetail);
 app.get('/api/listings/:id', publicReadRateLimit, sendPropertyDetail);
 
-app.get('/api/analytics', publicReadRateLimit, (_req, res) => {
+app.get('/api/analytics', (_req, res) => {
   const row = db.prepare(`
     SELECT
       CAST(ROUND(AVG(price)) AS INTEGER) AS avgPrice,
@@ -836,6 +1044,8 @@ app.get('/api/analytics', publicReadRateLimit, (_req, res) => {
 app.post('/api/contacts', contactsRateLimit, (req, res) => {
   const { property_id,name,email,phone,message } = req.body;
   if (!name||!email) return res.status(400).json({ error:'Name and email required' });
+  if (!isValidEmail(email))
+    return res.status(400).json({ error: 'Invalid email address' });
   const result = db.prepare(
     `INSERT INTO contacts (property_id,name,email,phone,message) VALUES (?,?,?,?,?)`
   ).run(property_id||null,name,email,phone,message);
@@ -851,16 +1061,189 @@ app.post('/api/contacts', contactsRateLimit, (req, res) => {
   res.status(201).json({ id:result.lastInsertRowid });
 });
 
-// Public listing detail (HTML) — must be registered before static + catch-all
+// List contacts / leads (API-key protected — used by app/admin.html)
+app.get('/api/contacts', apiWriteRateLimit, requireApiKey, (_req, res) => {
+  const contacts = db.prepare(`
+    SELECT c.id, c.name, c.email, c.phone, c.property_id, c.message, c.source, c.created_at,
+           p.address AS property_address
+    FROM contacts c
+    LEFT JOIN properties p ON p.id = c.property_id
+    ORDER BY c.created_at DESC
+  `).all();
+  res.json(contacts);
+});
+
+// Create property via REST (API-key protected — used by app/admin.html)
+app.post('/api/properties', apiWriteRateLimit, requireApiKey, (req, res) => {
+  try {
+    const f = req.body;
+    if (!f.address) return res.status(400).json({ error: 'address is required' });
+    if (f.property_type && !VALID_PROP_TYPES.includes(f.property_type))
+      return res.status(400).json({ error: 'Invalid property_type' });
+    if (f.status && !VALID_PROP_STATUSES.includes(f.status))
+      return res.status(400).json({ error: 'Invalid status' });
+    const id   = crypto.randomBytes(16).toString('hex');
+    const slug = slugify((f.address||'listing') + '-' + (f.city||'wv')) + '-' + id.slice(0,6);
+    db.prepare(`
+      INSERT INTO properties (
+        id, county_id, address, city, state, zip, parcel_id, subdivision,
+        property_type, status, acreage, lot_size, road_access, utilities_available,
+        septic, well, electric, internet,
+        price, recommended_list_price, price_per_acre, tax_assessed, annual_tax,
+        mls_status, mls_number, listing_agent, listing_office,
+        latitude, longitude, flood_zone, school_district,
+        bedrooms, bathrooms, sqft, year_built,
+        property_description, marketing_description, seller_notes, internal_notes,
+        listing_slug
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `).run(
+      id, f.county_id||1, f.address, f.city||null, f.state||'WV', f.zip||null,
+      f.parcel_id||null, f.subdivision||null, f.property_type||'land', f.status||'draft',
+      normalizeAcreage(f), f.lot_size||null, f.road_access||null, f.utilities_available||null,
+      f.septic?1:0, f.well?1:0, f.electric?1:0, f.internet?1:0,
+      f.price||null, f.recommended_list_price||null, f.price_per_acre||null,
+      f.tax_assessed||null, f.annual_tax||null,
+      f.mls_status||'draft', f.mls_number||null, f.listing_agent||'Phil Malick',
+      f.listing_office||'WV Real Estate Agency',
+      f.latitude||null, f.longitude||null, f.flood_zone||null, f.school_district||null,
+      f.bedrooms||null, f.bathrooms||null, f.sqft||null, f.year_built||null,
+      f.property_description||null, f.marketing_description||null,
+      f.seller_notes||null, f.internal_notes||null, slug
+    );
+    res.status(201).json({ id, listing_slug: slug });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to create property' }); }
+});
+
+// Update property via REST (API-key protected — used by app/admin.html)
+app.put('/api/properties/:id', apiWriteRateLimit, requireApiKey, (req, res) => {
+  try {
+    const f = req.body;
+    const existing = db.prepare('SELECT id FROM properties WHERE id=?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+    if (f.property_type && !VALID_PROP_TYPES.includes(f.property_type))
+      return res.status(400).json({ error: 'Invalid property_type' });
+    if (f.status && !VALID_PROP_STATUSES.includes(f.status))
+      return res.status(400).json({ error: 'Invalid status' });
+    db.prepare(`
+      UPDATE properties SET
+        county_id=?, address=?, city=?, state=?, zip=?, parcel_id=?, subdivision=?,
+        property_type=?, status=?, acreage=?, lot_size=?, road_access=?, utilities_available=?,
+        septic=?, well=?, electric=?, internet=?,
+        price=?, recommended_list_price=?, price_per_acre=?, tax_assessed=?, annual_tax=?,
+        mls_status=?, mls_number=?, listing_agent=?, listing_office=?,
+        latitude=?, longitude=?, flood_zone=?, school_district=?,
+        bedrooms=?, bathrooms=?, sqft=?, year_built=?,
+        property_description=?, marketing_description=?, seller_notes=?, internal_notes=?,
+        updated_at=datetime('now')
+      WHERE id=?
+    `).run(
+      f.county_id||1, f.address, f.city||null, f.state||'WV', f.zip||null,
+      f.parcel_id||null, f.subdivision||null, f.property_type||'land', f.status||'draft',
+      normalizeAcreage(f), f.lot_size||null, f.road_access||null, f.utilities_available||null,
+      f.septic?1:0, f.well?1:0, f.electric?1:0, f.internet?1:0,
+      f.price||null, f.recommended_list_price||null, f.price_per_acre||null,
+      f.tax_assessed||null, f.annual_tax||null,
+      f.mls_status||'draft', f.mls_number||null, f.listing_agent||null, f.listing_office||null,
+      f.latitude||null, f.longitude||null, f.flood_zone||null, f.school_district||null,
+      f.bedrooms||null, f.bathrooms||null, f.sqft||null, f.year_built||null,
+      f.property_description||null, f.marketing_description||null,
+      f.seller_notes||null, f.internal_notes||null,
+      req.params.id
+    );
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to update property' }); }
+});
+
+// Delete property via REST (API-key protected — used by app/admin.html)
+app.delete('/api/properties/:id', apiWriteRateLimit, requireApiKey, (req, res) => {
+  const existing = db.prepare('SELECT id FROM properties WHERE id=?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+  db.prepare('DELETE FROM properties WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/properties/generate-description', generateDescRateLimit, (req, res) => {
+  const { acreage, county, property_type, features } = req.body;
+  if (!county) return res.status(400).json({ error: 'county is required' });
+  const type = (property_type || 'land').toLowerCase();
+  const featureList = Array.isArray(features) ? features.filter(Boolean) : [];
+  const featStr = featureList.length
+    ? featureList.join('. ') + '.'
+    : 'Excellent opportunity in a sought-after area.';
+  const description = [
+    acreage ? `${acreage} acres of ${type} land in ${county} County, West Virginia.` : `${type.charAt(0).toUpperCase() + type.slice(1)} land in ${county} County, West Virginia.`,
+    featStr,
+    'Contact MalickLand for details.',
+  ].join(' ');
+  res.json({ description });
+});
+
+// ── Sitemap & Robots ─────────────────────────────────────
+app.get('/robots.txt', (_req, res) => {
+  res.type('text/plain');
+  res.send(
+`User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Sitemap: https://malickland.net/sitemap.xml`
+  );
+});
+
+app.get('/sitemap.xml', (_req, res) => {
+  const SITE = 'https://malickland.net';
+  const now  = new Date().toISOString().split('T')[0];
+
+  // Static pages
+  const staticPages = [
+    { loc: SITE + '/',        changefreq: 'weekly',  priority: '1.0' },
+    { loc: SITE + '/admin',   changefreq: 'never',   priority: '0.1' },
+  ];
+
+  // Dynamic property pages
+  let propertyPages = [];
+  try {
+    const props = db.prepare(`
+      SELECT listing_slug, id, updated_at
+      FROM properties
+      WHERE status = 'active'
+    `).all();
+    propertyPages = props.map(p => ({
+      loc: `${SITE}/properties/${p.listing_slug || p.id}`,
+      lastmod: (p.updated_at || now).split(' ')[0],
+      changefreq: 'weekly',
+      priority: '0.8',
+    }));
+  } catch (_) {}
+
+  const allPages = [...staticPages, ...propertyPages];
+
+  const xml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ...allPages.map(p => [
+      '  <url>',
+      `    <loc>${p.loc}</loc>`,
+      p.lastmod ? `    <lastmod>${p.lastmod}</lastmod>` : `    <lastmod>${now}</lastmod>`,
+      `    <changefreq>${p.changefreq}</changefreq>`,
+      `    <priority>${p.priority}</priority>`,
+      '  </url>',
+    ].join('\n')),
+    '</urlset>',
+  ].join('\n');
+
+  res.type('application/xml');
+  res.send(xml);
+});
+
+// Public listing detail page
 app.get('/listing/:id', publicReadRateLimit, (_req, res) => {
   const listingHtml = path.join(PROJECT_ROOT, 'app', 'listing.html');
   const indexHtml = path.join(PROJECT_ROOT, 'app', 'index.html');
-  const file = fs.existsSync(listingHtml) ? listingHtml : indexHtml;
-  res.sendFile(file);
+  res.sendFile(fs.existsSync(listingHtml) ? listingHtml : indexHtml);
 });
 
 app.use(express.static(path.join(PROJECT_ROOT, 'app')));
-
 app.use((req, res) => {
   if (req.path.startsWith('/api')) return res.status(404).json({ error:'Not found' });
   return res.status(404).type('html').send(
@@ -874,11 +1257,52 @@ app.use((err,_req,res,_next) => { console.error(err); res.status(500).json({ err
 app.listen(PORT, () => console.log(`✅ WV Property API → http://localhost:${PORT}\n   Admin Panel  → http://localhost:${PORT}/admin`));
 module.exports = app;
 
+// ── DB Backup (daily, keep last 7) ───────────────────────
+const BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const BACKUP_KEEP = 7; // days of backups to retain
+
+function runDbBackup() {
+  try {
+    const backupPath = DB_PATH.replace(/\.db$/, `_backup_${new Date().toISOString().slice(0,10)}.db`);
+    const dbLive = new Database(DB_PATH);
+    dbLive.backup(backupPath)
+      .then(() => {
+        console.log(`✅ DB backup → ${backupPath}`);
+        dbLive.close();
+        pruneOldBackups();
+      })
+      .catch(err => { console.error('DB backup failed:', err); dbLive.close(); });
+  } catch (err) {
+    console.error('DB backup error:', err);
+  }
+}
+
+function pruneOldBackups() {
+  try {
+    const dir = path.dirname(DB_PATH);
+    const backups = fs.readdirSync(dir)
+      .filter(f => /wv_property_backup_\d{4}-\d{2}-\d{2}\.db$/.test(f))
+      .sort(); // lexicographic = chronological for ISO dates
+    const toDelete = backups.slice(0, Math.max(0, backups.length - BACKUP_KEEP));
+    toDelete.forEach(f => {
+      try { fs.unlinkSync(path.join(dir, f)); console.log(`🗑 Pruned old backup: ${f}`); }
+      catch (_) {}
+    });
+  } catch (err) {
+    console.error('Backup pruning error:', err);
+  }
+}
+
+// Run once 10 min after startup, then every 24h
+setTimeout(runDbBackup, 10 * 60 * 1000);
+setInterval(runDbBackup, BACKUP_INTERVAL_MS);
+
 // ── Admin HTML shell ──────────────────────────────────────
-function adminShell(title, body) {
+function adminShell(title, body, csrf) {
   return `<!DOCTYPE html><html lang="en"><head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${title} — WVREA Admin</title>
+  <meta name="csrf-token" content="${esc(csrf||'')}">
+  <title>${esc(title)} — WVREA Admin</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Segoe UI',sans-serif;background:#f5f2eb;color:#222}
@@ -951,16 +1375,54 @@ function adminShell(title, body) {
     <a href="/admin/logout" class="logout" style="color:#ffaaaa">🚪 Logout</a>
   </div>
   <div class="main">${body}</div>
+  <script>
+  // Read CSRF token from meta tag for use in all admin fetch/form submissions
+  const _csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+  // Patch all forms to include CSRF hidden field before submit
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(form => {
+      if (!form.querySelector('[name=_csrf]')) {
+        const field = document.createElement('input');
+        field.type = 'hidden'; field.name = '_csrf'; field.value = _csrf;
+        form.appendChild(field);
+      }
+    });
+  });
+
+  async function generateDescription() {
+    const acreage = document.querySelector('[name=acreage]')?.value || '';
+    const county = document.querySelector('[name=county_id] option:checked')?.textContent?.trim() || '';
+    const property_type = document.querySelector('[name=property_type]')?.value || 'land';
+    const features = [
+      document.querySelector('[name=road_access]')?.value ? 'Road access: ' + document.querySelector('[name=road_access]').value : '',
+      document.querySelector('[name=utilities_available]')?.value ? 'Utilities: ' + document.querySelector('[name=utilities_available]').value : '',
+      document.querySelector('[name=flood_zone]')?.value ? 'Flood zone: ' + document.querySelector('[name=flood_zone]').value : '',
+    ].filter(Boolean);
+    const btn = event.target;
+    btn.disabled = true; btn.textContent = '...';
+    try {
+      const res = await fetch('/api/properties/generate-description', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ acreage: acreage ? Number(acreage) : undefined, county, property_type, features })
+      });
+      const data = await res.json();
+      if (data.description) document.getElementById('propertyDescField').value = data.description;
+    } catch(e) { alert('Generate failed: ' + e.message); }
+    btn.disabled = false; btn.textContent = '✨ Generate Description';
+  }
+  </script>
   </body></html>`;
 }
 
 // ── Listing form HTML ─────────────────────────────────────
 function listingForm(p, counties) {
-  const v = (f) => p ? (p[f]||'') : '';
+  const v = (f) => esc(p ? (p[f]||'') : '');
   const chk = (f) => p && p[f] ? 'checked' : '';
   const sel = (f,val) => p && p[f]===val ? 'selected' : '';
   const countyOpts = counties.map(c =>
-    `<option value="${c.id}" ${p && p.county_id==c.id?'selected':''}>${c.name}</option>`
+    `<option value="${esc(c.id)}" ${p && p.county_id==c.id?'selected':''}>${esc(c.name)}</option>`
   ).join('');
 
   return `
@@ -1051,8 +1513,10 @@ function listingForm(p, counties) {
 
       <div class="form-section"><h3>📝 Descriptions</h3></div>
 
-      <div class="full"><label>Property Description</label>
-        <textarea name="property_description" rows="4">${v('property_description')}</textarea></div>
+      <div class="full"><label>Property Description
+        <button type="button" class="btn-sm" style="margin-left:.75rem;vertical-align:middle;" onclick="generateDescription()">✨ Generate Description</button>
+      </label>
+        <textarea id="propertyDescField" name="property_description" rows="4">${v('property_description')}</textarea></div>
       <div class="full"><label>Marketing Description (public-facing)</label>
         <textarea name="marketing_description" rows="4">${v('marketing_description')}</textarea></div>
       <div class="full"><label>Seller Notes (internal)</label>
@@ -1067,3 +1531,31 @@ function listingForm(p, counties) {
     </div>
   </form>`;
 }
+
+app.get('/advent-drive-land-hampshire-county-wv', (req, res) => {
+  res.send(`
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <title>Land for Sale Hampshire County WV | Advent Dr</title>
+    <meta name="description" content="Land for sale in Hampshire County WV on Advent Drive. Hunting, recreation, or build opportunity near VA/DC.">
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "RealEstateListing",
+      "name": "Land for Sale – Advent Drive, Hampshire County WV",
+      "description": "Land for sale in Hampshire County West Virginia on Advent Drive.",
+      "url": "https://malickland.net/advent-drive-land-hampshire-county-wv"
+    }
+    </script>
+  </head>
+  <body>
+    <h1>Land for Sale – Advent Drive, Hampshire County WV</h1>
+    <p>This property offers privacy, usable acreage, and strong long-term value.</p>
+    <p><strong>Contact now to walk the property.</strong></p>
+    <a href="https://malickland.net">Back to MalickLand</a>
+  </body>
+  </html>
+  `);
+});

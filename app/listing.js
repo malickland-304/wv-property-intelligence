@@ -2,7 +2,7 @@
 
 const API = '/api';
 
-function listingIdFromPath() {
+function listingIdentifierFromPath() {
   const parts = window.location.pathname.replace(/\/+$/, '').split('/').filter(Boolean);
   const idx = parts.indexOf('listing');
   if (idx >= 0 && parts[idx + 1]) return decodeURIComponent(parts[idx + 1]);
@@ -26,8 +26,8 @@ function showError(msg) {
   el.textContent = msg;
 }
 
-async function loadListing() {
-  const id = listingIdFromPath();
+async function loadProperty() {
+  const id = listingIdentifierFromPath();
   if (!id) {
     showError('Missing property id.');
     return;
@@ -118,7 +118,8 @@ function escapeHtml(s) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 async function submitContact(propertyId) {
@@ -149,5 +150,5 @@ async function submitContact(propertyId) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  loadListing().catch(() => showError('Something went wrong loading this page.'));
+  loadProperty().catch(() => showError('Something went wrong loading this page.'));
 });
