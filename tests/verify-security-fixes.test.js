@@ -38,10 +38,17 @@ const PROJECT_ROOT = path.join(__dirname, '..');
 const serverPath = path.join(PROJECT_ROOT, 'api/server.js');
 const agentsPath = path.join(PROJECT_ROOT, 'AGENTS.md');
 const appJsPath = path.join(PROJECT_ROOT, 'app/app.js');
+const googleJsPath = path.join(PROJECT_ROOT, 'api/google.js');
+const validatorsPath = path.join(PROJECT_ROOT, 'api/utils/validators.js');
 
 const serverCode = fs.readFileSync(serverPath, 'utf8');
 const agentsCode = fs.existsSync(agentsPath) ? fs.readFileSync(agentsPath, 'utf8') : '';
 const appJsCode = fs.existsSync(appJsPath) ? fs.readFileSync(appJsPath, 'utf8') : '';
+const googleJsCode = fs.existsSync(googleJsPath) ? fs.readFileSync(googleJsPath, 'utf8') : '';
+const {
+  buildLeadSchedule,
+  buildPropertyLead,
+} = require(validatorsPath);
 
 console.log('\n=== Security & Correctness Verification Test Suite ===\n');
 
@@ -99,17 +106,17 @@ test('GET /api/properties/:id endpoint exists', () => {
 });
 
 test('Property detail endpoint has status=active guard', () => {
-  const routeMatch = serverCode.match(/app\.get\(['"]\/api\/properties\/:id['"],[\s\S]*?(?=app\.|$)/);
-  assert(routeMatch, 'Property detail endpoint not found');
-  const hasStatusGuard = routeMatch[0].includes("status='active'") ||
-                          routeMatch[0].includes('status="active"');
+  const fnMatch = serverCode.match(/function sendPropertyDetail\(req, res\)\s*{[\s\S]*?}\n\napp\.get\('\/api\/properties\/:id'/);
+  assert(fnMatch, 'sendPropertyDetail function not found');
+  const hasStatusGuard = fnMatch[0].includes("status='active'") ||
+                          fnMatch[0].includes('status="active"');
   assert(hasStatusGuard,
     "Missing status='active' filter in WHERE clause");
 });
 
 test('Status guard is in SQL WHERE clause', () => {
-  const routeMatch = serverCode.match(/app\.get\(['"]\/api\/properties\/:id['"],[\s\S]*?WHERE[\s\S]*?status[^)]*\)/i);
-  assert(routeMatch,
+  const fnMatch = serverCode.match(/function sendPropertyDetail\(req, res\)\s*{[\s\S]*?WHERE[\s\S]*?status[^)]*\)[\s\S]*?}\n\napp\.get\('\/api\/properties\/:id'/i);
+  assert(fnMatch,
     'Status filter should be in SQL WHERE clause');
 });
 
@@ -204,6 +211,56 @@ test('escapeHtml handles ampersands', () => {
     assert(fnMatch[1].includes('&amp'),
       'escapeHtml should escape & to &amp;');
   }
+});
+
+// ============================================================
+// Test Suite 6: Gmail Helper Integrity
+// ============================================================
+console.log('\nTest Suite 6: Gmail Helper Integrity');
+console.log('------------------------------------');
+
+test('api/google.js does not reference undefined getGoogle helper', () => {
+  assert(!googleJsCode.includes('getGoogle('),
+    'api/google.js should use the imported googleapis client directly');
+});
+
+test('sendTextEmail constructs Gmail client from imported google object', () => {
+  assert(googleJsCode.includes("const gmail = google.gmail({ version: 'v1', auth });"),
+    'sendTextEmail should build the Gmail client from the imported google object');
+});
+
+// ============================================================
+// Test Suite 7: Lead Follow-up Scheduling
+// ============================================================
+console.log('\nTest Suite 7: Lead Follow-up Scheduling');
+console.log('--------------------------------------');
+
+test('new leads track the first pending follow-up timestamp', () => {
+  const lead = buildPropertyLead(
+    {
+      name: 'Test Buyer',
+      email: 'buyer@example.com',
+      phone: '+13045551212',
+      leadType: 'property_packet',
+      buyerType: 'Investment / long-term hold',
+      cashOrFinancing: 'Cash',
+      timeline: 'Ready now',
+      message: 'Send details',
+      source: 'test-suite',
+    },
+    {
+      id: 'prop-1',
+      address: '37 Advent Dr',
+      city: 'Romney',
+      county: 'Hampshire',
+      state: 'WV',
+      zip: '26757',
+      listing_slug: '37-advent',
+    }
+  );
+  const schedule = buildLeadSchedule(lead);
+  assert.equal(lead.next_follow_up_at, schedule[0]?.due_at,
+    'Lead should point at the first pending follow-up until it is sent');
 });
 
 // ============================================================

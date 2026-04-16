@@ -201,7 +201,8 @@ function buildPropertyLead(payload, property = {}) {
   };
 
   const schedule = buildLeadSchedule(lead);
-  lead.next_follow_up_at = schedule[1]?.due_at || lead.created_at;
+  // Track the first pending follow-up; the immediate step only advances after it is actually sent.
+  lead.next_follow_up_at = schedule[0]?.due_at || lead.created_at;
 
   return lead;
 }

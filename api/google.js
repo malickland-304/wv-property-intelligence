@@ -40,7 +40,6 @@ async function sendTextEmail({ to, subject, bodyText, replyTo }) {
   if (!auth) return false;
 
   try {
-    const google = getGoogle();
     const gmail = google.gmail({ version: 'v1', auth });
 
     const headers = [
@@ -82,11 +81,6 @@ async function sendContactEmail(contact, property) {
   if (!GOOGLE_GMAIL_USER || !NOTIFICATION_EMAIL) return;
 
   try {
-<<<<<<< HEAD
-    const gmail = google.gmail({ version: 'v1', auth });
-
-=======
->>>>>>> c62238a (Add end-to-end lead capture, follow-ups, property pages, and admin)
     const propertyLine = property
       ? `Property: ${property.address || ''}${property.city ? ', ' + property.city : ''}${property.county ? ' – ' + property.county + ' County' : ''} (ID: ${property.id})`
       : 'Property: (none specified)';

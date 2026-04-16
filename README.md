@@ -4,8 +4,6 @@
 
 WV Property Intelligence - Full-stack real estate platform with app, API, and database layers
 
-<<<<<<< HEAD
-=======
 ## Getting Started
 
 Install the root dependencies:
@@ -158,8 +156,6 @@ npm run container:dev-reset
 
 - `GET /hello` returns a simple JSON greeting from the Express server.
 - `GET /api/health` returns the API health status.
-
->>>>>>> c62238a (Add end-to-end lead capture, follow-ups, property pages, and admin)
 ## Project Context
 
 - `CONTEXT.md` contains the master MalickLand business, product, and operations context for this repository.

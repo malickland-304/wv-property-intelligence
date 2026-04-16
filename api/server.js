@@ -1260,7 +1260,6 @@ function sendPropertyList(req, res) {
 }
 
 app.get('/api/properties', publicReadRateLimit, sendPropertyList);
-app.get('/api/listings', publicReadRateLimit, sendPropertyList);
 
 function sendPropertyDetail(req, res) {
   const row = db.prepare(`
@@ -1281,7 +1280,6 @@ function sendPropertyDetail(req, res) {
 }
 
 app.get('/api/properties/:id', publicReadRateLimit, sendPropertyDetail);
-app.get('/api/listings/:id', publicReadRateLimit, sendPropertyDetail);
 
 app.get('/api/analytics', (_req, res) => {
   const row = db.prepare(`
