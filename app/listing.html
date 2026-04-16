@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Dynamic SEO tags injected by listing.js -->
+  <title>Property | MalickLand</title>
+  <meta name="description" content="Land and rural property for sale in West Virginia — MalickLand" />
+  <meta property="og:title" content="Property | MalickLand" />
+  <meta property="og:description" content="Land for sale in West Virginia" />
+  <meta property="og:image" content="" />
+  <meta property="og:url" content="" />
+  <meta property="og:type" content="website" />
+  <style>
+    :root {
+      --green: #1B4332;
+      --green-mid: #2d5c42;
+      --gold: #D4AF37;
+      --gold-dark: #b8962e;
+      --cream: #F9F6F0;
+      --border: #e5e7eb;
+      --text: #1a1a1a;
+      --gray: #6b7280;
+      --white: #ffffff;
+      --shadow: 0 4px 24px rgba(27,67,50,0.12);
+      --radius: 12px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: var(--text); background: var(--white); line-height: 1.6; }
+    a { color: inherit; text-decoration: none; }
+    img { max-width: 100%; display: block; }
+
+    /* NAV */
+    .nav {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--green);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2rem; height: 68px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.25);
+    }
+    .nav-logo { display: flex; align-items: center; gap: .6rem; color: #fff; font-size: 1.4rem; font-weight: 800; }
+    .nav-logo span { color: var(--gold); font-style: normal; }
+    .nav-back { color: rgba(255,255,255,.85); font-size: .9rem; font-weight: 500; display: flex; align-items: center; gap: .35rem; transition: color .2s; }
+    .nav-back:hover { color: var(--gold); }
+
+    /* GALLERY */
+    .gallery { background: #0d1f16; }
+    .gallery-hero-wrap {
+      position: relative; display: flex; align-items: center; justify-content: center;
+      background: #000; overflow: hidden; max-height: 520px; min-height: 280px;
+    }
+    .gallery-hero { width: 100%; max-height: 520px; object-fit: contain; display: block; }
+    .gallery-arrow {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      background: rgba(0,0,0,.5); color: #fff; border: none;
+      width: 48px; height: 48px; border-radius: 50%; font-size: 2rem;
+      cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center;
+      transition: background .2s;
+    }
+    .gallery-arrow:hover { background: rgba(0,0,0,.85); }
+    .gallery-prev { left: 1rem; }
+    .gallery-next { right: 1rem; }
+    .gallery-counter {
+      position: absolute; bottom: .75rem; right: 1rem;
+      background: rgba(0,0,0,.65); color: #fff;
+      font-size: .8rem; padding: .25rem .7rem; border-radius: 50px; pointer-events: none;
+    }
+    .gallery-thumbs {
+      display: flex; gap: .4rem; padding: .6rem;
+      overflow-x: auto; background: #0d1f16;
+      scrollbar-width: thin; scrollbar-color: var(--gold) #0d1f16;
+    }
+    .gallery-thumbs::-webkit-scrollbar { height: 4px; }
+    .gallery-thumbs::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 2px; }
+    .gallery-thumb {
+      width: 80px; height: 56px; object-fit: cover; border-radius: 4px;
+      cursor: pointer; opacity: .6; border: 2px solid transparent; flex-shrink: 0;
+      transition: opacity .15s, border-color .15s;
+    }
+    .gallery-thumb.active, .gallery-thumb:hover { opacity: 1; border-color: var(--gold); }
+
+    /* MAIN */
+    .listing-main { max-width: 1100px; margin: 0 auto; padding: 2.5rem 2rem; }
+
+    .listing-header { margin-bottom: 2rem; }
+    .listing-price { font-size: clamp(2rem, 4vw, 2.8rem); font-weight: 900; color: var(--green); margin-bottom: .5rem; }
+    .listing-address { font-size: 1.1rem; color: var(--text); font-weight: 600; margin-bottom: .35rem; }
+    .listing-county { font-size: .9rem; color: var(--gray); margin-bottom: 1.25rem; }
+
+    .badges { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+    .badge {
+      padding: .3rem .8rem; border-radius: 50px; font-size: .78rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .3px;
+    }
+    .badge-new { background: var(--gold); color: var(--green); }
+    .badge-reduced { background: #dc2626; color: #fff; }
+    .badge-type { background: var(--cream); color: var(--green); border: 1px solid var(--border); }
+    .badge-status { background: #d4edda; color: #155724; }
+
+    .chips { display: flex; gap: .75rem; flex-wrap: wrap; margin-bottom: 2rem; }
+    .chip {
+      background: var(--cream); border: 1px solid var(--border);
+      padding: .45rem 1rem; border-radius: 8px; font-size: .88rem;
+      color: var(--text); font-weight: 500;
+    }
+
+    /* GRID */
+    .listing-grid { display: grid; grid-template-columns: 1fr 360px; gap: 2rem; }
+    .listing-section { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.75rem; margin-bottom: 1.5rem; }
+    .listing-section h2 { font-size: 1.1rem; font-weight: 700; color: var(--green); margin-bottom: 1rem; padding-bottom: .75rem; border-bottom: 1px solid var(--border); }
+
+    .facts { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem 1.5rem; }
+    .fact-item { display: flex; flex-direction: column; }
+    .fact-label { font-size: .75rem; font-weight: 700; color: var(--gray); text-transform: uppercase; letter-spacing: .3px; }
+    .fact-value { font-size: .95rem; color: var(--text); font-weight: 500; }
+
+    .listing-desc { font-size: .95rem; color: #374151; line-height: 1.75; white-space: pre-line; }
+
+    /* CONTACT PANEL */
+    .contact-panel { position: sticky; top: 88px; }
+    .contact-panel h2 { font-size: 1.1rem; font-weight: 700; color: var(--green); margin-bottom: .5rem; padding-bottom: .75rem; border-bottom: 1px solid var(--border); }
+    .contact-panel .phil-note { font-size: .85rem; color: var(--gray); margin-bottom: 1.25rem; }
+    .contact-panel .phil-note a { color: var(--green); font-weight: 600; }
+    .contact-panel input, .contact-panel textarea {
+      width: 100%; padding: .7rem .9rem; border: 1.5px solid var(--border);
+      border-radius: 8px; font-size: .95rem; font-family: inherit; background: var(--white);
+      color: var(--text); margin-bottom: .75rem; transition: border-color .2s;
+    }
+    .contact-panel input:focus, .contact-panel textarea:focus { outline: none; border-color: var(--green); }
+    .contact-panel textarea { resize: vertical; min-height: 90px; }
+    .btn-contact {
+      width: 100%; background: var(--gold); color: var(--green); border: none;
+      padding: .85rem; border-radius: 8px; font-size: 1rem; font-weight: 700;
+      cursor: pointer; transition: background .2s, transform .1s;
+    }
+    .btn-contact:hover { background: var(--gold-dark); transform: translateY(-1px); }
+    .btn-packet {
+      width: 100%; background: var(--green); color: var(--gold); border: none;
+      padding: .75rem; border-radius: 8px; font-size: .9rem; font-weight: 700;
+      cursor: pointer; margin-top: .5rem; transition: opacity .2s;
+    }
+    .btn-packet:hover { opacity: .87; }
+    .contact-status { font-size: .85rem; color: var(--green); font-weight: 600; margin-top: .75rem; min-height: 1.2em; }
+
+    /* LOADING / ERROR */
+    .listing-loading { text-align: center; padding: 5rem 2rem; color: var(--gray); font-size: 1.1rem; }
+    .listing-error { text-align: center; padding: 5rem 2rem; color: #dc2626; font-size: 1rem; }
+
+    /* FOOTER */
+    footer { background: #0d1f16; color: rgba(255,255,255,.65); padding: 2.5rem 2rem; text-align: center; font-size: .85rem; margin-top: 4rem; }
+    footer a { color: var(--gold); }
+
+    @media (max-width: 900px) {
+      .listing-grid { grid-template-columns: 1fr; }
+      .contact-panel { position: static; }
+    }
+    @media (max-width: 600px) {
+      .listing-main { padding: 1.5rem 1rem; }
+      .facts { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="/" class="nav-logo">🏡 Malick<span>Land</span></a>
+  <a href="/" class="nav-back">← Back to Listings</a>
+</nav>
+
+<div id="listingGallery"></div>
+
+<main class="listing-main">
+  <p id="listingLoading" class="listing-loading">Loading property…</p>
+  <div id="listingError" class="listing-error" hidden></div>
+  <div id="listingContent" hidden></div>
+</main>
+
+<footer>
+  <p>📞 <a href="tel:+15402461421">(540) 246-1421</a> &nbsp;·&nbsp; ✉️ <a href="mailto:phil@malickland.net">phil@malickland.net</a> &nbsp;·&nbsp; Licensed in West Virginia &nbsp;·&nbsp; © 2026 MalickLand</p>
+</footer>
+
+<script src="/listing.js"></script>
+</body>
+</html>
