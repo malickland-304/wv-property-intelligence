@@ -713,7 +713,7 @@ app.get('/admin', requireAuth, (req, res) => {
   `, csrfToken(req)));
 });
 
-app.get('/admin/leads', requireAuth, (req, res) => {
+app.get('/admin/leads', requireAuth, adminActionRateLimit, (req, res) => {
   const leads = db.prepare(`
     SELECT
       l.id,
