@@ -32,6 +32,11 @@ function hasGmailConfig() {
   return Boolean(GOOGLE_GMAIL_USER && createOAuthClient());
 }
 
+/** Strip CR/LF and other control characters from email header values to prevent header injection. */
+function sanitizeHeaderValue(value) {
+  return String(value ?? '').replace(/[\r\n\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '');
+}
+
 async function sendTextEmail({ to, subject, bodyText, replyTo }) {
   const { GOOGLE_GMAIL_USER } = process.env;
   if (!GOOGLE_GMAIL_USER || !to || !subject || !bodyText) return false;
@@ -42,23 +47,24 @@ async function sendTextEmail({ to, subject, bodyText, replyTo }) {
   try {
     const gmail = google.gmail({ version: 'v1', auth });
 
+    const safeFrom    = sanitizeHeaderValue(GOOGLE_GMAIL_USER);
+    const safeTo      = sanitizeHeaderValue(to);
+    const safeSubject = sanitizeHeaderValue(subject);
+
     const headers = [
-      `From: WV Property Intelligence <${GOOGLE_GMAIL_USER}>`,
-      `To: ${to}`,
-      `Subject: ${subject}`,
+      `From: WV Property Intelligence <${safeFrom}>`,
+      `To: ${safeTo}`,
+      `Subject: ${safeSubject}`,
       'MIME-Version: 1.0',
       'Content-Type: text/plain; charset=UTF-8',
     ];
 
-    if (replyTo) headers.push(`Reply-To: ${replyTo}`);
+    if (replyTo) headers.push(`Reply-To: ${sanitizeHeaderValue(replyTo)}`);
 
+    // base64url produces URL-safe base64 without padding — no manual replace needed.
     const raw = Buffer.from(
       [...headers, '', bodyText].join('\r\n')
-    )
-      .toString('base64')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
+    ).toString('base64url');
 
     await gmail.users.messages.send({ userId: 'me', requestBody: { raw } });
     return true;

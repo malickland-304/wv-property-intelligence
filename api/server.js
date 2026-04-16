@@ -10,7 +10,7 @@ const fs         = require('fs');
 const crypto     = require('crypto');
 const multer     = require('multer');
 const session    = require('express-session');
-const SqliteStoreFactory = require('better-sqlite3-session-store');
+const SqliteSessionStore = require('./utils/sqliteSessionStore');
 const rateLimit  = require('express-rate-limit');
 require('dotenv').config();
 const { execFile } = require('child_process');
@@ -55,7 +55,7 @@ if (IS_PROD) {
 // Without it, Railway redeploys wipe the database silently.
 const DB_PATH = process.env.DATABASE_PATH || path.join(PROJECT_ROOT, 'database', 'wv_property.db');
 const db = new Database(DB_PATH);
-const SqliteStore = SqliteStoreFactory(session);
+const SqliteStore = SqliteSessionStore;
 const sessionStore = new SqliteStore({
   client: db,
   expired: {
@@ -1531,7 +1531,7 @@ app.get('/sitemap.xml', sitemapRateLimit, (_req, res) => {
   res.send(xml);
 });
 
-app.get('/counties/:countySlug', (req, res) => {
+app.get('/counties/:countySlug', publicReadRateLimit, (req, res) => {
   const counties = db.prepare('SELECT id, name FROM counties ORDER BY name').all();
   const county = counties.find((item) => slugify(item.name) === req.params.countySlug);
   if (!county) return res.status(404).sendFile(path.join(PROJECT_ROOT, 'app', 'index.html'));
@@ -1610,7 +1610,7 @@ app.get('/counties/:countySlug', (req, res) => {
   </html>`);
 });
 
-app.get('/properties/:slug', (req, res) => {
+app.get('/properties/:slug', publicReadRateLimit, (req, res) => {
   const property = db.prepare(`
     SELECT p.*, c.name AS county
     FROM properties p

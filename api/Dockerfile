@@ -22,11 +22,12 @@ COPY --from=builder --chown=65532:65532 /workspace/api/node_modules ./api/node_m
 COPY --chown=65532:65532 api ./api
 COPY --chown=65532:65532 app ./app
 
-# Create runtime directories and drop to non-root user
-RUN mkdir -p data database listings uploads reports \
+# Create runtime directories and drop to non-root user.
+# /data is included so a volume mounted at DATABASE_PATH=/data/... is writable.
+RUN mkdir -p /data data database listings uploads reports \
     && groupadd --system --gid 1001 appgroup \
     && useradd --system --uid 1001 --gid appgroup --no-create-home appuser \
-    && chown -R appuser:appgroup /workspace
+    && chown -R appuser:appgroup /workspace /data
 
 USER appuser
 

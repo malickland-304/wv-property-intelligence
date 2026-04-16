@@ -150,13 +150,7 @@ function createLeadsRouter({ db } = {}) {
   const router = express.Router();
 
   router.get('/37-advent/health', (_req, res) => {
-    res.json({
-      ok: true,
-      route: '37-advent',
-      sheetsConfigured: isLeadCaptureConfigured(),
-      twilioConfigured: isTwilioConfigured(),
-      emailConfigured: isLeadEmailConfigured(),
-    });
+    res.json({ ok: true });
   });
 
   router.post('/37-advent', leadRateLimit, async (req, res) => {
