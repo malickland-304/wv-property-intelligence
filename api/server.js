@@ -1462,7 +1462,14 @@ Sitemap: https://malickland.net/sitemap.xml`
   );
 });
 
-app.get('/sitemap.xml', (_req, res) => {
+const sitemapRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.get('/sitemap.xml', sitemapRateLimit, (_req, res) => {
   const SITE = 'https://malickland.net';
   const now  = new Date().toISOString().split('T')[0];
 
