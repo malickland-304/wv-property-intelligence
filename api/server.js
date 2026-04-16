@@ -25,6 +25,9 @@ const PORT = process.env.PORT || 3000;
 // Trust one proxy hop (Cloudflare → Railway). Required for correct req.ip,
 // X-Forwarded-For in logs, and rate-limiter keying.
 app.set('trust proxy', 1);
+if (!process.env.ADMIN_PASSWORD) {
+  console.error('[SECURITY] ADMIN_PASSWORD env var is not set! Using insecure default. Set this in Railway env vars immediately.');
+}
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'wvrea2026';
 const PROJECT_ROOT   = path.join(__dirname, '..');
 
@@ -375,6 +378,14 @@ const adminLoginRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true,
+});
+
+const adminActionsRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many admin requests. Please slow down.' },
 });
 
 // ── Admin login ───────────────────────────────────────────
@@ -935,7 +946,7 @@ app.get('/admin/integrations', requireAuth, (_req, res) => {
 });
 
 // ── Leads view ───────────────────────────────────────────
-app.get('/admin/leads', requireAuth, (req, res) => {
+app.get('/admin/leads', requireAuth, adminActionsRateLimit, (req, res) => {
   const leads = db.prepare(`
     SELECT ct.id, ct.name, ct.email, ct.phone, ct.message, ct.source,
            ct.created_at, ct.lead_status,
@@ -986,7 +997,7 @@ app.get('/admin/leads', requireAuth, (req, res) => {
   `));
 });
 
-app.post('/admin/leads/:id/status', requireAuth, (req, res) => {
+app.post('/admin/leads/:id/status', requireAuth, adminActionsRateLimit, (req, res) => {
   const valid = ['new','contacted','qualified','closed','lost'];
   const status = req.body.status;
   if (!valid.includes(status)) return res.status(400).json({ error: 'Invalid status' });
