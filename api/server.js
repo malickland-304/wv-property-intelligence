@@ -10,22 +10,28 @@ const fs         = require('fs');
 const crypto     = require('crypto');
 const multer     = require('multer');
 const session    = require('express-session');
+const SqliteSessionStore = require('./utils/sqliteSessionStore');
 const rateLimit  = require('express-rate-limit');
 require('dotenv').config();
 const { execFile } = require('child_process');
 
 const { sendContactEmail, uploadPhotoToDrive } = require('./google');
+const createLeadsRouter = require('./routes/leads');
 const { requireApiKey } = require('./middleware/auth');
+const { buildPropertyMarketing } = require('./utils/propertyMarketing');
+const { startLeadFollowupWorker } = require('./services/leadFollowupWorker');
 let sharp;
 try { sharp = require('sharp'); } catch (_) { sharp = null; }
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+const IS_PROD = process.env.NODE_ENV === 'production';
 
 // Trust one proxy hop (Cloudflare → Railway). Required for correct req.ip,
 // X-Forwarded-For in logs, and rate-limiter keying.
 app.set('trust proxy', 1);
-const ADMIN_PASSWORD  = process.env.ADMIN_PASSWORD || 'wvrea2026';
+const ADMIN_PASSWORD  = process.env.ADMIN_PASSWORD || (IS_PROD ? null : 'wvrea2026');
+const SESSION_SECRET  = process.env.SESSION_SECRET || (IS_PROD ? null : 'wvrea-secret-2026');
 const PROJECT_ROOT    = path.join(__dirname, '..');
 
 const VALID_PROP_TYPES   = ['residential','commercial','land','multi-family','industrial'];
@@ -39,9 +45,9 @@ function isValidEmail(s) {
   return dot > 0 && dot < domain.length - 1;
 }
 
-if (process.env.NODE_ENV === 'production') {
-  if (!process.env.ADMIN_PASSWORD) console.warn('[WARN] ADMIN_PASSWORD env var is not set — using insecure default');
-  if (!process.env.SESSION_SECRET) console.warn('[WARN] SESSION_SECRET env var is not set — using insecure default');
+if (IS_PROD) {
+  if (!ADMIN_PASSWORD) throw new Error('ADMIN_PASSWORD env var is required in production');
+  if (!SESSION_SECRET) throw new Error('SESSION_SECRET env var is required in production');
 }
 
 // ── DB ────────────────────────────────────────────────────
@@ -49,6 +55,14 @@ if (process.env.NODE_ENV === 'production') {
 // Without it, Railway redeploys wipe the database silently.
 const DB_PATH = process.env.DATABASE_PATH || path.join(PROJECT_ROOT, 'database', 'wv_property.db');
 const db = new Database(DB_PATH);
+const SqliteStore = SqliteSessionStore;
+const sessionStore = new SqliteStore({
+  client: db,
+  expired: {
+    clear: true,
+    intervalMs: 15 * 60 * 1000,
+  },
+});
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 db.pragma('cache_size = -32000');   // 32MB SQLite cache cap
@@ -127,10 +141,52 @@ db.exec(`
     source      TEXT DEFAULT 'web',
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
   );
+  CREATE TABLE IF NOT EXISTS leads (
+    id                TEXT PRIMARY KEY,
+    property_id       TEXT REFERENCES properties(id) ON DELETE SET NULL,
+    property_slug     TEXT,
+    property_address  TEXT,
+    name              TEXT NOT NULL,
+    email             TEXT,
+    phone             TEXT,
+    lead_type         TEXT NOT NULL DEFAULT 'property_packet',
+    buyer_intent      TEXT,
+    financing_type    TEXT,
+    timeline          TEXT,
+    message           TEXT,
+    sms_consent       INTEGER DEFAULT 0,
+    source            TEXT DEFAULT 'web',
+    utm_source        TEXT,
+    utm_medium        TEXT,
+    utm_campaign      TEXT,
+    status            TEXT NOT NULL DEFAULT 'new',
+    follow_up_status  TEXT NOT NULL DEFAULT 'scheduled',
+    next_follow_up_at TEXT,
+    created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS lead_followups (
+    id            TEXT PRIMARY KEY,
+    lead_id       TEXT NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+    step_code     TEXT NOT NULL,
+    channel       TEXT NOT NULL DEFAULT 'email',
+    template_name TEXT,
+    subject       TEXT,
+    body          TEXT,
+    due_at        TEXT NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'pending',
+    sent_at       TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
   CREATE INDEX IF NOT EXISTS idx_properties_county ON properties(county_id);
   CREATE INDEX IF NOT EXISTS idx_properties_status ON properties(status);
   CREATE INDEX IF NOT EXISTS idx_properties_type   ON properties(property_type);
   CREATE INDEX IF NOT EXISTS idx_properties_price  ON properties(price);
+  CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
+  CREATE INDEX IF NOT EXISTS idx_leads_property_slug ON leads(property_slug);
+  CREATE INDEX IF NOT EXISTS idx_leads_next_follow_up ON leads(next_follow_up_at);
+  CREATE INDEX IF NOT EXISTS idx_lead_followups_lead_id ON lead_followups(lead_id);
+  CREATE INDEX IF NOT EXISTS idx_lead_followups_due_at ON lead_followups(due_at);
 `);
 
 // Seed counties
@@ -228,6 +284,7 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
           mls_number='WVHS2007442',
           price=219900,
           property_description=?,
+          marketing_description=COALESCE(marketing_description, 'Land opportunity in Hampshire County with quick access to hunting, recreation, and the kind of West Virginia privacy buyers actually want.'),
           updated_at=datetime('now')
         WHERE id=?
       `).run(newDesc, existing.id);
@@ -244,6 +301,11 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
         'land', 'active', 219900,
         'WVHS2007442', 'Phil Malick', 'advent-dr-hampshire-wv', descSuffix
       );
+      db.prepare(`
+        UPDATE properties SET
+          marketing_description='Land opportunity in Hampshire County with quick access to hunting, recreation, and the kind of West Virginia privacy buyers actually want.'
+        WHERE id=?
+      `).run(newId);
       console.log('Inserted Advent Dr listing →', newId);
     }
   }
@@ -262,6 +324,39 @@ function esc(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function escNl(str) {
+  return esc(str).replace(/\n/g, '<br>');
+}
+
+function formatCurrency(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 'Contact for Price';
+  return '$' + n.toLocaleString();
+}
+
+function formatNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toLocaleString() : null;
+}
+
+function formatDateTime(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function labelizePropertyType(value) {
+  const raw = String(value || 'property');
+  return raw.charAt(0).toUpperCase() + raw.slice(1).replace(/-/g, ' ');
 }
 
 function initListingFolder(slug) {
@@ -323,7 +418,8 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'tiny' : 'dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended:true }));
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'wvrea-secret-2026',
+  secret: SESSION_SECRET,
+  store: sessionStore,
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -431,9 +527,103 @@ function isSafePathComponent(str) {
   return typeof str === 'string' && SAFE_PATH_RE.test(str) && !str.includes('..');
 }
 
-// ── Admin login ───────────────────────────────────────────
-app.get('/admin/login', (_req, res) => {
-  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+function normalizePositiveInt(value, fallback, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+function renderPropertyLeadForm({
+  formId,
+  propertySlug,
+  title,
+  intro,
+  submitLabel,
+  leadType = 'property_packet',
+  compact = false,
+  showLeadTypeSelect = false,
+  defaultMessage = '',
+}) {
+  return `
+    <div class="lead-form-wrap">
+      <h3>${esc(title)}</h3>
+      <p>${esc(intro)}</p>
+      <form class="lead-form${compact ? ' compact' : ''}" id="${esc(formId)}" data-property-slug="${esc(propertySlug)}">
+        ${showLeadTypeSelect ? `
+          <label>
+            <span>What do you want next?</span>
+            <select name="leadType">
+              <option value="property_packet" ${leadType === 'property_packet' ? 'selected' : ''}>Full property packet</option>
+              <option value="request_showing" ${leadType === 'request_showing' ? 'selected' : ''}>Request showing / walk-through</option>
+              <option value="similar_land_alert" ${leadType === 'similar_land_alert' ? 'selected' : ''}>Send similar land</option>
+            </select>
+          </label>
+        ` : `<input type="hidden" name="leadType" value="${esc(leadType)}">`}
+        <div class="lead-grid">
+          <label>
+            <span>Name</span>
+            <input type="text" name="name" placeholder="Your name" required>
+          </label>
+          <label>
+            <span>Email</span>
+            <input type="email" name="email" placeholder="you@example.com" required>
+          </label>
+          <label>
+            <span>Phone</span>
+            <input type="tel" name="phone" placeholder="Best number" required>
+          </label>
+          <label>
+            <span>Buyer type</span>
+            <select name="buyerType" required>
+              <option value="">Select one</option>
+              <option value="Hunting / recreation">Hunting / recreation</option>
+              <option value="Weekend cabin / Airbnb">Weekend cabin / Airbnb</option>
+              <option value="Investment / long-term hold">Investment / long-term hold</option>
+              <option value="Primary home / homesite">Primary home / homesite</option>
+              <option value="Not sure yet">Not sure yet</option>
+            </select>
+          </label>
+          <label>
+            <span>Cash or financing</span>
+            <select name="cashOrFinancing" required>
+              <option value="">Select one</option>
+              <option value="Cash">Cash</option>
+              <option value="Financing">Financing</option>
+              <option value="Either">Either</option>
+            </select>
+          </label>
+          <label>
+            <span>Timeline</span>
+            <select name="timeline">
+              <option value="">Just starting to look</option>
+              <option value="Ready now">Ready now</option>
+              <option value="30-90 days">30-90 days</option>
+              <option value="3-6 months">3-6 months</option>
+              <option value="6+ months">6+ months</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          <span>Anything helpful Phil should know?</span>
+          <textarea name="message" rows="${compact ? '3' : '4'}" placeholder="Questions, access needs, or what you're really looking for.">${esc(defaultMessage)}</textarea>
+        </label>
+        <label class="checkline">
+          <input type="checkbox" name="smsConsent" value="true">
+          <span>You can text me if that speeds things up.</span>
+        </label>
+        <input type="hidden" name="source" value="property-page-${esc(propertySlug)}">
+        <input type="hidden" name="utm_source" value="">
+        <input type="hidden" name="utm_medium" value="">
+        <input type="hidden" name="utm_campaign" value="">
+        <button type="submit">${esc(submitLabel)}</button>
+        <div class="lead-status" data-role="status"></div>
+      </form>
+    </div>
+  `;
+}
+
+function renderLoginPage(req, errorMessage = '') {
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
   <title>Admin Login</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
@@ -449,50 +639,40 @@ app.get('/admin/login', (_req, res) => {
   </style></head><body>
   <div class="box">
     <h2>🏡 WVREA Admin</h2>
+    ${errorMessage ? `<p class="err">${esc(errorMessage)}</p>` : ''}
     <form method="POST" action="/admin/login">
+      <input type="hidden" name="_csrf" value="${esc(csrfToken(req))}" />
       <input type="password" name="password" placeholder="Admin Password" autofocus />
       <button type="submit">Sign In</button>
     </form>
-  </div></body></html>`);
+  </div></body></html>`;
+}
+
+// ── Admin login ───────────────────────────────────────────
+app.get('/admin/login', (req, res) => {
+  res.send(renderLoginPage(req));
 });
 
-app.post('/admin/login', adminLoginRateLimit, (req, res) => {
+app.post('/admin/login', requireCsrf, adminLoginRateLimit, (req, res) => {
   if (req.body.password === ADMIN_PASSWORD) {
     req.session.admin = true;
     res.redirect('/admin');
   } else {
-    res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-    <title>Admin Login</title>
-    <style>
-      *{box-sizing:border-box;margin:0;padding:0}
-      body{font-family:'Segoe UI',sans-serif;background:#1a3a2a;display:flex;
-        align-items:center;justify-content:center;min-height:100vh}
-      .box{background:#fff;padding:2.5rem;border-radius:12px;width:100%;max-width:380px;text-align:center}
-      h2{color:#1a3a2a;margin-bottom:1.5rem}
-      input{width:100%;padding:.75rem;border:1px solid #ddd;border-radius:6px;
-        margin-bottom:1rem;font-size:1rem}
-      button{width:100%;padding:.85rem;background:#c9a84c;color:#1a3a2a;
-        border:none;border-radius:6px;font-weight:700;font-size:1rem;cursor:pointer}
-      .err{color:#c0392b;margin-bottom:1rem;font-size:.9rem}
-    </style></head><body>
-    <div class="box">
-      <h2>🏡 WVREA Admin</h2>
-      <p class="err">Incorrect password</p>
-      <form method="POST" action="/admin/login">
-        <input type="password" name="password" placeholder="Admin Password" autofocus />
-        <button type="submit">Sign In</button>
-      </form>
-    </div></body></html>`);
+    res.send(renderLoginPage(req, 'Incorrect password'));
   }
 });
 
-app.get('/admin/logout', (req, res) => {
+app.post('/admin/logout', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
   req.session.destroy();
   res.redirect('/admin/login');
 });
 
+app.get('/admin/logout', requireAuth, (_req, res) => {
+  res.status(405).send('Use POST to log out');
+});
+
 // ── Admin dashboard ───────────────────────────────────────
-app.get('/admin', requireAuth, (_req, res) => {
+app.get('/admin', requireAuth, (req, res) => {
   const listings = db.prepare(`
     SELECT p.id, p.address, p.city, p.price, p.property_type, p.status,
            p.listing_slug, p.acreage, p.photos_uploaded, p.mls_status,
@@ -529,6 +709,78 @@ app.get('/admin', requireAuth, (_req, res) => {
         <th>Acres</th><th>Status</th><th>MLS</th><th>Actions</th>
       </tr></thead>
       <tbody>${rows || '<tr><td colspan="8" style="text-align:center;padding:2rem;color:#999">No listings yet. <a href="/admin/new">Add your first listing →</a></td></tr>'}</tbody>
+    </table>
+  `, csrfToken(req)));
+});
+
+app.get('/admin/leads', requireAuth, adminActionRateLimit, (req, res) => {
+  const leads = db.prepare(`
+    SELECT
+      l.id,
+      l.property_address,
+      l.name,
+      l.email,
+      l.phone,
+      l.lead_type,
+      l.buyer_intent,
+      l.financing_type,
+      l.timeline,
+      l.status,
+      l.follow_up_status,
+      l.next_follow_up_at,
+      l.created_at,
+      (
+        SELECT lf.step_code
+        FROM lead_followups lf
+        WHERE lf.lead_id = l.id AND lf.status = 'pending'
+        ORDER BY lf.due_at ASC
+        LIMIT 1
+      ) AS next_step_code
+    FROM leads l
+    ORDER BY l.created_at DESC
+    LIMIT 250
+  `).all();
+
+  const rows = leads.map((lead) => `
+    <tr>
+      <td>${esc(lead.property_address || 'General inquiry')}</td>
+      <td>
+        <strong>${esc(lead.name)}</strong><br>
+        <span style="color:#666">${esc(lead.email || 'No email')} · ${esc(lead.phone || 'No phone')}</span>
+      </td>
+      <td>${esc(lead.lead_type.replace(/_/g, ' '))}</td>
+      <td>${esc(lead.buyer_intent || '—')}</td>
+      <td>${esc(lead.financing_type || '—')}</td>
+      <td>${esc(lead.timeline || '—')}</td>
+      <td>${esc(lead.status)}</td>
+      <td>${esc(lead.next_step_code ? lead.next_step_code.replace(/_/g, ' ') : '—')}</td>
+      <td>${esc(formatDateTime(lead.next_follow_up_at))}</td>
+      <td>${esc(formatDateTime(lead.created_at))}</td>
+    </tr>
+  `).join('');
+
+  res.send(adminShell('Leads', `
+    <div class="dash-header">
+      <div>
+        <h1>Lead Pipeline</h1>
+        <p style="color:#666;margin-top:.35rem">Structured packet requests, showing requests, and similar-land alerts with follow-up dates.</p>
+      </div>
+      <a href="/admin" class="btn-outline">← Back to Listings</a>
+    </div>
+    <table class="listings-table">
+      <thead><tr>
+        <th>Property</th>
+        <th>Lead</th>
+        <th>Type</th>
+        <th>Intent</th>
+        <th>Financing</th>
+        <th>Timeline</th>
+        <th>Status</th>
+        <th>Next Step</th>
+        <th>Follow Up Due</th>
+        <th>Created</th>
+      </tr></thead>
+      <tbody>${rows || '<tr><td colspan="10" style="text-align:center;padding:2rem;color:#999">No leads captured yet.</td></tr>'}</tbody>
     </table>
   `, csrfToken(req)));
 });
@@ -982,6 +1234,8 @@ app.get('/api/counties', (_req, res) => {
 function sendPropertyList(req, res) {
   try {
     const { q='',county='',type='',minPrice='',maxPrice='',page=1,limit=12 } = req.query;
+    const pageNumber = normalizePositiveInt(page, 1);
+    const limitNumber = normalizePositiveInt(limit, 12, { min: 1, max: 100 });
     const conditions = ["p.status = 'active'"];
     const values = [];
     if (q)        { conditions.push(`(p.address LIKE ? OR p.zip LIKE ?)`); values.push(`%${q}%`,`%${q}%`); }
@@ -990,31 +1244,30 @@ function sendPropertyList(req, res) {
     if (minPrice) { conditions.push(`p.price >= ?`);          values.push(Number(minPrice)); }
     if (maxPrice) { conditions.push(`p.price <= ?`);          values.push(Number(maxPrice)); }
     const where  = 'WHERE ' + conditions.join(' AND ');
-    const offset = (Number(page)-1) * Number(limit);
+    const offset = (pageNumber - 1) * limitNumber;
     const total  = db.prepare(`SELECT COUNT(*) as c FROM properties p ${where}`).get(...values).c;
     // DB stores `acreage`; the public API exposes `lot_acres` (aliased) for the UI
     const properties = db.prepare(`
       SELECT p.id, p.listing_slug, p.address, p.city, p.zip, p.price, p.property_type,
-             p.bedrooms, p.bathrooms, p.sqft, COALESCE(p.acreage, p.lot_acres) AS lot_acres,
+             p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
              p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
              c.name AS county
       FROM properties p JOIN counties c ON c.id=p.county_id
       ${where} ORDER BY p.listed_at DESC LIMIT ? OFFSET ?
-    `).all(...values, Number(limit), offset);
-    res.json({ total, page:Number(page), properties });
+    `).all(...values, limitNumber, offset);
+    res.json({ total, page: pageNumber, properties });
   } catch(err) { console.error(err); res.status(500).json({ error:'Failed' }); }
 }
 
 app.get('/api/properties', publicReadRateLimit, sendPropertyList);
-app.get('/api/listings', publicReadRateLimit, sendPropertyList);
 
 function sendPropertyDetail(req, res) {
   const row = db.prepare(`
     SELECT p.id, p.listing_slug, p.address, p.city, p.zip, p.price, p.property_type,
-           p.bedrooms, p.bathrooms, p.sqft, COALESCE(p.acreage, p.lot_acres) AS lot_acres,
+           p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
            p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
            p.county_id, c.name AS county,
-           p.description, p.property_description, p.marketing_description,
+           p.property_description, p.marketing_description,
            p.mls_number, p.road_access, p.flood_zone,
            p.listing_agent, p.listing_office,
            p.utilities_available, p.septic, p.well, p.electric, p.internet
@@ -1022,12 +1275,11 @@ function sendPropertyDetail(req, res) {
     WHERE (p.id=? OR p.listing_slug=?) AND p.status='active'
   `).get(req.params.id, req.params.id);
   if (!row) return res.status(404).json({ error:'Not found' });
-  const description = row.marketing_description || row.property_description || row.description || '';
+  const description = row.marketing_description || row.property_description || '';
   res.json({ ...row, description });
 }
 
 app.get('/api/properties/:id', publicReadRateLimit, sendPropertyDetail);
-app.get('/api/listings/:id', publicReadRateLimit, sendPropertyDetail);
 
 app.get('/api/analytics', (_req, res) => {
   const row = db.prepare(`
@@ -1061,6 +1313,8 @@ app.post('/api/contacts', contactsRateLimit, (req, res) => {
   res.status(201).json({ id:result.lastInsertRowid });
 });
 
+app.use('/api/leads', createLeadsRouter({ db }));
+
 // List contacts / leads (API-key protected — used by app/admin.html)
 app.get('/api/contacts', apiWriteRateLimit, requireApiKey, (_req, res) => {
   const contacts = db.prepare(`
@@ -1071,6 +1325,24 @@ app.get('/api/contacts', apiWriteRateLimit, requireApiKey, (_req, res) => {
     ORDER BY c.created_at DESC
   `).all();
   res.json(contacts);
+});
+
+app.get('/api/leads', apiWriteRateLimit, requireApiKey, (_req, res) => {
+  const leads = db.prepare(`
+    SELECT
+      l.*,
+      (
+        SELECT lf.step_code
+        FROM lead_followups lf
+        WHERE lf.lead_id = l.id AND lf.status = 'pending'
+        ORDER BY lf.due_at ASC
+        LIMIT 1
+      ) AS next_step_code
+    FROM leads l
+    ORDER BY l.created_at DESC
+    LIMIT 250
+  `).all();
+  res.json(leads);
 });
 
 // Create property via REST (API-key protected — used by app/admin.html)
@@ -1190,7 +1462,14 @@ Sitemap: https://malickland.net/sitemap.xml`
   );
 });
 
-app.get('/sitemap.xml', (_req, res) => {
+const sitemapRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.get('/sitemap.xml', sitemapRateLimit, (_req, res) => {
   const SITE = 'https://malickland.net';
   const now  = new Date().toISOString().split('T')[0];
 
@@ -1200,8 +1479,8 @@ app.get('/sitemap.xml', (_req, res) => {
     { loc: SITE + '/admin',   changefreq: 'never',   priority: '0.1' },
   ];
 
-  // Dynamic property pages
   let propertyPages = [];
+  let countyPages = [];
   try {
     const props = db.prepare(`
       SELECT listing_slug, id, updated_at
@@ -1216,7 +1495,23 @@ app.get('/sitemap.xml', (_req, res) => {
     }));
   } catch (_) {}
 
-  const allPages = [...staticPages, ...propertyPages];
+  try {
+    const counties = db.prepare(`
+      SELECT DISTINCT c.name
+      FROM counties c
+      JOIN properties p ON p.county_id = c.id
+      WHERE p.status = 'active'
+      ORDER BY c.name
+    `).all();
+    countyPages = counties.map((county) => ({
+      loc: `${SITE}/counties/${slugify(county.name)}`,
+      lastmod: now,
+      changefreq: 'weekly',
+      priority: '0.6',
+    }));
+  } catch (_) {}
+
+  const allPages = [...staticPages, ...countyPages, ...propertyPages];
 
   const xml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -1236,11 +1531,505 @@ app.get('/sitemap.xml', (_req, res) => {
   res.send(xml);
 });
 
-// Public listing detail page
-app.get('/listing/:id', publicReadRateLimit, (_req, res) => {
-  const listingHtml = path.join(PROJECT_ROOT, 'app', 'listing.html');
-  const indexHtml = path.join(PROJECT_ROOT, 'app', 'index.html');
-  res.sendFile(fs.existsSync(listingHtml) ? listingHtml : indexHtml);
+app.get('/counties/:countySlug', publicReadRateLimit, (req, res) => {
+  const counties = db.prepare('SELECT id, name FROM counties ORDER BY name').all();
+  const county = counties.find((item) => slugify(item.name) === req.params.countySlug);
+  if (!county) return res.status(404).sendFile(path.join(PROJECT_ROOT, 'app', 'index.html'));
+
+  const listings = db.prepare(`
+    SELECT p.id, p.listing_slug, p.address, p.city, p.price, p.property_type, p.image_url
+    FROM properties p
+    WHERE p.county_id = ? AND p.status = 'active'
+    ORDER BY p.listed_at DESC
+  `).all(county.id);
+
+  const cards = listings.map((listing) => `
+    <a class="listing-card" href="/properties/${esc(listing.listing_slug || listing.id)}">
+      <div class="listing-image"${listing.image_url ? ` style="background-image:url('${esc(listing.image_url)}')"` : ''}></div>
+      <div class="listing-copy">
+        <div class="listing-price">${formatCurrency(listing.price)}</div>
+        <strong>${esc(listing.address)}</strong>
+        <span>${esc([listing.city, county.name + ' County'].filter(Boolean).join(', '))}</span>
+        <span>${esc(labelizePropertyType(listing.property_type))}</span>
+      </div>
+    </a>
+  `).join('');
+
+  res.send(`<!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>${esc(county.name)} County Land for Sale | MalickLand</title>
+    <meta name="description" content="${esc(`Browse ${county.name} County, West Virginia land opportunities from MalickLand. Get local property guidance, maps, and fast follow-up.`)}">
+    <link rel="canonical" href="https://malickland.net/counties/${esc(req.params.countySlug)}">
+    <style>
+      :root{--forest:#1b4332;--gold:#d4af37;--paper:#f7f2e8;--ink:#17211b;--muted:#5d6a62;--card:#fffdf8;--border:rgba(27,67,50,.12);--shadow:0 18px 50px rgba(18,43,33,.08)}
+      *{box-sizing:border-box} body{margin:0;font-family:"DM Sans","Segoe UI",sans-serif;background:linear-gradient(180deg,#f6f1e7 0%,#fbf9f4 100%);color:var(--ink)}
+      a{text-decoration:none;color:inherit}.shell{max-width:1120px;margin:0 auto;padding:0 1.25rem 3rem}
+      .topbar{padding:1.25rem 0;display:flex;justify-content:space-between;align-items:center;gap:1rem}
+      .brand{font-family:"Playfair Display",Georgia,serif;font-size:1.35rem;color:var(--forest);font-weight:700}.brand span{color:var(--gold)}
+      .hero,.list-grid{display:grid;gap:1rem}.hero{grid-template-columns:1.3fr .7fr;margin-bottom:1.5rem}
+      .panel,.cta-panel,.listing-card{background:var(--card);border:1px solid var(--border);border-radius:24px;box-shadow:var(--shadow)}
+      .panel,.cta-panel{padding:1.5rem}
+      h1,h2{font-family:"Playfair Display",Georgia,serif;color:var(--forest);margin:0 0 .85rem}
+      .eyebrow{font-size:.75rem;letter-spacing:.16em;text-transform:uppercase;color:#8b7c56;margin-bottom:.65rem}
+      .list-grid{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+      .listing-card{overflow:hidden}
+      .listing-image{height:180px;background:linear-gradient(135deg,#d7c7a3,#f0e7d3);background-size:cover;background-position:center}
+      .listing-copy{padding:1rem;display:grid;gap:.35rem}
+      .listing-price{font-size:1.2rem;font-weight:800;color:var(--forest)}
+      .cta-panel p,.panel p{color:var(--muted);line-height:1.7}
+      .btn{display:inline-flex;align-items:center;justify-content:center;margin-top:1rem;padding:.85rem 1.1rem;border-radius:999px;background:var(--gold);color:#1d170c;font-weight:800}
+      @media (max-width: 860px){.hero{grid-template-columns:1fr}}
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="topbar">
+        <a class="brand" href="/">Malick<span>Land</span></a>
+        <a href="/">← Back to home</a>
+      </div>
+      <div class="hero">
+        <div class="panel">
+          <div class="eyebrow">County Land Search</div>
+          <h1>${esc(county.name)} County land for sale</h1>
+          <p>Use this page to narrow down active MalickLand opportunities in ${esc(county.name)} County. If you need maps, access details, or want Phil to line up similar options nearby, reply from any listing page and the lead pipeline handles the follow-up.</p>
+        </div>
+        <div class="cta-panel">
+          <h2>Need local help fast?</h2>
+          <p>Email <a href="mailto:phil@malickland.net">phil@malickland.net</a> or start with one of the active listings below to request the packet and next-step guidance.</p>
+          <a class="btn" href="/">Browse all WV land</a>
+        </div>
+      </div>
+      <div class="list-grid">
+        ${cards || `<div class="panel"><h2>No active listings yet</h2><p>There are no active MalickLand listings in ${esc(county.name)} County right now. Check back soon or contact Phil for off-market options.</p></div>`}
+      </div>
+    </div>
+  </body>
+  </html>`);
+});
+
+app.get('/properties/:slug', publicReadRateLimit, (req, res) => {
+  const property = db.prepare(`
+    SELECT p.*, c.name AS county
+    FROM properties p
+    JOIN counties c ON c.id = p.county_id
+    WHERE (p.listing_slug = ? OR p.id = ?) AND p.status = 'active'
+  `).get(req.params.slug, req.params.slug);
+  if (!property) return res.status(404).sendFile(path.join(PROJECT_ROOT, 'app', 'index.html'));
+
+  const canonicalSlug = property.listing_slug || property.id;
+  const pageUrl = `https://malickland.net/properties/${canonicalSlug}`;
+  const titleBits = [property.address, property.city, property.county].filter(Boolean);
+  const pageTitle = `${titleBits.join(', ')} | ${labelizePropertyType(property.property_type)} for Sale`;
+  const description = property.marketing_description || property.property_description ||
+    `${labelizePropertyType(property.property_type)} for sale in ${property.county} County, West Virginia.`;
+  const marketing = buildPropertyMarketing(property, []);
+  const safeMetaDescription = esc(`${description} ${marketing.heroBody}`).slice(0, 220);
+
+  const detailItems = [
+    ['County', property.county ? `${property.county} County` : null],
+    ['Property Type', labelizePropertyType(property.property_type)],
+    ['Status', property.status ? property.status.charAt(0).toUpperCase() + property.status.slice(1) : null],
+    ['Acreage', property.acreage ? `${property.acreage} acres` : null],
+    ['Bedrooms', property.bedrooms || null],
+    ['Bathrooms', property.bathrooms || null],
+    ['Square Feet', formatNumber(property.sqft)],
+    ['Year Built', property.year_built || null],
+    ['Road Access', property.road_access || null],
+    ['Utilities', property.utilities_available || null],
+    ['Flood Zone', property.flood_zone || null],
+    ['School District', property.school_district || null],
+    ['MLS Number', property.mls_number || null],
+    ['Annual Tax', property.annual_tax ? formatCurrency(property.annual_tax) : null],
+  ].filter(([, value]) => value);
+
+  const similarProperties = db.prepare(`
+    SELECT p.id, p.listing_slug, p.address, p.city, p.price, p.property_type, p.image_url
+    FROM properties p
+    WHERE p.county_id = ? AND p.status = 'active' AND p.id <> ?
+    ORDER BY p.listed_at DESC
+    LIMIT 3
+  `).all(property.county_id, property.id);
+
+  const photoDir = path.join(PROJECT_ROOT, 'listings', canonicalSlug, 'photos', 'compressed');
+  const galleryPhotos = fs.existsSync(photoDir)
+    ? fs.readdirSync(photoDir)
+      .filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f))
+      .sort()
+      .map(f => `/images/${canonicalSlug}/photos/compressed/${f}`)
+    : [];
+  const gallery = galleryPhotos.length ? galleryPhotos : (property.image_url ? [property.image_url] : []);
+  const heroImage = gallery[0] || 'https://placehold.co/1200x720/1b4332/d4af37?text=MalickLand';
+  const galleryHtml = gallery.map((src, index) => `
+    <div class="thumb${index === 0 ? ' active' : ''}" data-src="${esc(src)}">
+      <img src="${esc(src)}" alt="${esc(property.address)} photo ${index + 1}" loading="lazy">
+    </div>`).join('');
+  const detailRows = detailItems.map(([label, value]) => `
+    <div class="fact-row">
+      <span class="fact-label">${esc(label)}</span>
+      <span class="fact-value">${esc(value)}</span>
+    </div>`).join('');
+  const highlightRows = marketing.heroHighlights.map((item) => `<li>${esc(item)}</li>`).join('');
+  const perfectForRows = marketing.perfectFor.map((item) => `<li>${esc(item)}</li>`).join('');
+  const useCaseRows = marketing.useCases.map((item) => `<li>${esc(item)}</li>`).join('');
+  const nearbyCards = similarProperties.map((listing) => `
+    <a class="nearby-card" href="/properties/${esc(listing.listing_slug || listing.id)}">
+      <div class="nearby-image"${listing.image_url ? ` style="background-image:url('${esc(listing.image_url)}')"` : ''}></div>
+      <div class="nearby-copy">
+        <div class="nearby-price">${formatCurrency(listing.price)}</div>
+        <strong>${esc(listing.address)}</strong>
+        <span>${esc([listing.city, property.county ? `${property.county} County` : 'West Virginia'].filter(Boolean).join(', '))}</span>
+        <span>${esc(labelizePropertyType(listing.property_type))}</span>
+      </div>
+    </a>
+  `).join('');
+
+  const schema = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'RealEstateListing',
+    name: pageTitle,
+    description,
+    url: pageUrl,
+    image: gallery,
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: property.address || undefined,
+      addressLocality: property.city || undefined,
+      addressRegion: property.state || 'WV',
+      postalCode: property.zip || undefined,
+      addressCountry: 'US',
+    },
+    offers: property.price ? {
+      '@type': 'Offer',
+      price: Number(property.price),
+      priceCurrency: 'USD',
+      availability: 'https://schema.org/InStock',
+    } : undefined,
+  }).replace(/</g, '\\u003c');
+
+  const topLeadForm = renderPropertyLeadForm({
+    formId: 'topLeadForm',
+    propertySlug: canonicalSlug,
+    title: 'Get full property details, maps, and access info',
+    intro: 'This is the fastest path to the packet. Share how you want to use the property and Phil can reply with the right next steps.',
+    submitLabel: 'Get the property packet',
+    leadType: 'property_packet',
+    showLeadTypeSelect: true,
+    defaultMessage: `Please send the full property packet for ${property.address}.`,
+  });
+  const midLeadForm = renderPropertyLeadForm({
+    formId: 'showingLeadForm',
+    propertySlug: canonicalSlug,
+    title: 'Request a showing or walk-through',
+    intro: 'Use this when you want access details, a map pin, or help planning a property walk.',
+    submitLabel: 'Request showing details',
+    leadType: 'request_showing',
+    compact: true,
+    defaultMessage: `I want showing or walk-through details for ${property.address}.`,
+  });
+  const bottomLeadForm = renderPropertyLeadForm({
+    formId: 'alertLeadForm',
+    propertySlug: canonicalSlug,
+    title: 'Get alerts for land like this',
+    intro: 'If this property is close but not perfect, Phil can send similar options in the same county or price range.',
+    submitLabel: 'Send similar land',
+    leadType: 'similar_land_alert',
+    compact: true,
+    defaultMessage: `Send me similar land opportunities to ${property.address}.`,
+  });
+
+  res.send(`<!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>${esc(pageTitle)} | MalickLand</title>
+    <meta name="description" content="${safeMetaDescription}">
+    <link rel="canonical" href="${esc(pageUrl)}">
+    <meta property="og:title" content="${esc(pageTitle)} | MalickLand">
+    <meta property="og:description" content="${safeMetaDescription}">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="${esc(pageUrl)}">
+    <meta property="og:image" content="${esc(heroImage)}">
+    <script type="application/ld+json">${schema}</script>
+    <style>
+      :root{
+        --forest:#1b4332;
+        --forest-deep:#122b21;
+        --gold:#d4af37;
+        --gold-soft:#f1df9a;
+        --paper:#f7f2e8;
+        --ink:#17211b;
+        --muted:#5d6a62;
+        --card:#fffdf8;
+        --border:rgba(27,67,50,.14);
+        --shadow:0 18px 50px rgba(18,43,33,.12);
+      }
+      *{box-sizing:border-box}
+      body{margin:0;font-family:"DM Sans","Segoe UI",sans-serif;background:linear-gradient(180deg,#f6f1e7 0%,#fbf9f4 100%);color:var(--ink)}
+      a{color:inherit}
+      .shell{max-width:1200px;margin:0 auto;padding:0 1.25rem 4rem}
+      .topbar{padding:1.1rem 0;display:flex;justify-content:space-between;align-items:center;gap:1rem}
+      .brand{font-family:"Playfair Display",Georgia,serif;font-size:1.35rem;color:var(--forest);text-decoration:none;font-weight:700}
+      .brand span{color:var(--gold)}
+      .back-link{text-decoration:none;color:var(--forest);font-weight:700}
+      .hero{display:grid;grid-template-columns:1.15fr .85fr;gap:1.5rem;align-items:start}
+      .gallery-card,.summary-card,.capture-card,.content-card,.cta-band,.nearby-card{background:var(--card);border:1px solid var(--border);border-radius:24px;box-shadow:var(--shadow)}
+      .gallery-card{overflow:hidden}
+      .hero-rail{display:grid;gap:1rem}
+      .hero-image{aspect-ratio:16/10;background:#e8e2d4}
+      .hero-image img{width:100%;height:100%;object-fit:cover;display:block}
+      .thumbs{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:.75rem;padding:1rem}
+      .thumb{cursor:pointer;border-radius:14px;overflow:hidden;border:2px solid transparent;background:#efe7d5}
+      .thumb.active{border-color:var(--gold)}
+      .thumb img{width:100%;height:84px;object-fit:cover;display:block}
+      .summary-card{padding:1.75rem;background:linear-gradient(180deg,var(--forest) 0%,var(--forest-deep) 100%);color:#fff}
+      .capture-card,.content-card,.cta-band{padding:1.5rem}
+      .eyebrow{letter-spacing:.16em;text-transform:uppercase;font-size:.75rem;color:var(--gold-soft);margin-bottom:.75rem}
+      h1,h2,h3{font-family:"Playfair Display",Georgia,serif}
+      h1{font-size:clamp(2.2rem,4vw,3.9rem);line-height:1.02;margin:0 0 .75rem}
+      h2{color:var(--forest);font-size:1.7rem;margin:.25rem 0 1rem}
+      h3{margin:0 0 .55rem;color:var(--forest);font-size:1.4rem}
+      .hero-body{color:rgba(255,255,255,.9);line-height:1.75}
+      .price{font-size:2rem;font-weight:800;color:var(--gold);margin:1rem 0}
+      .summary-meta{color:rgba(255,255,255,.82);font-size:1rem;margin-bottom:1rem}
+      .pill-row,.lead-grid,.cta-row,.section-grid,.triptych,.nearby-grid{display:grid;gap:1rem}
+      .pill-row{display:flex;flex-wrap:wrap;gap:.65rem;margin:1rem 0 1.25rem}
+      .pill{padding:.55rem .8rem;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);font-weight:700}
+      .hero-points,.bullet-list{margin:1rem 0 0;padding-left:1.1rem;display:grid;gap:.65rem}
+      .hero-points li,.bullet-list li{line-height:1.6}
+      .lead-form-wrap p,.body-copy,.nearby-intro{color:var(--muted);line-height:1.75}
+      .lead-form{display:grid;gap:.8rem;margin-top:1rem}
+      .lead-grid{grid-template-columns:1fr 1fr}
+      .lead-form label{display:grid;gap:.35rem;font-size:.9rem;font-weight:700;color:var(--forest)}
+      .lead-form input,.lead-form select,.lead-form textarea{width:100%;padding:.85rem 1rem;border-radius:14px;border:1px solid rgba(27,67,50,.15);font:inherit;background:#fff;color:var(--ink)}
+      .lead-form textarea{resize:vertical}
+      .lead-form button,.cta-button{padding:.95rem 1rem;border:none;border-radius:999px;background:var(--gold);color:var(--forest-deep);font-weight:800;font:inherit;cursor:pointer}
+      .lead-form button:hover,.cta-button:hover{opacity:.92}
+      .lead-status{min-height:1.2rem;font-size:.92rem;font-weight:700;color:var(--forest)}
+      .checkline{display:flex !important;grid-template-columns:none !important;align-items:center;gap:.65rem;font-weight:500 !important;color:var(--muted) !important}
+      .checkline input{width:auto}
+      .cta-row{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:1.15rem}
+      .cta-chip{display:flex;align-items:center;justify-content:center;padding:.9rem 1rem;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.08);color:#fff;font-weight:700;text-decoration:none}
+      .section-grid{grid-template-columns:1.1fr .9fr;margin-top:1.5rem}
+      .triptych{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:1rem}
+      .content-card p{color:#26372d;line-height:1.8}
+      .facts{display:grid;grid-template-columns:1fr 1fr;gap:.75rem 1rem;margin-top:1rem}
+      .fact-row{padding:.85rem 1rem;border-radius:16px;background:#f5efe2;border:1px solid rgba(27,67,50,.08)}
+      .fact-label{display:block;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:.35rem}
+      .fact-value{display:block;font-weight:700;color:var(--forest)}
+      .cta-band{margin-top:1rem;background:linear-gradient(180deg,#fffdf8 0%,#f4ecdb 100%)}
+      .nearby-grid{grid-template-columns:repeat(auto-fit,minmax(250px,1fr));margin-top:1rem}
+      .nearby-card{overflow:hidden;text-decoration:none}
+      .nearby-image{height:170px;background:linear-gradient(135deg,#d7c7a3,#f0e7d3);background-size:cover;background-position:center}
+      .nearby-copy{padding:1rem;display:grid;gap:.35rem}
+      .nearby-price{font-size:1.15rem;font-weight:800;color:var(--forest)}
+      .bottom-actions{display:flex;flex-wrap:wrap;gap:.85rem;margin-top:1rem}
+      .text-link{font-weight:700;color:var(--forest)}
+      @media (max-width: 1080px){
+        .hero,.section-grid,.triptych{grid-template-columns:1fr}
+      }
+      @media (max-width: 720px){
+        .lead-grid,.facts,.cta-row{grid-template-columns:1fr}
+        .summary-card,.capture-card,.content-card,.cta-band{padding:1.15rem}
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="topbar">
+        <a class="brand" href="/">Malick<span>Land</span></a>
+        <a class="back-link" href="/">← Back to Listings</a>
+      </div>
+
+      <div class="hero">
+        <div class="gallery-card">
+          <div class="hero-image">
+            <img id="heroPhoto" src="${esc(heroImage)}" alt="${esc(property.address)}">
+          </div>
+          ${gallery.length > 1 ? `<div class="thumbs">${galleryHtml}</div>` : ''}
+        </div>
+
+        <div class="hero-rail">
+          <div class="summary-card">
+            <div class="eyebrow">${esc(marketing.eyebrow)}</div>
+            <h1>${esc(property.address)}</h1>
+            <div class="summary-meta">${esc([property.city, property.county ? `${property.county} County` : null, property.state || 'WV', property.zip].filter(Boolean).join(', '))}</div>
+            <div class="price">${formatCurrency(property.price)}</div>
+            <div class="pill-row">
+              ${property.acreage ? `<span class="pill">${esc(property.acreage)} acres</span>` : ''}
+              ${property.bedrooms ? `<span class="pill">${esc(property.bedrooms)} bedrooms</span>` : ''}
+              ${property.bathrooms ? `<span class="pill">${esc(property.bathrooms)} baths</span>` : ''}
+              ${property.sqft ? `<span class="pill">${esc(formatNumber(property.sqft))} sqft</span>` : ''}
+              <span class="pill">${esc(labelizePropertyType(property.property_type))}</span>
+            </div>
+            <div class="hero-body">${esc(marketing.heroBody)}</div>
+            <div class="cta-row">
+              <a href="#topLeadForm" class="cta-chip" data-lead-choice="property_packet">Get packet</a>
+              <a href="#showingLeadForm" class="cta-chip" data-lead-choice="request_showing">Request showing</a>
+              <a href="#alertLeadForm" class="cta-chip" data-lead-choice="similar_land_alert">Send similar land</a>
+            </div>
+            <ul class="hero-points">${highlightRows}</ul>
+          </div>
+
+          <div class="capture-card">
+            ${topLeadForm}
+          </div>
+        </div>
+      </div>
+
+      <div class="section-grid">
+        <div class="content-card">
+          <h2>Property Overview</h2>
+          <p class="body-copy">${esc(description)}</p>
+          <p class="body-copy">${esc(property.property_description || property.marketing_description || description)}</p>
+        </div>
+        <div class="content-card">
+          <h2>Quick Facts</h2>
+          <div class="facts">${detailRows || '<p class="body-copy">Request the packet for the full property fact set.</p>'}</div>
+        </div>
+      </div>
+
+      <div class="triptych">
+        <div class="content-card">
+          <h2>Who This Property Is Perfect For</h2>
+          <ul class="bullet-list">${perfectForRows}</ul>
+        </div>
+        <div class="content-card">
+          <h2>What You Can Do Here</h2>
+          <ul class="bullet-list">${useCaseRows}</ul>
+        </div>
+        <div class="content-card">
+          <h2>What Happens After You Inquire</h2>
+          <ul class="bullet-list">
+            <li>Phil can send the packet, map context, and a plain-English next-step breakdown.</li>
+            <li>If you want to walk it, you can request showing details or access info directly from this page.</li>
+            <li>If this one is close but not perfect, you can get similar land options without starting over.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="cta-band">
+        ${midLeadForm}
+      </div>
+
+      <div class="content-card" style="margin-top:1rem">
+        <h2>${esc(marketing.nearbyHeading)}</h2>
+        <p class="nearby-intro">${esc(marketing.nearbyIntro)}</p>
+        ${nearbyCards ? `<div class="nearby-grid">${nearbyCards}</div>` : `
+          <div class="bottom-actions">
+            <a class="cta-button" href="${esc(marketing.countySearchPath)}">Browse ${esc(marketing.countySearchLabel)}</a>
+            <a class="text-link" href="mailto:phil@malickland.net">Email Phil for similar options</a>
+          </div>
+        `}
+      </div>
+
+      <div class="content-card" style="margin-top:1rem">
+        ${bottomLeadForm}
+      </div>
+    </div>
+
+    <script>
+      const heroPhoto = document.getElementById('heroPhoto');
+      const leadButtonCopy = {
+        property_packet: 'Get the property packet',
+        request_showing: 'Request a walk-through',
+        similar_land_alert: 'Send similar land'
+      };
+      const leadMessageCopy = {
+        property_packet: 'Please send the full property packet.',
+        request_showing: 'I want showing or access details for this property.',
+        similar_land_alert: 'Send me similar land opportunities in this area.'
+      };
+
+      document.querySelectorAll('.thumb').forEach((thumb) => {
+        thumb.addEventListener('click', () => {
+          document.querySelectorAll('.thumb').forEach((node) => node.classList.remove('active'));
+          thumb.classList.add('active');
+          heroPhoto.src = thumb.dataset.src;
+        });
+      });
+
+      function hydrateUtmFields(form) {
+        const params = new URLSearchParams(window.location.search);
+        ['utm_source', 'utm_medium', 'utm_campaign'].forEach((key) => {
+          const field = form.querySelector('[name="' + key + '"]');
+          if (field && params.get(key)) field.value = params.get(key);
+        });
+      }
+
+      function bindLeadForm(form) {
+        if (!form) return;
+        hydrateUtmFields(form);
+        const status = form.querySelector('[data-role="status"]');
+        const button = form.querySelector('button[type="submit"]');
+        const leadTypeField = form.querySelector('[name="leadType"]');
+        const messageField = form.querySelector('[name="message"]');
+
+        if (leadTypeField && button) {
+          const syncLeadCopy = () => {
+            const type = leadTypeField.value || 'property_packet';
+            button.textContent = leadButtonCopy[type] || leadButtonCopy.property_packet;
+            if (messageField && (!messageField.value || messageField.value.startsWith('Please send') || messageField.value.startsWith('I want showing') || messageField.value.startsWith('Send me similar'))) {
+              messageField.value = leadMessageCopy[type] || leadMessageCopy.property_packet;
+            }
+          };
+          leadTypeField.addEventListener('change', syncLeadCopy);
+          syncLeadCopy();
+        }
+
+        form.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          status.textContent = 'Sending...';
+          button.disabled = true;
+          const payload = Object.fromEntries(new FormData(form).entries());
+          payload.smsConsent = form.querySelector('[name="smsConsent"]')?.checked || false;
+          try {
+            const response = await fetch('/api/leads/property/' + encodeURIComponent(form.dataset.propertySlug), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Unable to submit your request right now.');
+            form.reset();
+            hydrateUtmFields(form);
+            status.textContent = data.message || 'Request sent. Phil will follow up shortly.';
+          } catch (error) {
+            status.textContent = error.message;
+          } finally {
+            button.disabled = false;
+            if (leadTypeField && button) {
+              button.textContent = leadButtonCopy[leadTypeField.value || 'property_packet'] || leadButtonCopy.property_packet;
+            }
+          }
+        });
+      }
+
+      document.querySelectorAll('.lead-form').forEach(bindLeadForm);
+
+      document.querySelectorAll('[data-lead-choice]').forEach((node) => {
+        node.addEventListener('click', (event) => {
+          const type = node.dataset.leadChoice;
+          const topForm = document.getElementById('topLeadForm');
+          const typeField = topForm?.querySelector('[name="leadType"]');
+          if (typeField) typeField.value = type;
+        });
+      });
+    </script>
+  </body>
+  </html>`);
+});
+
+app.get('/37-advent', (_req, res) => {
+  res.redirect(301, '/properties/advent-dr-hampshire-wv');
+});
+
+// Backward-compatible legacy route for older listing links.
+app.get('/listing/:id', publicReadRateLimit, (req, res) => {
+  res.redirect(301, `/properties/${encodeURIComponent(req.params.id)}`);
 });
 
 app.use(express.static(path.join(PROJECT_ROOT, 'app')));
@@ -1296,6 +2085,7 @@ function pruneOldBackups() {
 // Run once 10 min after startup, then every 24h
 setTimeout(runDbBackup, 10 * 60 * 1000);
 setInterval(runDbBackup, BACKUP_INTERVAL_MS);
+startLeadFollowupWorker({ db });
 
 // ── Admin HTML shell ──────────────────────────────────────
 function adminShell(title, body, csrf) {
@@ -1311,6 +2101,9 @@ function adminShell(title, body, csrf) {
     .sidebar a{display:block;color:#fff;text-decoration:none;padding:.6rem .75rem;border-radius:6px;margin-bottom:.25rem;font-size:.9rem}
     .sidebar a:hover{background:rgba(255,255,255,.1)}
     .sidebar .logout{position:absolute;bottom:1.5rem;left:1rem;right:1rem}
+    .sidebar .logout button{width:100%;background:none;border:none;color:#ffaaaa;text-align:left;
+      padding:.6rem .75rem;border-radius:6px;font-size:.9rem;cursor:pointer}
+    .sidebar .logout button:hover{background:rgba(255,255,255,.1)}
     .main{margin-left:220px;padding:2rem;min-height:100vh}
     .dash-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem}
     .dash-header h1{font-size:1.5rem;color:#1a3a2a}
@@ -1369,10 +2162,14 @@ function adminShell(title, body, csrf) {
   <div class="sidebar">
     <span class="logo">🏡 WVREA Admin</span>
     <a href="/admin">📋 Listings</a>
+    <a href="/admin/leads">🧲 Leads</a>
     <a href="/admin/new">➕ New Listing</a>
     <a href="/admin/integrations">🔗 Integrations</a>
     <a href="/" target="_blank">🌐 Public Site</a>
-    <a href="/admin/logout" class="logout" style="color:#ffaaaa">🚪 Logout</a>
+    <form method="POST" action="/admin/logout" class="logout">
+      <input type="hidden" name="_csrf" value="${esc(csrf||'')}">
+      <button type="submit">🚪 Logout</button>
+    </form>
   </div>
   <div class="main">${body}</div>
   <script>
@@ -1533,29 +2330,5 @@ function listingForm(p, counties) {
 }
 
 app.get('/advent-drive-land-hampshire-county-wv', (req, res) => {
-  res.send(`
-  <!DOCTYPE html>
-  <html>
-  <head>
-    <title>Land for Sale Hampshire County WV | Advent Dr</title>
-    <meta name="description" content="Land for sale in Hampshire County WV on Advent Drive. Hunting, recreation, or build opportunity near VA/DC.">
-
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "RealEstateListing",
-      "name": "Land for Sale – Advent Drive, Hampshire County WV",
-      "description": "Land for sale in Hampshire County West Virginia on Advent Drive.",
-      "url": "https://malickland.net/advent-drive-land-hampshire-county-wv"
-    }
-    </script>
-  </head>
-  <body>
-    <h1>Land for Sale – Advent Drive, Hampshire County WV</h1>
-    <p>This property offers privacy, usable acreage, and strong long-term value.</p>
-    <p><strong>Contact now to walk the property.</strong></p>
-    <a href="https://malickland.net">Back to MalickLand</a>
-  </body>
-  </html>
-  `);
+  res.redirect(301, '/properties/advent-dr-hampshire-wv');
 });

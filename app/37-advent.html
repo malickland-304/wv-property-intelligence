@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>37 Advent Dr Augusta WV | MalickLand</title>
+  <meta
+    name="description"
+    content="37 Advent Dr in Augusta, WV near Short Mountain. House, outbuildings, land opportunity, and strong upside."
+  />
+  <meta property="og:title" content="37 Advent Dr Augusta WV | MalickLand" />
+  <meta
+    property="og:description"
+    content="37 Advent Dr in Augusta, WV near Short Mountain. House, outbuildings, land opportunity, and strong upside."
+  />
+  <meta property="og:type" content="website" />
+  <style>
+    :root {
+      --bg: #f4f0e7;
+      --paper: #fcfbf7;
+      --ink: #111111;
+      --muted: #5f5a52;
+      --line: #cfc2aa;
+      --gold: #af8242;
+      --gold-dark: #8b632b;
+      --forest: #162017;
+      --forest-soft: #223126;
+      --white: #ffffff;
+      --shadow: 0 14px 40px rgba(17, 17, 17, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(175, 130, 66, 0.12), transparent 28%),
+        linear-gradient(180deg, #f7f3eb 0%, #efe7da 100%);
+      line-height: 1.5;
+    }
+
+    a { color: inherit; }
+
+    .page-shell {
+      width: min(1120px, calc(100% - 2rem));
+      margin: 0 auto;
+    }
+
+    .topbar {
+      padding: 1rem 0;
+    }
+
+    .topbar-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.9rem 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      border-radius: 18px;
+      background: rgba(18, 25, 18, 0.88);
+      color: var(--white);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .brand {
+      text-decoration: none;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .brand span { color: #d3a45c; }
+
+    .top-links {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .top-links a {
+      text-decoration: none;
+      font-size: 0.92rem;
+      opacity: 0.92;
+    }
+
+    .hero {
+      padding: 1rem 0 2rem;
+    }
+
+    .hero-wrap {
+      display: grid;
+      gap: 1.25rem;
+    }
+
+    .hero-panel,
+    .card,
+    .form-card {
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero-panel {
+      padding: 1.4rem;
+      background:
+        linear-gradient(135deg, rgba(17, 17, 17, 0.92), rgba(34, 49, 38, 0.96)),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent);
+      color: var(--white);
+      overflow: hidden;
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .hero-panel::after {
+      content: "";
+      position: absolute;
+      inset: auto -10% -24% auto;
+      width: 15rem;
+      height: 15rem;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(175, 130, 66, 0.35), transparent 68%);
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      margin-bottom: 0.8rem;
+      padding: 0.38rem 0.72rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #dbc293;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 700;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0 0 0.8rem;
+      line-height: 1.05;
+    }
+
+    h1 {
+      font-size: clamp(2.35rem, 8vw, 4.9rem);
+      max-width: 13ch;
+      font-family: Georgia, "Times New Roman", serif;
+    }
+
+    .hero-copy {
+      max-width: 38rem;
+      color: rgba(255, 255, 255, 0.88);
+      font-size: 1.05rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .cta-row,
+    .secondary-cta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.85rem;
+    }
+
+    .btn,
+    .btn-secondary,
+    .btn-text {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 3rem;
+      padding: 0.85rem 1.1rem;
+      border-radius: 999px;
+      font-weight: 800;
+      text-decoration: none;
+      transition: background 0.2s ease, transform 0.2s ease, color 0.2s ease;
+      border: none;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    .btn {
+      background: var(--gold);
+      color: #17120c;
+    }
+
+    .btn:hover,
+    .btn:focus-visible {
+      background: var(--gold-dark);
+      color: var(--white);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--white);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+
+    .btn-secondary:hover,
+    .btn-secondary:focus-visible {
+      background: rgba(255, 255, 255, 0.16);
+    }
+
+    .hero-grid {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1.35rem;
+    }
+
+    .hero-fact {
+      padding: 1rem;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .hero-fact strong {
+      display: block;
+      margin-bottom: 0.28rem;
+      color: #f3d19f;
+      font-size: 1.05rem;
+    }
+
+    .section {
+      padding: 1rem 0 1.35rem;
+    }
+
+    .card,
+    .form-card {
+      padding: 1.35rem;
+      background: rgba(252, 251, 247, 0.95);
+      border: 1px solid rgba(34, 49, 38, 0.1);
+    }
+
+    .section-title {
+      font-size: clamp(1.8rem, 5vw, 2.7rem);
+      font-family: Georgia, "Times New Roman", serif;
+      margin-bottom: 0.7rem;
+    }
+
+    .section-intro {
+      color: var(--muted);
+      max-width: 42rem;
+      margin-bottom: 1rem;
+    }
+
+    .point-list,
+    .fact-list,
+    .disclaimer-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 0.85rem;
+    }
+
+    .point-list li,
+    .fact-list li,
+    .disclaimer-list li {
+      position: relative;
+      padding-left: 1.1rem;
+    }
+
+    .point-list li::before,
+    .fact-list li::before,
+    .disclaimer-list li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.58rem;
+      width: 0.42rem;
+      height: 0.42rem;
+      border-radius: 999px;
+      background: var(--gold);
+    }
+
+    .why-block {
+      padding: 1.5rem;
+      background: linear-gradient(180deg, rgba(34, 49, 38, 0.95), rgba(22, 32, 23, 1));
+      color: var(--white);
+      border-radius: 26px;
+      box-shadow: var(--shadow);
+    }
+
+    .why-block p,
+    .cta-band p,
+    .fact-note,
+    .disclaimer {
+      color: rgba(255, 255, 255, 0.82);
+    }
+
+    .media-grid,
+    .facts-grid {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .media-placeholder {
+      padding: 1.1rem;
+      min-height: 11rem;
+      border-radius: 22px;
+      border: 1px dashed rgba(34, 49, 38, 0.24);
+      background:
+        linear-gradient(135deg, rgba(175, 130, 66, 0.08), rgba(22, 32, 23, 0.04)),
+        var(--paper);
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 0.45rem;
+    }
+
+    .media-placeholder strong {
+      font-size: 1rem;
+    }
+
+    .cta-band {
+      padding: 1.5rem;
+      border-radius: 26px;
+      background: linear-gradient(135deg, #1b271d, #314434);
+      color: var(--white);
+      box-shadow: var(--shadow);
+    }
+
+    .form-layout {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .form-intro {
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 0.9rem;
+    }
+
+    .form-row {
+      display: grid;
+      gap: 0.4rem;
+    }
+
+    label {
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      border-radius: 14px;
+      border: 1px solid #b8ae9f;
+      background: #fffefb;
+      color: var(--ink);
+      padding: 0.9rem 0.95rem;
+      font: inherit;
+    }
+
+    textarea {
+      min-height: 7.5rem;
+      resize: vertical;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.8rem;
+      padding: 0.2rem 0;
+    }
+
+    .checkbox-row input {
+      width: 1rem;
+      height: 1rem;
+      margin-top: 0.25rem;
+      flex: 0 0 auto;
+    }
+
+    .checkbox-row label {
+      font-weight: 600;
+      color: var(--muted);
+      margin: 0;
+    }
+
+    .submit-btn {
+      width: 100%;
+    }
+
+    .submit-btn:disabled {
+      opacity: 0.75;
+      cursor: wait;
+    }
+
+    .status {
+      min-height: 1.5rem;
+      margin: 0.8rem 0 0;
+      font-weight: 700;
+    }
+
+    .status.success { color: #1c6a3a; }
+    .status.error { color: #9f2f20; }
+
+    .detail-label {
+      display: block;
+      color: var(--muted);
+      font-size: 0.82rem;
+      margin-bottom: 0.12rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .disclaimer-card {
+      padding: 1.15rem 1.25rem;
+      border-radius: 18px;
+      background: rgba(22, 32, 23, 0.96);
+      color: var(--white);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .footer-note {
+      padding: 0 0 2.2rem;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    @media (min-width: 760px) {
+      .hero-wrap,
+      .form-layout,
+      .media-grid,
+      .facts-grid,
+      .hero-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .media-grid .media-placeholder:first-child {
+        grid-column: span 2;
+        min-height: 18rem;
+      }
+
+      .form-grid.two-up,
+      .facts-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (min-width: 980px) {
+      .hero-wrap {
+        grid-template-columns: minmax(0, 1.15fr) minmax(21rem, 0.85fr);
+        align-items: stretch;
+      }
+
+      .form-layout {
+        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+        align-items: start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="page-shell">
+      <div class="topbar-inner">
+        <a class="brand" href="/">Malick<span>Land</span></a>
+        <div class="top-links">
+          <a href="/">Main Site</a>
+          <a href="#request-info">Request Info</a>
+          <a href="sms:+15402461421">Text Phil</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="page-shell hero-wrap">
+        <div class="hero-panel">
+          <span class="eyebrow">37 Advent Dr • Augusta, West Virginia</span>
+          <h1>Backed by 8,000+ acres of state land.</h1>
+          <p class="hero-copy">
+            37 Advent Dr in Augusta, WV. House, outbuildings, and real upside for the buyer who understands land.
+          </p>
+          <div class="cta-row">
+            <a class="btn" href="#request-info">Get Details</a>
+            <a class="btn-secondary" href="#request-info">Schedule a Showing</a>
+          </div>
+
+          <div class="hero-grid">
+            <div class="hero-fact">
+              <strong>Land-first opportunity</strong>
+              Near Short Mountain with direct lifestyle appeal for hunting, recreation, and weekend use.
+            </div>
+            <div class="hero-fact">
+              <strong>Seller open to offers</strong>
+              Not a polished turnkey property. That’s part of why the upside is here.
+            </div>
+          </div>
+        </div>
+
+        <div class="form-card" id="request-info">
+          <h2 class="section-title" style="font-size:2rem;">Get Details on 37 Advent</h2>
+          <p class="form-intro">Serious interest only. Fill this out and Phil will reach out shortly.</p>
+
+          <form id="leadForm37Advent">
+            <input type="hidden" name="source" value="37-advent-landing-page" />
+            <input type="hidden" name="utm_source" id="utm_source" />
+            <input type="hidden" name="utm_medium" id="utm_medium" />
+            <input type="hidden" name="utm_campaign" id="utm_campaign" />
+
+            <div class="form-grid two-up">
+              <div class="form-row">
+                <label for="name">Name *</label>
+                <input id="name" name="name" type="text" required />
+              </div>
+
+              <div class="form-row">
+                <label for="phone">Phone *</label>
+                <input id="phone" name="phone" type="tel" required />
+              </div>
+
+              <div class="form-row" style="grid-column: 1 / -1;">
+                <label for="email">Email *</label>
+                <input id="email" name="email" type="email" required />
+              </div>
+
+              <div class="form-row">
+                <label for="buyerType">Buyer Type *</label>
+                <select id="buyerType" name="buyerType" required>
+                  <option value="">Select one</option>
+                  <option value="Land">Land</option>
+                  <option value="House">House</option>
+                  <option value="Recreational / Hunting">Recreational / Hunting</option>
+                  <option value="Investor">Investor</option>
+                  <option value="Combination">Combination</option>
+                </select>
+              </div>
+
+              <div class="form-row">
+                <label for="cashOrFinancing">Cash or Financing? *</label>
+                <select id="cashOrFinancing" name="cashOrFinancing" required>
+                  <option value="">Select one</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Financing">Financing</option>
+                  <option value="Not Sure Yet">Not Sure Yet</option>
+                </select>
+              </div>
+
+              <div class="form-row" style="grid-column: 1 / -1;">
+                <label for="timeline">Timeline</label>
+                <select id="timeline" name="timeline">
+                  <option value="">Select one</option>
+                  <option value="Ready Now">Ready Now</option>
+                  <option value="30-90 Days">30-90 Days</option>
+                  <option value="Just Looking">Just Looking</option>
+                </select>
+              </div>
+
+              <div class="form-row" style="grid-column: 1 / -1;">
+                <label for="message">Message</label>
+                <textarea id="message" name="message" rows="4" placeholder="Tell me what you're looking for."></textarea>
+              </div>
+            </div>
+
+            <div class="checkbox-row">
+              <input id="smsConsent" name="smsConsent" type="checkbox" />
+              <label for="smsConsent">I agree to be contacted by text about this property.</label>
+            </div>
+
+            <button type="submit" id="leadSubmitBtn" class="btn submit-btn">Get Details</button>
+            <p id="leadFormStatus" class="status" role="status" aria-live="polite"></p>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="page-shell card">
+        <h2 class="section-title">Why people are looking at this one</h2>
+        <ul class="point-list">
+          <li>Near Short Mountain and thousands of acres of state land</li>
+          <li>House needs work and seller is open to offers</li>
+          <li>Outbuildings already on site</li>
+          <li>Strong fit for recreation, hunting, investment, or weekend use</li>
+          <li>Additional nearby lots may also be available</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="page-shell why-block">
+        <h2 class="section-title">Why this property matters</h2>
+        <p>
+          This is not a polished cookie-cutter listing. The value here is the setting, access, and long-term upside.
+          If you understand land, you’ll understand this property.
+        </p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="page-shell">
+        <div class="cta-band">
+          <h2 class="section-title">Not perfect. That’s exactly why it’s interesting.</h2>
+          <p>
+            For the right buyer, this is the kind of property that gets harder to find every year.
+          </p>
+          <div class="secondary-cta">
+            <a class="btn" href="#request-info">Request Info</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="page-shell">
+        <h2 class="section-title">Photo and video placeholders</h2>
+        <p class="section-intro">
+          Swap these with your hero video, drone work, and house photos when you’re ready. For now, they hold the page structure without slowing it down.
+        </p>
+        <div class="media-grid">
+          <div class="media-placeholder">
+            <strong>Hero video placeholder</strong>
+            <span>Drop in a short land-first overview or drone sweep.</span>
+          </div>
+          <div class="media-placeholder">
+            <strong>Drone image placeholder</strong>
+            <span>Use this slot for top-down land context and state-land proximity.</span>
+          </div>
+          <div class="media-placeholder">
+            <strong>House image placeholder</strong>
+            <span>Use this slot for the structure, outbuildings, and condition reality.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="page-shell form-layout">
+        <div class="card">
+          <h2 class="section-title">Property facts</h2>
+          <div class="facts-grid">
+            <div>
+              <span class="detail-label">Address</span>
+              <strong>37 Advent Dr, Augusta, WV</strong>
+            </div>
+            <div>
+              <span class="detail-label">Property Type</span>
+              <strong>House + land</strong>
+            </div>
+            <div>
+              <span class="detail-label">Status</span>
+              <strong>Available</strong>
+            </div>
+            <div>
+              <span class="detail-label">Condition</span>
+              <strong>Needs work</strong>
+            </div>
+            <div>
+              <span class="detail-label">Seller Position</span>
+              <strong>Open to offers</strong>
+            </div>
+            <div>
+              <span class="detail-label">Highlights</span>
+              <strong>Near Short Mountain state land, outbuildings, strong recreational upside</strong>
+            </div>
+          </div>
+          <p class="fact-note" style="color: var(--muted); margin-top: 1rem;">
+            Edit these details anytime as photos, specs, and pricing notes tighten up.
+          </p>
+        </div>
+
+        <div class="card">
+          <h2 class="section-title">Want the details before someone else gets there first?</h2>
+          <p class="section-intro">
+            Serious buyers move fast on properties like this. If it fits what you’re after, get in touch now.
+          </p>
+          <div class="secondary-cta">
+            <a class="btn" href="#request-info">Request Info</a>
+            <a class="btn-secondary" href="sms:+15402461421">Text Phil</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="page-shell disclaimer-card">
+        <h3 style="font-size:1.35rem;">Important</h3>
+        <ul class="disclaimer-list">
+          <li>Information deemed reliable but not guaranteed.</li>
+          <li>Buyer should verify all property details independently.</li>
+          <li>Advisory guidance, if any, is separate from brokerage representation unless established in writing.</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <div class="page-shell footer-note">
+    MalickLand | West Virginia land, house, and rural opportunity.
+  </div>
+
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const form = document.getElementById('leadForm37Advent');
+      const status = document.getElementById('leadFormStatus');
+      const button = document.getElementById('leadSubmitBtn');
+      const fields = {
+        utm_source: document.getElementById('utm_source'),
+        utm_medium: document.getElementById('utm_medium'),
+        utm_campaign: document.getElementById('utm_campaign')
+      };
+
+      function fillTrackingFields() {
+        Object.keys(fields).forEach(function (key) {
+          if (fields[key]) fields[key].value = params.get(key) || '';
+        });
+      }
+
+      fillTrackingFields();
+
+      if (!form) return;
+
+      form.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        status.textContent = '';
+        status.className = 'status';
+        button.disabled = true;
+        button.textContent = 'Sending...';
+
+        const payload = {
+          name: form.name.value.trim(),
+          phone: form.phone.value.trim(),
+          email: form.email.value.trim(),
+          buyerType: form.buyerType.value,
+          cashOrFinancing: form.cashOrFinancing.value,
+          timeline: form.timeline.value,
+          message: form.message.value.trim(),
+          smsConsent: form.smsConsent.checked,
+          source: form.source.value,
+          utm_source: form.utm_source.value,
+          utm_medium: form.utm_medium.value,
+          utm_campaign: form.utm_campaign.value
+        };
+
+        try {
+          const response = await fetch('/api/leads/37-advent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          const data = await response.json().catch(function () {
+            return {};
+          });
+
+          if (!response.ok) {
+            throw new Error(data.error || 'There was a problem. Try again.');
+          }
+
+          status.textContent = 'Got it. Phil will reach out shortly.';
+          status.classList.add('success');
+          form.reset();
+          fillTrackingFields();
+        } catch (error) {
+          status.textContent = error.message || 'There was a problem. Try again.';
+          status.classList.add('error');
+        } finally {
+          button.disabled = false;
+          button.textContent = 'Get Details';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

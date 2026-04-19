@@ -172,6 +172,52 @@ CREATE TABLE IF NOT EXISTS contacts (
 
 CREATE INDEX IF NOT EXISTS idx_contacts_property ON contacts(property_id);
 
+CREATE TABLE IF NOT EXISTS leads (
+  id                UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  property_id       UUID          REFERENCES properties(id) ON DELETE SET NULL,
+  property_slug     VARCHAR(255),
+  property_address  TEXT,
+  name              VARCHAR(150)  NOT NULL,
+  email             VARCHAR(255),
+  phone             VARCHAR(30),
+  lead_type         VARCHAR(50)   NOT NULL DEFAULT 'property_packet',
+  buyer_intent      VARCHAR(100),
+  financing_type    VARCHAR(100),
+  timeline          VARCHAR(100),
+  message           TEXT,
+  sms_consent       BOOLEAN       NOT NULL DEFAULT FALSE,
+  source            VARCHAR(100)  DEFAULT 'web',
+  utm_source        VARCHAR(150),
+  utm_medium        VARCHAR(150),
+  utm_campaign      VARCHAR(150),
+  status            VARCHAR(50)   NOT NULL DEFAULT 'new',
+  follow_up_status  VARCHAR(50)   NOT NULL DEFAULT 'scheduled',
+  next_follow_up_at TIMESTAMPTZ,
+  created_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
+CREATE INDEX IF NOT EXISTS idx_leads_property_slug ON leads(property_slug);
+CREATE INDEX IF NOT EXISTS idx_leads_next_follow_up ON leads(next_follow_up_at);
+
+CREATE TABLE IF NOT EXISTS lead_followups (
+  id            UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  lead_id       UUID          NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+  step_code     VARCHAR(50)   NOT NULL,
+  channel       VARCHAR(20)   NOT NULL DEFAULT 'email',
+  template_name VARCHAR(100),
+  subject       TEXT,
+  body          TEXT,
+  due_at        TIMESTAMPTZ   NOT NULL,
+  status        VARCHAR(50)   NOT NULL DEFAULT 'pending',
+  sent_at       TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_lead_followups_lead_id ON lead_followups(lead_id);
+CREATE INDEX IF NOT EXISTS idx_lead_followups_due_at ON lead_followups(due_at);
+
 -- =============================================================
 -- FUNCTION: auto-update updated_at
 -- =============================================================
@@ -189,6 +235,10 @@ CREATE OR REPLACE TRIGGER set_timestamp_properties
 
 CREATE OR REPLACE TRIGGER set_timestamp_users
   BEFORE UPDATE ON users
+  FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+
+CREATE OR REPLACE TRIGGER set_timestamp_leads
+  BEFORE UPDATE ON leads
   FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 
 -- =============================================================
