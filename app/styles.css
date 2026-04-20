@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Lato:wght@400;600;700&display=swap');
+
 /* WV Property Intelligence - MalickLand branded */
 :root {
   --green:  #1B4332;
@@ -10,11 +12,10 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Segoe UI', sans-serif; background: var(--light); color: var(--text); }
+body { font-family: 'Lato', 'Segoe UI', sans-serif; background: var(--light); color: var(--text); }
 
 /* NAV */
-.navbar { display:flex; justify-content:space-between; align-items:center;
-  background:var(--green); padding:.75rem 2rem; position:sticky; top:0; z-index:100; }
+.navbar { display:flex; justify-content:space-between; align-items:center; background:var(--green); padding:.75rem 2rem; position:sticky; top:0; z-index:100; box-shadow:0 2px 12px rgba(0,0,0,.25); }
 .logo { display:flex; align-items:center; gap:.6rem; text-decoration:none;
   color:var(--gold); font-size:1.2rem; font-weight:700; letter-spacing:.5px; }
 .nav-logo { height:42px; width:auto; object-fit:contain; }
@@ -38,8 +39,35 @@ body { font-family: 'Segoe UI', sans-serif; background: var(--light); color: var
 .agent-cta:hover { opacity:.85; }
 
 /* HERO */
-#hero { background:var(--green); color:#fff; padding:3rem 2rem; text-align:center; }
-#hero h1 { font-size:2rem; color:var(--gold); margin-bottom:.5rem; }
+#hero {
+  position: relative;
+  background-image: url('/assets/advent-8.jpg');
+  background-size: cover;
+  background-position: center 40%;
+  background-attachment: scroll;
+  color: #fff;
+  padding: 5rem 2rem 4rem;
+  text-align: center;
+  min-height: 520px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(10, 30, 20, 0.72) 0%,
+    rgba(10, 30, 20, 0.60) 60%,
+    rgba(10, 30, 20, 0.80) 100%
+  );
+  z-index: 0;
+}
+#hero > * { position: relative; z-index: 1; }
+#hero > div { position: relative; z-index: 1; max-width: 700px; margin: 0 auto; width: 100%; }
+#hero h1 { font-family: "Playfair Display", serif; font-size:2.6rem; color:var(--gold); margin-bottom:.75rem; line-height:1.2; text-shadow: 0 2px 8px rgba(0,0,0,0.5); }
 #hero p  { margin-bottom:1.5rem; opacity:.85; }
 .search-bar { display:flex; gap:.5rem; max-width:600px; margin:0 auto; }
 .search-bar input { flex:1; padding:.75rem 1rem; border:none; border-radius:6px; font-size:1rem; }
@@ -56,18 +84,17 @@ button:hover { opacity:.85; }
 
 /* GRID */
 .listings-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:1.25rem; }
-.property-card { background:var(--card); border-radius:10px; overflow:hidden;
-  box-shadow:0 2px 8px rgba(0,0,0,.08); cursor:pointer; transition:transform .15s,box-shadow .15s; }
-.property-card:hover { transform:translateY(-3px); box-shadow:0 6px 18px rgba(0,0,0,.13); }
-.card-img { height:190px; background-size:cover; background-position:center;
-  position:relative; background-color:#ccc; }
+.property-card { background:var(--card); border-radius:12px; overflow:hidden; box-shadow:0 4px 16px rgba(0,0,0,.10); cursor:pointer; transition:transform .2s,box-shadow .2s; border:1px solid rgba(27,67,50,0.08); }
+.property-card:hover { transform:translateY(-5px); box-shadow:0 12px 32px rgba(0,0,0,.18); }
+.card-img { height:220px; background-size:cover; background-position:center; position:relative; background-color:#1B4332; overflow:hidden; transition:transform .3s ease; }
+.property-card:hover .card-img { transform:scale(1.03); }
 .badge { position:absolute; top:.6rem; padding:.25rem .6rem; border-radius:4px;
   font-size:.75rem; font-weight:700; }
 .badge.type        { right:.6rem; background:var(--green); color:var(--gold); }
 .badge.reduced     { left:.6rem;  background:#c0392b; color:#fff; }
 .badge.new-listing { left:.6rem;  background:#D4AF37; color:#1B4332; }
 .card-body { padding:1rem; }
-.card-price   { font-size:1.3rem; font-weight:700; color:var(--green); }
+.card-price   { font-family: "Playfair Display", serif; font-size:1.4rem; font-weight:700; color:var(--green); }
 .card-address { font-size:.95rem; margin:.25rem 0; }
 .card-county  { font-size:.82rem; color:var(--muted); margin-bottom:.5rem; }
 .card-details { display:flex; flex-wrap:wrap; gap:.4rem; font-size:.82rem; color:var(--muted); margin-bottom:.4rem; }
@@ -151,3 +178,234 @@ footer { background:var(--green); color:#fff; text-align:center; padding:1.5rem;
 /* LAND DETAIL GRID (modal) */
 .land-grid { display:grid; grid-template-columns:1fr 1fr; gap:.4rem .75rem; font-size:.83rem; margin:.6rem 0; padding:.75rem; background:#f9f6f0; border-radius:8px; }
 .land-grid .lg-label { color:#888; margin-right:.3rem; }
+
+/* ── Listing detail (/listing/:id) ─────────────────────── */
+.listing-page {
+  --bg: #0f1411;
+  --surface: #161d18;
+  --surface2: #1c2620;
+  --text: #e8e4dc;
+  --muted: #9ca89a;
+  --gold: #c9a84c;
+  --green: #1a3a2a;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.listing-page .navbar {
+  background: linear-gradient(180deg, #0a0f0c 0%, var(--green) 100%);
+  border-bottom: 1px solid rgba(201, 168, 76, 0.2);
+}
+.listing-page .logo .logo-mark {
+  color: var(--gold);
+  font-size: 1.1rem;
+}
+.listing-page .nav-logo {
+  display: none;
+}
+.listing-main {
+  flex: 1;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+  width: 100%;
+}
+.listing-loading,
+.listing-error {
+  text-align: center;
+  padding: 3rem;
+  color: var(--muted);
+}
+.listing-error {
+  color: #e8a598;
+}
+.back-link {
+  display: inline-block;
+  color: var(--gold);
+  text-decoration: none;
+  font-size: 0.9rem;
+  margin-bottom: 1.25rem;
+}
+.back-link:hover {
+  text-decoration: underline;
+}
+.detail-hero {
+  display: grid;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+@media (min-width: 800px) {
+  .detail-hero {
+    grid-template-columns: 1.1fr 1fr;
+    align-items: start;
+  }
+}
+.detail-image-wrap {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(201, 168, 76, 0.25);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+.detail-image {
+  width: 100%;
+  display: block;
+  max-height: 420px;
+  object-fit: cover;
+  background: var(--surface);
+}
+.detail-badge {
+  position: absolute;
+  top: 0.75rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.detail-badge.type {
+  right: 0.75rem;
+  background: var(--green);
+  color: var(--gold);
+}
+.detail-badge.reduced {
+  left: 0.75rem;
+  background: #8b3a2f;
+  color: #fff;
+}
+.detail-header {
+  padding: 0.25rem 0;
+}
+.detail-price {
+  font-size: 2rem;
+  color: var(--gold);
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+  letter-spacing: -0.02em;
+}
+.detail-address {
+  font-size: 1.1rem;
+  line-height: 1.4;
+  margin-bottom: 0.35rem;
+}
+.detail-county {
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-transform: capitalize;
+}
+.detail-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+.detail-chips .chip {
+  background: var(--surface2);
+  border: 1px solid rgba(201, 168, 76, 0.2);
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+.detail-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+@media (min-width: 768px) {
+  .detail-grid {
+    grid-template-columns: 1fr 380px;
+    align-items: start;
+  }
+}
+.detail-panel {
+  background: var(--surface);
+  border: 1px solid rgba(201, 168, 76, 0.15);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+.detail-panel h2 {
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gold);
+  margin-bottom: 1rem;
+}
+.detail-facts {
+  display: grid;
+  grid-template-columns: minmax(0, 120px) 1fr;
+  gap: 0.5rem 1rem;
+  font-size: 0.9rem;
+}
+.detail-facts dt {
+  color: var(--muted);
+}
+.detail-facts dd {
+  margin: 0;
+}
+.detail-prose {
+  margin-top: 1.25rem;
+  line-height: 1.65;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+.detail-inquiry input,
+.detail-inquiry textarea {
+  width: 100%;
+  margin-bottom: 0.65rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--surface2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+.detail-inquiry textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+.inquiry-note {
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin-bottom: 0.75rem;
+}
+.btn-inquiry {
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.85rem;
+  background: var(--gold);
+  color: var(--green);
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 1rem;
+}
+.btn-inquiry:hover {
+  opacity: 0.92;
+}
+.inquiry-status {
+  margin-top: 0.75rem;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+.listing-footer {
+  background: #0a0f0c;
+  color: var(--muted);
+  text-align: center;
+  padding: 1.25rem;
+  font-size: 0.82rem;
+  border-top: 1px solid rgba(201, 168, 76, 0.12);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
