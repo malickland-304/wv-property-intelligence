@@ -373,7 +373,27 @@ const upload = multer({
 });
 
 // ── Middleware ────────────────────────────────────────────
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      "default-src": ["'self'"],
+      "script-src": [
+        "'self'",
+        "'unsafe-inline'",
+        "https://www.googletagmanager.com",
+        "https://www.google-analytics.com",
+        "https://connect.facebook.net",
+      ],
+      "script-src-attr": ["'unsafe-inline'"],
+      "style-src": ["'self'", "'unsafe-inline'"],
+      "img-src": ["'self'", "data:", "https:"],
+      "connect-src": ["'self'", "https://www.google-analytics.com", "https://www.facebook.com"],
+      "object-src": ["'none'"],
+      "frame-ancestors": ["'self'"],
+    },
+  },
+}));
 app.use(cors());
 
 // ── www → apex canonical redirect ───────────────────────
@@ -381,11 +401,11 @@ app.use((req, res, next) => {
   const host = req.hostname || '';
   // www.malickland.net → malickland.net
   if (host.startsWith('www.')) {
-    return res.redirect(301, 'https://malickland.net' + req.originalUrl);
+    return res.redirect(301, 'https://malickland.net/');
   }
   // malickland.com (any variant) → malickland.net
   if (host === 'malickland.com' || host === 'www.malickland.com') {
-    return res.redirect(301, 'https://malickland.net' + req.originalUrl);
+    return res.redirect(301, 'https://malickland.net/');
   }
   next();
 });
@@ -438,6 +458,14 @@ const publicApiRateLimit = rateLimit({
   message: { error: 'Too many API requests. Please wait a moment.' },
 });
 
+const publicPageRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 180,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many requests. Please wait a moment.',
+});
+
 const chatRateLimit = rateLimit({
   windowMs: 60 * 1000,
   max: 20,
@@ -479,8 +507,6 @@ const uploadRateLimit = rateLimit({
   message: { error: 'Too many upload requests. Please slow down.' },
 });
 
-app.use('/api', publicApiRateLimit);
-
 // ── Admin login ───────────────────────────────────────────
 function loginPage(req, error = '') {
   const csrf = csrfToken(req);
@@ -509,7 +535,7 @@ function loginPage(req, error = '') {
   </div></body></html>`;
 }
 
-app.get('/admin/login', (req, res) => {
+app.get('/admin/login', adminLoginRateLimit, (req, res) => {
   res.send(loginPage(req));
 });
 
@@ -522,13 +548,13 @@ app.post('/admin/login', adminLoginRateLimit, requireCsrf, (req, res) => {
   }
 });
 
-app.post('/admin/logout', requireAuth, requireCsrf, (req, res) => {
+app.post('/admin/logout', adminActionsRateLimit, requireAuth, requireCsrf, (req, res) => {
   req.session.destroy();
   res.redirect('/admin/login');
 });
 
 // ── Admin dashboard ───────────────────────────────────────
-app.get('/admin', requireAuth, (req, res) => {
+app.get('/admin', adminActionsRateLimit, requireAuth, (req, res) => {
   const listings = db.prepare(`
     SELECT p.id, p.address, p.city, p.price, p.property_type, p.status,
            p.listing_slug, p.acreage, p.photos_uploaded, p.mls_status,
@@ -570,7 +596,7 @@ app.get('/admin', requireAuth, (req, res) => {
 });
 
 // ── New listing form ──────────────────────────────────────
-app.get('/admin/new', requireAuth, (req, res) => {
+app.get('/admin/new', adminActionsRateLimit, requireAuth, (req, res) => {
   const counties = db.prepare('SELECT id,name FROM counties ORDER BY name').all();
   res.send(adminShell(req, 'New Listing', listingForm(null, counties)));
 });
@@ -584,7 +610,7 @@ function normalizeAcreage(body) {
   return Number.isNaN(n) ? null : n;
 }
 
-app.post('/admin/new', requireAuth, requireCsrf, adminActionsRateLimit, (req, res) => {
+app.post('/admin/new', adminActionsRateLimit, requireAuth, requireCsrf, (req, res) => {
   const f = req.body;
   const id   = crypto.randomBytes(16).toString('hex');
   const slug = slugify((f.address||'listing') + '-' + (f.city||'wv')) || 'listing';
@@ -634,14 +660,14 @@ app.post('/admin/new', requireAuth, requireCsrf, adminActionsRateLimit, (req, re
 });
 
 // ── Edit listing ──────────────────────────────────────────
-app.get('/admin/edit/:id', requireAuth, (req, res) => {
+app.get('/admin/edit/:id', adminActionsRateLimit, requireAuth, (req, res) => {
   const p = db.prepare('SELECT * FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.redirect('/admin');
   const counties = db.prepare('SELECT id,name FROM counties ORDER BY name').all();
   res.send(adminShell(req, 'Edit Listing', listingForm(p, counties)));
 });
 
-app.post('/admin/edit/:id', requireAuth, requireCsrf, adminActionsRateLimit, (req, res) => {
+app.post('/admin/edit/:id', adminActionsRateLimit, requireAuth, requireCsrf, (req, res) => {
   const f = req.body;
   db.prepare(`
     UPDATE properties SET
@@ -676,7 +702,7 @@ app.post('/admin/edit/:id', requireAuth, requireCsrf, adminActionsRateLimit, (re
 });
 
 // ── Photo upload page ─────────────────────────────────────
-app.get('/admin/photos/:slug', requireAuth, (req, res) => {
+app.get('/admin/photos/:slug', adminActionsRateLimit, requireAuth, (req, res) => {
   const slug = safePathComponent(req.params.slug);
   if (!slug) return res.status(400).send('Invalid slug');
   const p = db.prepare('SELECT * FROM properties WHERE listing_slug=?').get(slug);
@@ -687,14 +713,7 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
       .filter(f => safePathComponent(f, { file: true }) && /\.(jpg|jpeg|png|webp)$/i.test(f));
   }
 
-  const photoGrid = photos.map((f,i) => `
-    <div class="photo-item">
-      <img src="/images/${encodeURIComponent(slug)}/photos/compressed/${encodeURIComponent(f)}" alt="Photo ${i+1}" />
-      <div class="photo-actions">
-        ${i===0 ? '<span class="primary-badge">Primary</span>' : `<button onclick="setPrimary(${jsLiteral(slug)},${jsLiteral(f)})">Set Primary</button>`}
-        <button onclick="deletePhoto(${jsLiteral(slug)},${jsLiteral(f)})" class="del">Delete</button>
-      </div>
-    </div>`).join('');
+  const photoListJson = JSON.stringify(photos).replace(/</g, '\\u003c');
 
   res.send(adminShell(req, 'Upload Photos', `
     <div class="dash-header">
@@ -714,12 +733,50 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
       <p id="progressText">Uploading...</p>
     </div>
     <h3 style="margin:1.5rem 0 1rem">Uploaded Photos (${photos.length})</h3>
-    <div class="photo-grid" id="photoGrid">${photoGrid}</div>
+    <div class="photo-grid" id="photoGrid"></div>
     <script>
       const slug = ${jsLiteral(slug)};
+      const photos = ${photoListJson};
       const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
       const dropZone = document.getElementById('dropZone');
       const fileInput = document.getElementById('fileInput');
+      const photoGrid = document.getElementById('photoGrid');
+
+      function renderPhoto(filename, index) {
+        const item = document.createElement('div');
+        item.className = 'photo-item';
+
+        const img = document.createElement('img');
+        img.src = '/images/' + encodeURIComponent(slug) + '/photos/compressed/' + encodeURIComponent(filename);
+        img.alt = 'Photo ' + (index + 1);
+        item.appendChild(img);
+
+        const actions = document.createElement('div');
+        actions.className = 'photo-actions';
+        if (index === 0) {
+          const badge = document.createElement('span');
+          badge.className = 'primary-badge';
+          badge.textContent = 'Primary';
+          actions.appendChild(badge);
+        } else {
+          const primary = document.createElement('button');
+          primary.type = 'button';
+          primary.textContent = 'Set Primary';
+          primary.addEventListener('click', () => setPrimary(slug, filename));
+          actions.appendChild(primary);
+        }
+
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'del';
+        del.textContent = 'Delete';
+        del.addEventListener('click', () => deletePhoto(slug, filename));
+        actions.appendChild(del);
+        item.appendChild(actions);
+        photoGrid.appendChild(item);
+      }
+
+      photos.forEach(renderPhoto);
 
       dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
       dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
@@ -768,7 +825,7 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
 });
 
 // Upload handler
-app.post('/admin/upload/:slug', requireAuth, requireCsrf, uploadRateLimit, upload.single('photo'), async (req, res) => {
+app.post('/admin/upload/:slug', uploadRateLimit, requireAuth, requireCsrf, upload.single('photo'), async (req, res) => {
   const slug = safePathComponent(req.params.slug);
   if (!slug) return res.status(400).json({ error: 'Invalid slug' });
   if (!req.file) return res.status(400).json({ error: 'No file' });
@@ -812,7 +869,7 @@ app.post('/admin/upload/:slug', requireAuth, requireCsrf, uploadRateLimit, uploa
 });
 
 // Set primary photo
-app.post('/admin/photos/:slug/primary', requireAuth, requireCsrf, adminActionsRateLimit, (req, res) => {
+app.post('/admin/photos/:slug/primary', adminActionsRateLimit, requireAuth, requireCsrf, (req, res) => {
   const slug = safePathComponent(req.params.slug);
   const filename = safePathComponent(req.body.filename, { file: true });
   if (!slug || !filename) return res.status(400).json({ error: 'Invalid slug or filename' });
@@ -822,7 +879,7 @@ app.post('/admin/photos/:slug/primary', requireAuth, requireCsrf, adminActionsRa
 });
 
 // Delete photo
-app.delete('/admin/photos/:slug/:filename', requireAuth, requireCsrf, adminActionsRateLimit, (req, res) => {
+app.delete('/admin/photos/:slug/:filename', adminActionsRateLimit, requireAuth, requireCsrf, (req, res) => {
   const slug = safePathComponent(req.params.slug);
   const filename = safePathComponent(req.params.filename, { file: true });
   if (!slug || !filename) return res.status(400).json({ error: 'Invalid slug or filename' });
@@ -834,7 +891,7 @@ app.delete('/admin/photos/:slug/:filename', requireAuth, requireCsrf, adminActio
 });
 
 // ── Report page ───────────────────────────────────────────
-app.get('/admin/report/:id', requireAuth, (req, res) => {
+app.get('/admin/report/:id', adminActionsRateLimit, requireAuth, (req, res) => {
   const p = db.prepare(`
     SELECT p.*, c.name AS county FROM properties p
     LEFT JOIN counties c ON c.id=p.county_id
@@ -954,7 +1011,7 @@ app.get('/admin/report/:id', requireAuth, (req, res) => {
   `));
 });
 
-app.post('/admin/report/:id/comps', requireAuth, requireCsrf, adminActionsRateLimit, (req, res) => {
+app.post('/admin/report/:id/comps', adminActionsRateLimit, requireAuth, requireCsrf, (req, res) => {
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
   const slug = safePathComponent(p.listing_slug || req.params.id);
@@ -964,7 +1021,7 @@ app.post('/admin/report/:id/comps', requireAuth, requireCsrf, adminActionsRateLi
   res.json({ ok:true });
 });
 
-app.post('/admin/report/:id/dd', requireAuth, requireCsrf, adminActionsRateLimit, (req, res) => {
+app.post('/admin/report/:id/dd', adminActionsRateLimit, requireAuth, requireCsrf, (req, res) => {
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
   const slug = safePathComponent(p.listing_slug || req.params.id);
@@ -975,7 +1032,7 @@ app.post('/admin/report/:id/dd', requireAuth, requireCsrf, adminActionsRateLimit
 });
 
 // ── Integrations status page ──────────────────────────────
-app.get('/admin/integrations', requireAuth, (req, res) => {
+app.get('/admin/integrations', adminActionsRateLimit, requireAuth, (req, res) => {
   const gmailUser    = process.env.GOOGLE_GMAIL_USER    || '';
   const notifyEmail  = process.env.NOTIFICATION_EMAIL   || '';
   const driveFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID || '';
@@ -1047,7 +1104,7 @@ app.get('/admin/integrations', requireAuth, (req, res) => {
 });
 
 // ── Leads view ───────────────────────────────────────────
-app.get('/admin/leads', requireAuth, adminActionsRateLimit, (req, res) => {
+app.get('/admin/leads', adminActionsRateLimit, requireAuth, (req, res) => {
   const leads = db.prepare(`
     SELECT ct.id, ct.name, ct.email, ct.phone, ct.message, ct.source,
            ct.created_at, ct.lead_status,
@@ -1103,7 +1160,7 @@ app.get('/admin/leads', requireAuth, adminActionsRateLimit, (req, res) => {
   `));
 });
 
-app.post('/admin/leads/:id/status', requireAuth, requireCsrf, adminActionsRateLimit, (req, res) => {
+app.post('/admin/leads/:id/status', adminActionsRateLimit, requireAuth, requireCsrf, (req, res) => {
   const valid = ['new','contacted','qualified','closed','lost'];
   const status = req.body.status;
   if (!valid.includes(status)) return res.status(400).json({ error: 'Invalid status' });
@@ -1112,21 +1169,21 @@ app.post('/admin/leads/:id/status', requireAuth, requireCsrf, adminActionsRateLi
 });
 
 // ── Public API ────────────────────────────────────────────
-app.get('/api/health', (_req, res) => res.json({ status:'ok', ts:new Date() }));
+app.get('/api/health', publicApiRateLimit, (_req, res) => res.json({ status:'ok', ts:new Date() }));
 
 // Public config (GA ID, Meta Pixel, etc.) — safe to expose
-app.get('/api/config', (_req, res) => {
+app.get('/api/config', publicApiRateLimit, (_req, res) => {
   res.json({
     gaId:    process.env.GA_MEASUREMENT_ID || '',
     pixelId: process.env.META_PIXEL_ID     || '',
   });
 });
 
-app.get('/api/counties', (_req, res) => {
+app.get('/api/counties', publicApiRateLimit, (_req, res) => {
   res.json(db.prepare('SELECT id,name FROM counties ORDER BY name').all());
 });
 
-app.get('/api/properties', (req, res) => {
+app.get('/api/properties', publicApiRateLimit, (req, res) => {
   try {
     const { q='',county='',type='',minPrice='',maxPrice='',minAcres='',maxAcres='',page=1,limit=12 } = req.query;
     const conditions = ["p.status = 'active'"];
@@ -1182,9 +1239,9 @@ function sendPropertyDetail(req, res) {
   res.json({ ...row, driveTimes: getDriveTimes(row.county) });
 }
 
-app.get('/api/properties/:id', sendPropertyDetail);
+app.get('/api/properties/:id', publicApiRateLimit, sendPropertyDetail);
 
-app.get('/api/analytics', (_req, res) => {
+app.get('/api/analytics', publicApiRateLimit, (_req, res) => {
   const row = db.prepare(`
     SELECT
       CAST(ROUND(AVG(price)) AS INTEGER) AS avgPrice,
@@ -1196,7 +1253,7 @@ app.get('/api/analytics', (_req, res) => {
   res.json(row);
 });
 
-app.post('/api/contacts', contactsRateLimit, (req, res) => {
+app.post('/api/contacts', contactsRateLimit, publicApiRateLimit, (req, res) => {
   const property_id = String(req.body.property_id || '').trim().slice(0, 128);
   const name = String(req.body.name || '').trim().slice(0, 120);
   const email = String(req.body.email || '').trim().toLowerCase().slice(0, 254);
@@ -1219,7 +1276,7 @@ app.post('/api/contacts', contactsRateLimit, (req, res) => {
   res.status(201).json({ id:result.lastInsertRowid });
 });
 
-app.post('/api/properties/generate-description', chatRateLimit, (req, res) => {
+app.post('/api/properties/generate-description', chatRateLimit, publicApiRateLimit, (req, res) => {
   const { acreage, county, property_type, features } = req.body;
   if (!county) return res.status(400).json({ error: 'county is required' });
   const type = (property_type || 'land').toLowerCase();
@@ -1236,7 +1293,7 @@ app.post('/api/properties/generate-description', chatRateLimit, (req, res) => {
 });
 
 // ── AI Chat widget ────────────────────────────────────────
-app.post('/api/chat', chatRateLimit, async (req, res) => {
+app.post('/api/chat', chatRateLimit, publicApiRateLimit, async (req, res) => {
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.json({ reply: "Hi! I'm Phil's property assistant. Call me at (540) 246-1421 or email phil@malickland.net for help." });
   }
@@ -1317,7 +1374,7 @@ Guidelines:
 });
 
 // ── Sitemap & Robots ─────────────────────────────────────
-app.get('/robots.txt', (_req, res) => {
+app.get('/robots.txt', publicPageRateLimit, (_req, res) => {
   res.type('text/plain');
   res.send(
 `User-agent: *
@@ -1328,7 +1385,7 @@ Sitemap: https://malickland.net/sitemap.xml`
   );
 });
 
-app.get('/sitemap.xml', (_req, res) => {
+app.get('/sitemap.xml', publicPageRateLimit, (_req, res) => {
   const SITE = 'https://malickland.net';
   const now  = new Date().toISOString().split('T')[0];
 
@@ -1409,7 +1466,7 @@ function gaSnippet() {
 }
 
 // ── County SEO pages  /wv/:county-county ──────────────────
-app.get('/wv/:slug', (req, res) => {
+app.get('/wv/:slug', publicPageRateLimit, (req, res) => {
   const slug = safePathComponent(req.params.slug); // e.g. "hampshire-county"
   if (!slug || !/-county$/i.test(slug)) return res.status(400).json({ error: 'Invalid county slug' });
   const countyName = slug
@@ -1584,7 +1641,7 @@ ${countyDt ? `<div class="drive-strip">🚗 <strong>${countyDt.dc}</strong> from
 });
 
 // ── Individual property SEO page  /properties/:slug ──────
-app.get('/properties/:slug', (req, res) => {
+app.get('/properties/:slug', publicPageRateLimit, (req, res) => {
   const slug = safePathComponent(req.params.slug);
   if (!slug) return res.status(400).send('Invalid property slug');
   const p = db.prepare(`
@@ -1857,7 +1914,7 @@ async function submitInquiry(propertyId, address) {
 });
 
 // Full listings/search page
-app.get('/listings', (_req, res) => res.sendFile(path.join(PROJECT_ROOT, 'app', 'listings.html'), { dotfiles: 'allow' }));
+app.get('/listings', publicPageRateLimit, (_req, res) => res.sendFile(path.join(PROJECT_ROOT, 'app', 'listings.html'), { dotfiles: 'allow' }));
 
 app.use(express.static(path.join(PROJECT_ROOT, 'app')));
 app.use((_req,res) => res.status(404).json({ error:'Not found' }));
@@ -2169,7 +2226,7 @@ function listingForm(p, counties) {
   </form>`;
 }
 
-app.get('/advent-drive-land-hampshire-county-wv', (req, res) => {
+app.get('/advent-drive-land-hampshire-county-wv', publicPageRateLimit, (req, res) => {
   res.send(`
   <!DOCTYPE html>
   <html>

@@ -251,23 +251,36 @@ test('listing filesystem paths go through safe path helpers', () => {
 
 test('admin mutating routes require CSRF protection', () => {
   const mutatingRoutes = [
-    "app.post('/admin/new', requireAuth, requireCsrf",
-    "app.post('/admin/edit/:id', requireAuth, requireCsrf",
-    "app.post('/admin/upload/:slug', requireAuth, requireCsrf",
-    "app.post('/admin/photos/:slug/primary', requireAuth, requireCsrf",
-    "app.delete('/admin/photos/:slug/:filename', requireAuth, requireCsrf",
-    "app.post('/admin/report/:id/comps', requireAuth, requireCsrf",
-    "app.post('/admin/report/:id/dd', requireAuth, requireCsrf",
-    "app.post('/admin/leads/:id/status', requireAuth, requireCsrf",
+    "app.post('/admin/new'",
+    "app.post('/admin/edit/:id'",
+    "app.post('/admin/upload/:slug'",
+    "app.post('/admin/photos/:slug/primary'",
+    "app.delete('/admin/photos/:slug/:filename'",
+    "app.post('/admin/report/:id/comps'",
+    "app.post('/admin/report/:id/dd'",
+    "app.post('/admin/leads/:id/status'",
   ];
   for (const route of mutatingRoutes) {
-    assert(serverCode.includes(route), `${route} is missing requireCsrf`);
+    const routeLine = serverCode.split('\n').find(line => line.includes(route));
+    assert(routeLine && routeLine.includes('requireCsrf'), `${route} is missing requireCsrf`);
   }
 });
 
 test('API and admin routes are rate limited', () => {
-  assert(serverCode.includes("app.use('/api', publicApiRateLimit)"),
-    'public API rate limiter should be mounted');
+  const limitedRoutes = [
+    ["app.get('/api/properties'", 'publicApiRateLimit'],
+    ["app.get('/api/properties/:id'", 'publicApiRateLimit'],
+    ["app.get('/api/analytics'", 'publicApiRateLimit'],
+    ["app.post('/api/contacts'", 'contactsRateLimit'],
+    ["app.post('/api/chat'", 'chatRateLimit'],
+    ["app.get('/wv/:slug'", 'publicPageRateLimit'],
+    ["app.get('/properties/:slug'", 'publicPageRateLimit'],
+    ["app.get('/listings'", 'publicPageRateLimit'],
+  ];
+  for (const [route, limiter] of limitedRoutes) {
+    const routeLine = serverCode.split('\n').find(line => line.includes(route));
+    assert(routeLine && routeLine.includes(limiter), `${route} is missing ${limiter}`);
+  }
   assert(serverCode.includes('adminActionsRateLimit'),
     'admin action rate limiter should exist');
   assert(serverCode.includes('uploadRateLimit'),
