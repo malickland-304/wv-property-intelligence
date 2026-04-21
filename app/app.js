@@ -4,6 +4,28 @@ const API = '/api';
 let currentPage = 1;
 let currentFilters = {};
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function jsString(value) {
+  return JSON.stringify(String(value ?? '')).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+}
+
+function safeImageUrl(value, fallback) {
+  const raw = String(value || '').trim();
+  if (!raw) return fallback;
+  if (/[\x00-\x1f"'<>\\\s]/.test(raw)) return fallback;
+  if (raw.startsWith('/') && !raw.startsWith('//')) return raw;
+  if (/^https:\/\/[a-z0-9.-]+(?:\/[^\s"'<>]*)?$/i.test(raw)) return raw;
+  return fallback;
+}
+
 // ── Init ─────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   loadCounties();
@@ -60,7 +82,7 @@ function appFeatureBadges(featStr) {
   if (!featStr) return '';
   return featStr.split(',').map(f => f.trim()).filter(Boolean).slice(0,4).map(f => {
     const icon = Object.entries(FEAT_ICONS).find(([k]) => f.toLowerCase().includes(k.toLowerCase()));
-    return `<span class="feat-badge">${icon ? icon[1]+' ' : ''}${f}</span>`;
+    return `<span class="feat-badge">${icon ? icon[1]+' ' : ''}${escapeHtml(f)}</span>`;
   }).join('');
 }
 
@@ -108,21 +130,23 @@ function renderListings({ properties, total, page }) {
     const driveTag = p.driveTimes ? `<div class="drive-tag">🚗 ${p.driveTimes.dc} to DC</div>` : '';
     const daysOld = Math.floor((Date.now() - new Date(p.listed_at)) / 86400000);
     const isNew = daysOld <= 14;
+    const idLiteral = jsString(p.id);
+    const imageUrl = safeImageUrl(p.image_url, 'https://placehold.co/400x240/1a3a2a/gold?text=No+Photo');
     return `
-    <div class="property-card" onclick="openDetail('${p.id}')">
-      <div class="card-img" style="background-image:url('${p.image_url || 'https://placehold.co/400x240/1a3a2a/gold?text=No+Photo'}')">
+    <div class="property-card" onclick="openDetail(${idLiteral})">
+      <div class="card-img" style="background-image:url('${escapeHtml(imageUrl)}')">
         ${p.price_reduced ? '<span class="badge reduced">Price Reduced</span>' : isNew ? '<span class="badge new-listing">New</span>' : ''}
-        <span class="badge type">${isLand ? '🌲 Land' : '🏡 '+p.property_type}</span>
+        <span class="badge type">${isLand ? '🌲 Land' : '🏡 '+escapeHtml(p.property_type)}</span>
       </div>
       <div class="card-body">
         <div class="card-price">${price}${ppa}</div>
-        <div class="card-address">${p.address}${p.city ? ', ' + p.city : ''}</div>
-        <div class="card-county">${p.county} County${p.zip ? ' · ' + p.zip : ''}</div>
+        <div class="card-address">${escapeHtml(p.address)}${p.city ? ', ' + escapeHtml(p.city) : ''}</div>
+        <div class="card-county">${escapeHtml(p.county)} County${p.zip ? ' · ' + escapeHtml(p.zip) : ''}</div>
         ${primaryStat ? `<div class="card-details"><span>${primaryStat}</span></div>` : ''}
         <div class="feat-badges">${appFeatureBadges(p.features)}</div>
         ${driveTag}
         <div class="card-listed">Listed ${timeAgo(p.listed_at)}</div>
-        <button class="request-info-btn" onclick="event.stopPropagation();openDetail('${p.id}')">View Details →</button>
+        <button class="request-info-btn" onclick="event.stopPropagation();openDetail(${idLiteral})">View Details →</button>
       </div>
     </div>`;
   }).join('');
@@ -155,17 +179,18 @@ async function openDetail(id) {
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${addr}`;
   const satUrl  = `https://www.google.com/maps/@?api=1&map_action=map&basemap=satellite&q=${addr}`;
   const ppa = isLand && p.price && p.lot_acres ? ` · $${Math.round(p.price/p.lot_acres).toLocaleString()}/acre` : '';
+  const imageUrl = safeImageUrl(p.image_url, 'https://placehold.co/800x400/1a3a2a/gold?text=No+Photo');
 
   modal.innerHTML = `
     <div class="modal-content">
       <button class="modal-close" onclick="closeModal()">✕</button>
-      <img src="${p.image_url || 'https://placehold.co/800x400/1a3a2a/gold?text=No+Photo'}" alt="Property" />
+      <img src="${escapeHtml(imageUrl)}" alt="Property" />
       <div class="modal-body">
         <h2>$${Number(p.price).toLocaleString()}<span style="font-size:1rem;font-weight:400;color:#666">${ppa}</span></h2>
-        <p class="modal-address">${p.address}${p.city ? ', ' + p.city : ''}, ${p.county} County${p.zip ? ' ' + p.zip : ''}</p>
+        <p class="modal-address">${escapeHtml(p.address)}${p.city ? ', ' + escapeHtml(p.city) : ''}, ${escapeHtml(p.county)} County${p.zip ? ' ' + escapeHtml(p.zip) : ''}</p>
 
         <div class="modal-details">
-          <span>${isLand ? '🌲 Land' : '🏡 '+p.property_type}</span>
+          <span>${isLand ? '🌲 Land' : '🏡 '+escapeHtml(p.property_type)}</span>
           ${p.lot_acres  ? `<span>🌿 ${p.lot_acres} acres</span>` : ''}
           ${p.bedrooms   ? `<span>🛏 ${p.bedrooms} bd</span>` : ''}
           ${p.bathrooms  ? `<span>🚿 ${p.bathrooms} ba</span>` : ''}
@@ -178,20 +203,20 @@ async function openDetail(id) {
         ${p.driveTimes ? `<div class="drive-row">🚗 <strong>${p.driveTimes.dc}</strong> to DC · <strong>${p.driveTimes.balt}</strong> to Baltimore · <strong>${p.driveTimes.pit}</strong> to Pittsburgh</div>` : ''}
 
         ${isLand ? `<div class="land-grid">
-          ${p.road_access    ? `<div><span class="lg-label">🛣 Road</span>${p.road_access}</div>` : ''}
-          ${p.broadband_type ? `<div><span class="lg-label">📶 Broadband</span>${p.broadband_type}</div>` : ''}
-          ${p.water_features ? `<div style="grid-column:1/-1"><span class="lg-label">💧 Water</span>${p.water_features}</div>` : ''}
-          ${p.mineral_rights && p.mineral_rights!=='unknown' ? `<div><span class="lg-label">⛏ Minerals</span>${p.mineral_rights}</div>` : ''}
-          ${p.nearest_town   ? `<div><span class="lg-label">📍 Town</span>${p.nearest_town}${p.miles_to_town?' ('+p.miles_to_town+' mi)':''}</div>` : ''}
+          ${p.road_access    ? `<div><span class="lg-label">🛣 Road</span>${escapeHtml(p.road_access)}</div>` : ''}
+          ${p.broadband_type ? `<div><span class="lg-label">📶 Broadband</span>${escapeHtml(p.broadband_type)}</div>` : ''}
+          ${p.water_features ? `<div style="grid-column:1/-1"><span class="lg-label">💧 Water</span>${escapeHtml(p.water_features)}</div>` : ''}
+          ${p.mineral_rights && p.mineral_rights!=='unknown' ? `<div><span class="lg-label">⛏ Minerals</span>${escapeHtml(p.mineral_rights)}</div>` : ''}
+          ${p.nearest_town   ? `<div><span class="lg-label">📍 Town</span>${escapeHtml(p.nearest_town)}${p.miles_to_town?' ('+escapeHtml(p.miles_to_town)+' mi)':''}</div>` : ''}
           ${p.annual_tax     ? `<div><span class="lg-label">💰 Taxes</span>$${Number(p.annual_tax).toLocaleString()}/yr</div>` : ''}
         </div>` : ''}
 
-        ${p.description ? `<p class="modal-desc">${p.description}</p>` : ''}
+        ${p.description ? `<p class="modal-desc">${escapeHtml(p.description)}</p>` : ''}
 
         <div class="modal-map-row">
-          <a href="${mapsUrl}" target="_blank" rel="noopener" class="modal-map-btn">🗺 Map</a>
-          <a href="${satUrl}"  target="_blank" rel="noopener" class="modal-map-btn">🛰 Satellite</a>
-          ${p.listing_slug ? `<a href="/properties/${p.listing_slug}" target="_blank" class="modal-map-btn">🔗 Full Page</a>` : ''}
+          <a href="${escapeHtml(mapsUrl)}" target="_blank" rel="noopener" class="modal-map-btn">🗺 Map</a>
+          <a href="${escapeHtml(satUrl)}"  target="_blank" rel="noopener" class="modal-map-btn">🛰 Satellite</a>
+          ${p.listing_slug ? `<a href="/properties/${encodeURIComponent(p.listing_slug)}" target="_blank" class="modal-map-btn">🔗 Full Page</a>` : ''}
         </div>
 
         <div class="modal-contact">
@@ -206,8 +231,8 @@ async function openDetail(id) {
           <input id="cName"  type="text"  placeholder="Your Name" />
           <input id="cEmail" type="email" placeholder="Email" />
           <input id="cPhone" type="tel"   placeholder="Phone (optional)" />
-          <textarea id="cMsg" placeholder="Message">I'm interested in ${p.address}.</textarea>
-          <button onclick="submitContact('${p.id}')">Send Inquiry</button>
+          <textarea id="cMsg" placeholder="Message">I'm interested in ${escapeHtml(p.address)}.</textarea>
+          <button onclick="submitContact(${jsString(p.id)})">Send Inquiry</button>
           <p style="font-size:.72rem;color:#999;margin-top:.5rem;line-height:1.4">By submitting, you consent to receive communications from MalickLand. Reply STOP to opt out.</p>
         </div>
       </div>

@@ -157,6 +157,13 @@ test('Modern /api/properties routes exist', () => {
     'Modern GET /api/properties/:id route not found');
 });
 
+test('Description generation uses /api/properties route', () => {
+  assert(serverCode.includes("app.post('/api/properties/generate-description'"),
+    'Description generator should use /api/properties/generate-description');
+  assert(!serverCode.includes("app.post('/api/listings/generate-description'"),
+    'Legacy /api/listings/generate-description route should not exist');
+});
+
 // ============================================================
 // Test Suite 4: Documentation References
 // ============================================================
@@ -214,9 +221,63 @@ test('escapeHtml handles ampersands', () => {
 });
 
 // ============================================================
-// Test Suite 6: Gmail Helper Integrity
+// Test Suite 6: Server Security Middleware and Path Safety
 // ============================================================
-console.log('\nTest Suite 6: Gmail Helper Integrity');
+console.log('\nTest Suite 6: Server Security Middleware and Path Safety');
+console.log('-------------------------------------------------------');
+
+test('server does not use shell exec for image processing', () => {
+  assert(!serverCode.includes("const { exec }") && !serverCode.includes('promisify(exec)'),
+    'server.js should not import/promisify shell exec');
+  const dangerousExecLines = serverCode
+    .split('\n')
+    .filter(line => /\bexec\s*\(/.test(line) && !line.includes('db.exec'));
+  assert.equal(dangerousExecLines.length, 0,
+    `server.js should not execute shell commands: ${dangerousExecLines.join('; ')}`);
+  assert(serverCode.includes('execFile('),
+    'server.js should use execFile for fixed binary invocation');
+});
+
+test('listing filesystem paths go through safe path helpers', () => {
+  assert(serverCode.includes('function safePathComponent'),
+    'safePathComponent helper is required');
+  assert(serverCode.includes('function listingPath'),
+    'listingPath helper is required');
+  assert(!serverCode.includes("path.join(PROJECT_ROOT,'listings',slug"),
+    'listing paths should not join raw slug values');
+  assert(!serverCode.includes("path.join(PROJECT_ROOT, 'listings', slug"),
+    'listing paths should not join raw slug values');
+});
+
+test('admin mutating routes require CSRF protection', () => {
+  const mutatingRoutes = [
+    "app.post('/admin/new', requireAuth, requireCsrf",
+    "app.post('/admin/edit/:id', requireAuth, requireCsrf",
+    "app.post('/admin/upload/:slug', requireAuth, requireCsrf",
+    "app.post('/admin/photos/:slug/primary', requireAuth, requireCsrf",
+    "app.delete('/admin/photos/:slug/:filename', requireAuth, requireCsrf",
+    "app.post('/admin/report/:id/comps', requireAuth, requireCsrf",
+    "app.post('/admin/report/:id/dd', requireAuth, requireCsrf",
+    "app.post('/admin/leads/:id/status', requireAuth, requireCsrf",
+  ];
+  for (const route of mutatingRoutes) {
+    assert(serverCode.includes(route), `${route} is missing requireCsrf`);
+  }
+});
+
+test('API and admin routes are rate limited', () => {
+  assert(serverCode.includes("app.use('/api', publicApiRateLimit)"),
+    'public API rate limiter should be mounted');
+  assert(serverCode.includes('adminActionsRateLimit'),
+    'admin action rate limiter should exist');
+  assert(serverCode.includes('uploadRateLimit'),
+    'upload rate limiter should exist');
+});
+
+// ============================================================
+// Test Suite 7: Gmail Helper Integrity
+// ============================================================
+console.log('\nTest Suite 7: Gmail Helper Integrity');
 console.log('------------------------------------');
 
 test('api/google.js does not reference undefined getGoogle helper', () => {
@@ -230,9 +291,9 @@ test('sendTextEmail constructs Gmail client from imported google object', () => 
 });
 
 // ============================================================
-// Test Suite 7: Lead Follow-up Scheduling
+// Test Suite 8: Lead Follow-up Scheduling
 // ============================================================
-console.log('\nTest Suite 7: Lead Follow-up Scheduling');
+console.log('\nTest Suite 8: Lead Follow-up Scheduling');
 console.log('--------------------------------------');
 
 test('new leads track the first pending follow-up timestamp', () => {
