@@ -702,18 +702,23 @@ app.post('/admin/edit/:id', adminActionsRateLimit, requireAuth, requireCsrf, (re
 });
 
 // ── Photo upload page ─────────────────────────────────────
+function listListingPhotos(slug) {
+  const photoDir = listingPath(slug, 'photos', 'compressed');
+  if (!fs.existsSync(photoDir)) return [];
+  return fs.readdirSync(photoDir)
+    .filter(f => safePathComponent(f, { file: true }) && /\.(jpg|jpeg|png|webp)$/i.test(f));
+}
+
+app.get('/admin/photos/:slug/list', adminActionsRateLimit, requireAuth, (req, res) => {
+  const slug = safePathComponent(req.params.slug);
+  if (!slug) return res.status(400).json({ error: 'Invalid slug' });
+  res.json({ photos: listListingPhotos(slug) });
+});
+
 app.get('/admin/photos/:slug', adminActionsRateLimit, requireAuth, (req, res) => {
   const slug = safePathComponent(req.params.slug);
   if (!slug) return res.status(400).send('Invalid slug');
   const p = db.prepare('SELECT * FROM properties WHERE listing_slug=?').get(slug);
-  const photoDir = listingPath(slug, 'photos', 'compressed');
-  let photos = [];
-  if (fs.existsSync(photoDir)) {
-    photos = fs.readdirSync(photoDir)
-      .filter(f => safePathComponent(f, { file: true }) && /\.(jpg|jpeg|png|webp)$/i.test(f));
-  }
-
-  const photoListJson = JSON.stringify(photos).replace(/</g, '\\u003c');
 
   res.send(adminShell(req, 'Upload Photos', `
     <div class="dash-header">
@@ -732,15 +737,15 @@ app.get('/admin/photos/:slug', adminActionsRateLimit, requireAuth, (req, res) =>
       <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
       <p id="progressText">Uploading...</p>
     </div>
-    <h3 style="margin:1.5rem 0 1rem">Uploaded Photos (${photos.length})</h3>
+    <h3 style="margin:1.5rem 0 1rem">Uploaded Photos <span id="photoCount"></span></h3>
     <div class="photo-grid" id="photoGrid"></div>
     <script>
       const slug = ${jsLiteral(slug)};
-      const photos = ${photoListJson};
       const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
       const dropZone = document.getElementById('dropZone');
       const fileInput = document.getElementById('fileInput');
       const photoGrid = document.getElementById('photoGrid');
+      const photoCount = document.getElementById('photoCount');
 
       function renderPhoto(filename, index) {
         const item = document.createElement('div');
@@ -776,7 +781,19 @@ app.get('/admin/photos/:slug', adminActionsRateLimit, requireAuth, (req, res) =>
         photoGrid.appendChild(item);
       }
 
-      photos.forEach(renderPhoto);
+      async function loadPhotos() {
+        const response = await fetch('/admin/photos/' + encodeURIComponent(slug) + '/list', {
+          headers: { 'Accept': 'application/json' },
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        const photos = Array.isArray(data.photos) ? data.photos.filter(name => typeof name === 'string') : [];
+        photoGrid.replaceChildren();
+        photoCount.textContent = '(' + photos.length + ')';
+        photos.forEach(renderPhoto);
+      }
+
+      loadPhotos();
 
       dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
       dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
