@@ -94,7 +94,7 @@ function renderListings({ properties, total, page }) {
         <span class="badge type">${escapeHtml(p.property_type)}</span>
       </div>
       <div class="card-body">
-        <div class="card-price">$${Number(p.price).toLocaleString()}</div>
+        <div class="card-price">${p.price != null ? '$' + Number(p.price).toLocaleString() : 'Contact for price'}</div>
         <div class="card-address">${escapeHtml(p.address)}${p.city ? ', ' + escapeHtml(p.city) : ''}</div>
         <div class="card-county">${escapeHtml(p.county)} County${p.zip ? ' · ' + escapeHtml(p.zip) : ''}</div>
         <div class="card-details">

@@ -1,50 +1,80 @@
 'use strict';
 
 /**
- * google.js — Shared helper for Gmail and Google Drive integrations.
+ * google.js — Gmail + Drive integration using Node built-ins only (no googleapis).
  *
- * Required environment variables (see .env.example):
+ * Required env vars:
  *   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN
- *   GOOGLE_GMAIL_USER       – Gmail address used to send notifications
- *   NOTIFICATION_EMAIL      – Destination address for inquiry emails
- *   GOOGLE_DRIVE_FOLDER_ID  – Root Drive folder for property photo folders
+ *   GOOGLE_GMAIL_USER       — Gmail address that sends notifications
+ *   NOTIFICATION_EMAIL      — Destination for inquiry emails
+ *   GOOGLE_DRIVE_FOLDER_ID  — Root Drive folder for photo backups (optional)
  *
- * All functions are no-ops when credentials are missing so that the server
- * starts correctly even before Google credentials are configured.
+ * All functions are no-ops when credentials are missing.
  */
 
-const { google } = require('googleapis');
-const fs = require('fs');
-const path = require('path');
+const https = require('https');
+const fs    = require('fs');
+const path  = require('path');
 
-// ── OAuth2 client ─────────────────────────────────────────────────────────────
-function createOAuthClient() {
+const folderCache = {};
+
+// ── HTTP helpers ──────────────────────────────────────────
+
+function httpsRequest(options, body) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, (res) => {
+      let raw = '';
+      res.on('data', c => raw += c);
+      res.on('end', () => {
+        try { resolve({ status: res.statusCode, body: JSON.parse(raw) }); }
+        catch { resolve({ status: res.statusCode, body: raw }); }
+      });
+    });
+    req.on('error', reject);
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
+// ── OAuth2 token refresh ──────────────────────────────────
+
+async function getAccessToken() {
   const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN } = process.env;
   if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_REFRESH_TOKEN) return null;
 
-  const client = new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET);
-  client.setCredentials({ refresh_token: GOOGLE_REFRESH_TOKEN });
-  return client;
+  const body = new URLSearchParams({
+    client_id:     GOOGLE_CLIENT_ID,
+    client_secret: GOOGLE_CLIENT_SECRET,
+    refresh_token: GOOGLE_REFRESH_TOKEN,
+    grant_type:    'refresh_token',
+  }).toString();
+
+  const res = await httpsRequest({
+    hostname: 'oauth2.googleapis.com',
+    path:     '/token',
+    method:   'POST',
+    headers:  {
+      'Content-Type':   'application/x-www-form-urlencoded',
+      'Content-Length': Buffer.byteLength(body),
+    },
+  }, body);
+
+  if (res.status !== 200 || !res.body.access_token) {
+    throw new Error('Token refresh failed: ' + JSON.stringify(res.body));
+  }
+  return res.body.access_token;
 }
 
-// ── Gmail – send inquiry notification ────────────────────────────────────────
-/**
- * Sends a Gmail notification email when a new contact inquiry is received.
- *
- * @param {{ name:string, email:string, phone?:string, message?:string }} contact
- * @param {{ address?:string, city?:string, county?:string, id:string }} property  May be null if no property linked.
- * @returns {Promise<void>}
- */
+// ── Gmail ─────────────────────────────────────────────────
+
 async function sendContactEmail(contact, property) {
   const { GOOGLE_GMAIL_USER, NOTIFICATION_EMAIL } = process.env;
   if (!GOOGLE_GMAIL_USER || !NOTIFICATION_EMAIL) return;
 
-  const auth = createOAuthClient();
-  if (!auth) return;
+  const token = await getAccessToken().catch(() => null);
+  if (!token) return;
 
   try {
-    const gmail = google.gmail({ version: 'v1', auth });
-
     const propertyLine = property
       ? `Property: ${property.address || ''}${property.city ? ', ' + property.city : ''}${property.county ? ' – ' + property.county + ' County' : ''} (ID: ${property.id})`
       : 'Property: (none specified)';
@@ -67,7 +97,6 @@ async function sendContactEmail(contact, property) {
 
     const subject = `New Inquiry: ${contact.name}${property ? ' – ' + (property.address || property.id) : ''}`;
 
-    // Build RFC 2822 message
     const raw = Buffer.from(
       [
         `From: WV Property Intelligence <${GOOGLE_GMAIL_USER}>`,
@@ -84,105 +113,140 @@ async function sendContactEmail(contact, property) {
       .replace(/\//g, '_')
       .replace(/=+$/, '');
 
-    await gmail.users.messages.send({ userId: 'me', requestBody: { raw } });
-    console.log(`[Gmail] Inquiry notification sent to ${NOTIFICATION_EMAIL}`);
+    const payload = JSON.stringify({ raw });
+    const res = await httpsRequest({
+      hostname: 'gmail.googleapis.com',
+      path:     '/gmail/v1/users/me/messages/send',
+      method:   'POST',
+      headers:  {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type':  'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+      },
+    }, payload);
+
+    if (res.status === 200) {
+      console.log(`[Gmail] Inquiry notification sent to ${NOTIFICATION_EMAIL}`);
+    } else {
+      throw new Error('Gmail send failed: ' + JSON.stringify(res.body));
+    }
   } catch (err) {
     console.error('[Gmail] Failed to send inquiry email:', err.message);
   }
 }
 
-// ── Drive – ensure property folder exists ─────────────────────────────────────
-/** Cache of slug → Drive folder ID to avoid redundant API calls. */
-const folderCache = {};
+// ── Drive ─────────────────────────────────────────────────
 
-/**
- * Finds or creates a Google Drive subfolder for the given property slug
- * inside the configured root folder.
- *
- * @param {object} drive  Authenticated googleapis Drive client.
- * @param {string} slug   Property listing slug.
- * @returns {Promise<string>} Drive folder ID for the property.
- */
-async function getOrCreatePropertyFolder(drive, slug) {
+async function getOrCreatePropertyFolder(token, slug) {
   if (folderCache[slug]) return folderCache[slug];
 
-  const rootFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+  const rootId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+  if (!rootId) return null;
 
-  // Check if folder already exists
-  // Escape backslashes first, then single quotes, for use in Drive API query string
   const safeName = slug.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-  const list = await drive.files.list({
-    q: `name='${safeName}' and mimeType='application/vnd.google-apps.folder' and '${rootFolderId}' in parents and trashed=false`,
-    fields: 'files(id)',
-    spaces: 'drive',
+  const q = encodeURIComponent(
+    `name='${safeName}' and mimeType='application/vnd.google-apps.folder' and '${rootId}' in parents and trashed=false`
+  );
+
+  const listRes = await httpsRequest({
+    hostname: 'www.googleapis.com',
+    path:     `/drive/v3/files?q=${q}&fields=files(id)&spaces=drive`,
+    method:   'GET',
+    headers:  { 'Authorization': `Bearer ${token}` },
   });
 
-  if (list.data.files && list.data.files.length > 0) {
-    folderCache[slug] = list.data.files[0].id;
+  if (listRes.body.files && listRes.body.files.length > 0) {
+    folderCache[slug] = listRes.body.files[0].id;
     return folderCache[slug];
   }
 
-  // Create folder
-  const folder = await drive.files.create({
-    requestBody: {
-      name: slug,
-      mimeType: 'application/vnd.google-apps.folder',
-      parents: [rootFolderId],
-    },
-    fields: 'id',
+  const createBody = JSON.stringify({
+    name: slug,
+    mimeType: 'application/vnd.google-apps.folder',
+    parents: [rootId],
   });
+  const createRes = await httpsRequest({
+    hostname: 'www.googleapis.com',
+    path:     '/drive/v3/files?fields=id',
+    method:   'POST',
+    headers:  {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type':  'application/json',
+      'Content-Length': Buffer.byteLength(createBody),
+    },
+  }, createBody);
 
-  folderCache[slug] = folder.data.id;
+  folderCache[slug] = createRes.body.id;
   return folderCache[slug];
 }
 
-// ── Drive – upload photo ──────────────────────────────────────────────────────
-/**
- * Uploads a photo file to Google Drive inside a per-property subfolder.
- *
- * @param {string} filePath  Absolute local path to the file to upload.
- * @param {string} fileName  Desired filename in Drive.
- * @param {string} slug      Property listing slug (used as subfolder name).
- * @returns {Promise<string|null>} Drive file ID, or null on failure/skip.
- */
 async function uploadPhotoToDrive(filePath, fileName, slug) {
-  const { GOOGLE_DRIVE_FOLDER_ID } = process.env;
-  if (!GOOGLE_DRIVE_FOLDER_ID) return null;
+  if (!process.env.GOOGLE_DRIVE_FOLDER_ID) return null;
 
-  const auth = createOAuthClient();
-  if (!auth) return null;
-
-  // Reject empty/missing filenames immediately
   const safeFileName = path.basename(fileName || '');
   if (!safeFileName) {
     console.error('[Drive] Rejected upload: empty filename');
     return null;
   }
 
-  // Enforce that filePath must resolve inside the allowed listings directory
   const LISTINGS_ROOT = path.resolve(path.join(__dirname, '..', 'listings'));
   const safeFilePath  = path.resolve(filePath);
   if (!safeFilePath.startsWith(LISTINGS_ROOT + path.sep) && safeFilePath !== LISTINGS_ROOT) {
-    console.error(`[Drive] Rejected upload: path '${safeFilePath}' is outside allowed directory`);
+    console.error(`[Drive] Rejected upload: path outside listings dir`);
     return null;
   }
 
+  const token = await getAccessToken().catch(() => null);
+  if (!token) return null;
+
   try {
-    const drive = google.drive({ version: 'v3', auth });
-    const folderId = await getOrCreatePropertyFolder(drive, slug);
+    const folderId = await getOrCreatePropertyFolder(token, slug);
+    if (!folderId) return null;
 
     const ext = path.extname(safeFileName).toLowerCase();
     const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
     const mimeType = mimeMap[ext] || 'image/jpeg';
 
-    const response = await drive.files.create({
-      requestBody: { name: safeFileName, parents: [folderId] },
-      media: { mimeType, body: fs.createReadStream(safeFilePath) },
-      fields: 'id,webViewLink',
-    });
+    const boundary = 'ml_bound_' + Date.now().toString(16);
+    const metadata = JSON.stringify({ name: safeFileName, parents: [folderId] });
+    const fileData = fs.readFileSync(safeFilePath);
 
-    console.log(`[Drive] Uploaded ${safeFileName} → ${response.data.webViewLink}`);
-    return response.data.id;
+    const multipart = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Type: application/json\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`),
+      fileData,
+      Buffer.from(`\r\n--${boundary}--`),
+    ]);
+
+    return new Promise((resolve) => {
+      const req = https.request({
+        hostname: 'www.googleapis.com',
+        path:     '/upload/drive/v3/files?uploadType=multipart&fields=id',
+        method:   'POST',
+        headers:  {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type':  `multipart/related; boundary=${boundary}`,
+          'Content-Length': multipart.length,
+        },
+      }, (res) => {
+        let raw = '';
+        res.on('data', c => raw += c);
+        res.on('end', () => {
+          try {
+            const data = JSON.parse(raw);
+            if (data.id) {
+              console.log(`[Drive] Uploaded ${safeFileName} (id: ${data.id})`);
+              resolve(data.id);
+            } else {
+              console.error('[Drive] Upload failed:', raw);
+              resolve(null);
+            }
+          } catch { resolve(null); }
+        });
+      });
+      req.on('error', err => { console.error('[Drive] Upload error:', err.message); resolve(null); });
+      req.write(multipart);
+      req.end();
+    });
   } catch (err) {
     console.error('[Drive] Failed to upload photo:', err.message);
     return null;

@@ -7,15 +7,14 @@ api/node_modules/
 api/.env
 secrets/
 
-# SQLite databases
+# SQLite — live database files (backups stay gitignored too)
 *.db
 *.db-shm
 *.db-wal
+*.db.bak
+*.db.bak.*
 *.sqlite-wal
 *.sqlite-shm
-
-# Uploads
-uploads/
 
 # macOS
 .DS_Store
@@ -23,6 +22,7 @@ uploads/
 # Build output
 dist/
 
-# Uploaded/generated listing assets
-listings/
-listings/*/photos/raw/
+# Per-property listing assets (runtime-generated, not source code)
+# _template is the exception — it is tracked as a folder structure reference
+listings/*
+!listings/_template

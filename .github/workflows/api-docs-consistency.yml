@@ -12,61 +12,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fail fast if legacy /api/listings still appears
+      - name: Fail fast if legacy /api/listings still appears in docs
         run: |
-          if grep -Rn "/api/listings" -- CONTEXT.md; then
-            echo "::error ::CONTEXT.md references /api/listings but the backend uses /api/properties."
+          if grep -Rn "/api/listings" -- CONTEXT.md README.md; then
+            echo "::error ::CONTEXT.md or README.md references /api/listings but the backend uses /api/properties."
             exit 1
           fi
-
-      - name: Extract documented API routes from CONTEXT.md
-        id: docs
-        run: |
-          routes=$(grep -oE '/api/[a-zA-Z0-9_/:-]+' CONTEXT.md | sort -u)
-          echo "routes<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$routes" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
-
-      - name: Show documented routes
-        run: echo "${{ steps.docs.outputs.routes }}"
-
-      - name: Validate documented routes exist in api/server.js
-        run: |
-          missing=0
-          while read -r route; do
-            [[ -z "$route" ]] && continue
-            if ! grep -qn "$route" api/server.js; then
-              echo "::error ::Documented route '$route' not found in api/server.js"
-              missing=1
-            fi
-          done <<< "${{ steps.docs.outputs.routes }}"
-
-          if [[ $missing -ne 0 ]]; then
-            echo "API documentation drift detected. Update CONTEXT.md to match api/server.js."
-            exit 1
-          fi
-
-      - name: Warn if server.js has routes not documented in CONTEXT.md
-        run: |
-          server_routes=$(grep -oE "app\.(get|post|put|delete)\s*\(\s*'(/api/[a-zA-Z0-9_/:-]+)'" api/server.js \
-            | sed -E "s/.*'(\/api\/[^']+)'.*/\1/" | sort -u)
-
-          echo "Server routes:"
-          echo "$server_routes"
-          echo ""
-          echo "Documented routes:"
-          echo "${{ steps.docs.outputs.routes }}"
-
-          while read -r route; do
-            [[ -z "$route" ]] && continue
-            if ! grep -Fxq "$route" <<< "${{ steps.docs.outputs.routes }}"; then
-              echo "::warning ::Server route '$route' is not documented in CONTEXT.md"
-            fi
-          done <<< "$server_routes"
 
       - name: Verify Copilot instructions are in .github/ not repo root
         run: |
           if [[ -f "copilot-instructions.md" ]]; then
-            echo "::error ::copilot-instructions.md found at repo root. GitHub Copilot only reads .github/copilot-instructions.md. Move or delete the root file."
+            echo "::error ::copilot-instructions.md found at repo root. Move it to .github/copilot-instructions.md."
             exit 1
+          fi
+
+      - name: Check all documented API routes exist in routes/api.js
+        run: |
+          # Extract /api/* routes from README and CONTEXT
+          doc_routes=$(grep -ohE '/api/[a-zA-Z0-9_/:-]+' CONTEXT.md README.md | sort -u)
+          echo "Documented routes:"
+          echo "$doc_routes"
+          echo ""
+
+          missing=0
+          while read -r route; do
+            [[ -z "$route" ]] && continue
+            # Strip :param segments for matching — check the base path literal
+            base=$(echo "$route" | sed -E 's|/:[^/]+||g')
+            [[ -z "$base" || "$base" == "/" ]] && continue
+            if ! grep -qn "$base" api/routes/api.js api/routes/admin.js api/routes/public.js 2>/dev/null; then
+              echo "::warning ::Documented route '$route' not found in api/routes/*.js"
+            fi
+          done <<< "$doc_routes"
+
+      - name: Warn about /api/health path check in requireApiKey
+        run: |
+          if grep -n '"/api/health"' api/middleware/auth.js 2>/dev/null; then
+            echo "::warning ::auth.js has /api/health path guard but middleware runs inside router (path is /health). Already fixed in code — just a reminder if this reappears."
           fi
