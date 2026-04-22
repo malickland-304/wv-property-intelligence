@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const API_KEY = process.env.API_KEY;
 
 function requireApiKey(req, res, next) {
-  if (req.method === 'GET' || req.path === '/health') return next();
+  if (req.path === '/health') return next();
   if (!API_KEY) {
     if (process.env.NODE_ENV === 'production')
       return res.status(500).json({ error: 'API_KEY not configured' });
