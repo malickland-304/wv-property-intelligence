@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Lato:wght@400;600;700&display=swap');
+
 /* WV Property Intelligence - MalickLand branded */
 :root {
   --green:  #1B4332;
@@ -10,11 +12,10 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Segoe UI', sans-serif; background: var(--light); color: var(--text); }
+body { font-family: 'Lato', 'Segoe UI', sans-serif; background: var(--light); color: var(--text); }
 
 /* NAV */
-.navbar { display:flex; justify-content:space-between; align-items:center;
-  background:var(--green); padding:.75rem 2rem; position:sticky; top:0; z-index:100; }
+.navbar { display:flex; justify-content:space-between; align-items:center; background:var(--green); padding:.75rem 2rem; position:sticky; top:0; z-index:100; box-shadow:0 2px 12px rgba(0,0,0,.25); }
 .logo { display:flex; align-items:center; gap:.6rem; text-decoration:none;
   color:var(--gold); font-size:1.2rem; font-weight:700; letter-spacing:.5px; }
 .nav-logo { height:42px; width:auto; object-fit:contain; }
@@ -38,8 +39,35 @@ body { font-family: 'Segoe UI', sans-serif; background: var(--light); color: var
 .agent-cta:hover { opacity:.85; }
 
 /* HERO */
-#hero { background:var(--green); color:#fff; padding:3rem 2rem; text-align:center; }
-#hero h1 { font-size:2rem; color:var(--gold); margin-bottom:.5rem; }
+#hero {
+  position: relative;
+  background-image: url('/assets/advent-8.jpg');
+  background-size: cover;
+  background-position: center 40%;
+  background-attachment: scroll;
+  color: #fff;
+  padding: 5rem 2rem 4rem;
+  text-align: center;
+  min-height: 520px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(10, 30, 20, 0.72) 0%,
+    rgba(10, 30, 20, 0.60) 60%,
+    rgba(10, 30, 20, 0.80) 100%
+  );
+  z-index: 0;
+}
+#hero > * { position: relative; z-index: 1; }
+#hero > div { position: relative; z-index: 1; max-width: 700px; margin: 0 auto; width: 100%; }
+#hero h1 { font-family: "Playfair Display", serif; font-size:2.6rem; color:var(--gold); margin-bottom:.75rem; line-height:1.2; text-shadow: 0 2px 8px rgba(0,0,0,0.5); }
 #hero p  { margin-bottom:1.5rem; opacity:.85; }
 .search-bar { display:flex; gap:.5rem; max-width:600px; margin:0 auto; }
 .search-bar input { flex:1; padding:.75rem 1rem; border:none; border-radius:6px; font-size:1rem; }
@@ -56,17 +84,17 @@ button:hover { opacity:.85; }
 
 /* GRID */
 .listings-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:1.25rem; }
-.property-card { background:var(--card); border-radius:10px; overflow:hidden;
-  box-shadow:0 2px 8px rgba(0,0,0,.08); cursor:pointer; transition:transform .15s,box-shadow .15s; }
-.property-card:hover { transform:translateY(-3px); box-shadow:0 6px 18px rgba(0,0,0,.13); }
-.card-img { height:190px; background-size:cover; background-position:center;
-  position:relative; background-color:#ccc; }
+.property-card { background:var(--card); border-radius:12px; overflow:hidden; box-shadow:0 4px 16px rgba(0,0,0,.10); cursor:pointer; transition:transform .2s,box-shadow .2s; border:1px solid rgba(27,67,50,0.08); }
+.property-card:hover { transform:translateY(-5px); box-shadow:0 12px 32px rgba(0,0,0,.18); }
+.card-img { height:220px; background-size:cover; background-position:center; position:relative; background-color:#1B4332; overflow:hidden; transition:transform .3s ease; }
+.property-card:hover .card-img { transform:scale(1.03); }
 .badge { position:absolute; top:.6rem; padding:.25rem .6rem; border-radius:4px;
   font-size:.75rem; font-weight:700; }
-.badge.type     { right:.6rem; background:var(--green); color:var(--gold); }
-.badge.reduced  { left:.6rem;  background:#c0392b; color:#fff; }
+.badge.type        { right:.6rem; background:var(--green); color:var(--gold); }
+.badge.reduced     { left:.6rem;  background:#c0392b; color:#fff; }
+.badge.new-listing { left:.6rem;  background:#D4AF37; color:#1B4332; }
 .card-body { padding:1rem; }
-.card-price   { font-size:1.3rem; font-weight:700; color:var(--green); }
+.card-price   { font-family: "Playfair Display", serif; font-size:1.4rem; font-weight:700; color:var(--green); }
 .card-address { font-size:.95rem; margin:.25rem 0; }
 .card-county  { font-size:.82rem; color:var(--muted); margin-bottom:.5rem; }
 .card-details { display:flex; flex-wrap:wrap; gap:.4rem; font-size:.82rem; color:var(--muted); margin-bottom:.4rem; }
@@ -101,7 +129,15 @@ button:hover { opacity:.85; }
 .modal-address { color:var(--muted); margin:.25rem 0 1rem; }
 .modal-details { display:flex; flex-wrap:wrap; gap:.75rem; margin-bottom:1rem; }
 .modal-details span { background:var(--light); padding:.4rem .8rem; border-radius:6px; font-size:.875rem; }
-.modal-desc { color:var(--text); line-height:1.6; margin-bottom:1.5rem; }
+.modal-desc { color:var(--text); line-height:1.6; margin-bottom:1.25rem; }
+.modal-map-row { display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1.25rem; }
+.modal-map-btn {
+  display:inline-flex; align-items:center; gap:.4rem;
+  padding:.55rem 1rem; border-radius:8px; font-size:.85rem; font-weight:600;
+  background:#f3f4f6; color:#1a1a1a; border:1px solid #e0e0e0;
+  text-decoration:none; transition:background .15s;
+}
+.modal-map-btn:hover { background:#e5e7eb; }
 .modal-contact h3 { color:var(--green); margin-bottom:.75rem; }
 .modal-contact input, .modal-contact textarea {
   width:100%; padding:.65rem .9rem; border:1px solid var(--border);
@@ -130,6 +166,18 @@ footer { background:var(--green); color:#fff; text-align:center; padding:1.5rem;
   .agent-inner { flex-direction:column; text-align:center; gap:1.5rem; }
   .agent-photo { width:160px; height:160px; }
 }
+
+/* FEATURE BADGES */
+.feat-badges { display:flex; flex-wrap:wrap; gap:.3rem; margin:.4rem 0; }
+.feat-badge { font-size:.74rem; background:#f0fdf4; border:1px solid #bbf7d0; padding:.2rem .55rem; border-radius:20px; color:#166534; white-space:nowrap; }
+
+/* DRIVE TIME */
+.drive-tag { font-size:.75rem; color:#6b7280; margin:.3rem 0 .5rem; }
+.drive-row { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:.5rem .85rem; font-size:.83rem; margin:.6rem 0; }
+
+/* LAND DETAIL GRID (modal) */
+.land-grid { display:grid; grid-template-columns:1fr 1fr; gap:.4rem .75rem; font-size:.83rem; margin:.6rem 0; padding:.75rem; background:#f9f6f0; border-radius:8px; }
+.land-grid .lg-label { color:#888; margin-right:.3rem; }
 
 /* ── Listing detail (/listing/:id) ─────────────────────── */
 .listing-page {

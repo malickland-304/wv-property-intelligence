@@ -3,14 +3,48 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MalickLand | West Virginia Land & Property</title>
-  <meta name="description" content="Find land, farms, cabin lots, and rural property across all 55 West Virginia counties. AI-powered pricing, local expertise, fast response." />
+  <title>MalickLand | West Virginia Land, Homes & Property</title>
+  <meta name="description" content="Find land, homes, farms, and rural property across all 55 West Virginia counties. AI-powered pricing, local expertise, fast response." />
   <!-- Open Graph -->
-  <meta property="og:title" content="MalickLand | West Virginia Land & Property" />
-  <meta property="og:description" content="Find land, farms, and rural property across all 55 WV counties. AI-powered pricing, local WV expertise." />
+  <meta property="og:title" content="MalickLand | West Virginia Land, Homes & Property" />
+  <meta property="og:description" content="Find land, homes, farms, and rural property across all 55 WV counties. AI-powered pricing, local WV expertise." />
   <meta property="og:url" content="https://malickland.net" />
   <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://malickland.net/public/brand/og-image.jpg" />
   <link rel="canonical" href="https://malickland.net" />
+  <!-- Analytics + Meta Pixel — loaded from /api/config (GA_MEASUREMENT_ID, META_PIXEL_ID) -->
+  <script>
+    fetch('/api/config').then(r=>r.json()).then(cfg=>{
+      // Google Analytics 4
+      if (cfg.gaId) {
+        var s = document.createElement('script');
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=' + cfg.gaId;
+        s.async = true; document.head.appendChild(s);
+        window.dataLayer = window.dataLayer || [];
+        window.gtag = function(){dataLayer.push(arguments);};
+        gtag('js', new Date()); gtag('config', cfg.gaId);
+      }
+      // Meta Pixel
+      if (cfg.pixelId) {
+        !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+        n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}
+        (window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', cfg.pixelId);
+        fbq('track', 'PageView');
+        window._fbq_ready = true;
+      }
+    }).catch(()=>{});
+
+    // Helper: fire Pixel event safely
+    window.pixelEvent = function(event, data) {
+      if (window.fbq) fbq('track', event, data || {});
+    };
+  </script>
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/public/brand/favicon.png" />
+  <link rel="apple-touch-icon" href="/public/brand/favicon.png" />
   <!-- Schema Markup -->
   <script type="application/ld+json">
   {
@@ -19,6 +53,7 @@
     "name": "MalickLand",
     "url": "https://malickland.net",
     "telephone": "(540) 246-1421",
+    "description": "West Virginia land, homes, and rural property specialist serving all 55 WV counties.",
     "areaServed": "West Virginia",
     "address": {
       "@type": "PostalAddress",
@@ -42,14 +77,20 @@
       --green-mid: #2d5c42;
       --green-light: #3a7a58;
       --gold: #D4AF37;
+      --gold-bright: #f0c93a;
       --gold-dark: #b8962e;
+      --black: #0a0a0a;
+      --black-mid: #141414;
+      --black-card: #1a1a1a;
       --cream: #F9F6F0;
       --gray: #6b7280;
       --gray-light: #F9F6F0;
       --border: #e5e7eb;
+      --border-dark: #2a2a2a;
       --text: #1a1a1a;
       --white: #ffffff;
-      --shadow: 0 4px 24px rgba(27,67,50,0.12);
+      --shadow: 0 4px 24px rgba(0,0,0,0.18);
+      --shadow-gold: 0 4px 32px rgba(212,175,55,0.18);
       --radius: 12px;
     }
 
@@ -72,13 +113,14 @@
       position: sticky;
       top: 0;
       z-index: 1000;
-      background: var(--green);
+      background: var(--black);
+      border-bottom: 2px solid var(--gold);
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 0 2rem;
       height: 68px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.5);
     }
 
     .nav-logo {
@@ -107,6 +149,36 @@
       font-style: normal;
     }
 
+    .nav-logo-img {
+      height: 44px;
+      width: 44px;
+      display: block;
+      object-fit: contain;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.1);
+    }
+
+    .footer-logo-img {
+      height: 80px;
+      width: auto;
+      max-width: 180px;
+      object-fit: contain;
+      display: block;
+      margin-bottom: 0.75rem;
+    }
+
+    .nav-logo-wordmark {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: var(--white);
+      letter-spacing: -0.3px;
+    }
+
+    .nav-logo-wordmark em {
+      color: var(--gold);
+      font-style: normal;
+    }
+
     .nav-links {
       display: flex;
       align-items: center;
@@ -125,17 +197,18 @@
 
     .nav-cta {
       background: var(--gold);
-      color: var(--green);
+      color: var(--black);
       border: none;
       padding: 0.6rem 1.4rem;
       border-radius: 50px;
-      font-weight: 700;
+      font-weight: 800;
       font-size: 0.9rem;
       cursor: pointer;
-      transition: background 0.2s, transform 0.1s;
+      transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+      letter-spacing: 0.2px;
     }
 
-    .nav-cta:hover { background: var(--gold-dark); transform: translateY(-1px); }
+    .nav-cta:hover { background: var(--gold-bright); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(212,175,55,0.4); }
 
     .nav-mobile-toggle {
       display: none;
@@ -148,8 +221,8 @@
 
     /* ---- HERO ---- */
     .hero {
-      background: linear-gradient(135deg, var(--green) 0%, var(--green-mid) 60%, #1e4a30 100%);
-      min-height: 85vh;
+      background: linear-gradient(160deg, var(--black) 0%, #0d1a10 55%, var(--black-mid) 100%);
+      min-height: 88vh;
       display: flex;
       align-items: center;
       padding: 4rem 2rem;
@@ -161,7 +234,19 @@
       content: '';
       position: absolute;
       inset: 0;
-      background: radial-gradient(ellipse at 70% 50%, rgba(201,168,76,0.08) 0%, transparent 70%);
+      background:
+        radial-gradient(ellipse at 75% 40%, rgba(212,175,55,0.14) 0%, transparent 55%),
+        radial-gradient(ellipse at 10% 80%, rgba(27,67,50,0.4) 0%, transparent 50%);
+    }
+
+    .hero::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
     }
 
     .hero-content {
@@ -297,8 +382,9 @@
 
     /* ---- TRUST BAR ---- */
     .trust-bar {
-      background: var(--cream);
-      border-bottom: 1px solid var(--border);
+      background: var(--black-mid);
+      border-bottom: 1px solid var(--border-dark);
+      border-top: 1px solid var(--border-dark);
     }
 
     .trust-bar-inner {
@@ -316,17 +402,18 @@
     }
 
     .trust-num {
-      font-size: 1.8rem;
+      font-size: 2rem;
       font-weight: 900;
-      color: var(--green);
+      color: var(--gold);
       display: block;
+      letter-spacing: -1px;
     }
 
     .trust-label {
-      font-size: 0.8rem;
-      color: var(--gray);
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.55);
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.8px;
       font-weight: 600;
     }
 
@@ -356,9 +443,9 @@
 
     .section-title {
       font-size: clamp(1.6rem, 3vw, 2.4rem);
-      font-weight: 800;
-      color: var(--green);
-      line-height: 1.2;
+      font-weight: 900;
+      color: var(--black);
+      line-height: 1.15;
     }
 
     /* ---- LISTINGS GRID ---- */
@@ -378,8 +465,8 @@
     }
 
     .card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 12px 40px rgba(26,58,42,0.18);
+      transform: translateY(-5px);
+      box-shadow: 0 16px 48px rgba(0,0,0,0.18), 0 0 0 2px var(--gold);
     }
 
     .card-img {
@@ -463,6 +550,18 @@
 
     .card-btn:hover { background: var(--green-light); }
 
+    /* Feature badges */
+    .card-features { display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.75rem; }
+    .card-feat { font-size:.75rem;background:#f3f4f6;border:1px solid #e5e7eb;padding:.2rem .55rem;border-radius:20px;color:#374151;white-space:nowrap; }
+
+    /* Price per acre */
+    .card-ppa { font-size:.78rem;color:#6b7280;margin-bottom:.5rem; }
+
+    /* Listing type tabs */
+    .ltab { background:#f3f4f6;border:1px solid #e5e7eb;color:#374151;padding:.45rem 1.1rem;border-radius:20px;font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s; }
+    .ltab:hover { background:var(--green);color:#fff;border-color:var(--green); }
+    .ltab-active { background:var(--green);color:#fff;border-color:var(--green); }
+
     /* Skeleton loading */
     .skeleton {
       background: linear-gradient(90deg, var(--gray-light) 25%, #e5e7eb 50%, var(--gray-light) 75%);
@@ -479,9 +578,21 @@
 
     /* ---- LEAD MAGNET ---- */
     .lead-magnet {
-      background: var(--green);
+      background: var(--black);
       color: var(--white);
       padding: 5rem 2rem;
+      border-top: 1px solid var(--border-dark);
+      border-bottom: 1px solid var(--border-dark);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .lead-magnet::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(212,175,55,0.08) 0%, transparent 65%);
+      pointer-events: none;
     }
 
     .lead-magnet-inner {
@@ -534,7 +645,8 @@
     }
 
     .why-card {
-      background: var(--cream);
+      background: var(--white);
+      border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 1.75rem;
       border: 1px solid var(--border);
@@ -558,11 +670,52 @@
       line-height: 1.55;
     }
 
+    /* ---- AGENT BIO ---- */
+    .agent-inner {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 3rem;
+      align-items: center;
+    }
+
+    .agent-photo {
+      flex-shrink: 0;
+    }
+
+    .agent-headshot {
+      width: 100%;
+      max-width: 280px;
+      aspect-ratio: 3/4;
+      object-fit: cover;
+      object-position: top;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    }
+
+    .agent-headshot-fallback {
+      width: 280px;
+      height: 373px;
+      background: #e0e0e0;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 4rem;
+      color: #999;
+    }
+
+    @media (max-width: 700px) {
+      .agent-inner {
+        grid-template-columns: 1fr;
+      }
+      .agent-headshot { max-width: 200px; margin: 0 auto; }
+    }
+
     /* ---- SOCIAL ---- */
     .social-strip {
-      background: var(--cream);
-      border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
+      background: var(--black-mid);
+      border-top: 1px solid var(--border-dark);
+      border-bottom: 1px solid var(--border-dark);
       padding: 3rem 2rem;
     }
 
@@ -575,12 +728,12 @@
     .social-strip h3 {
       font-size: 1.3rem;
       font-weight: 700;
-      color: var(--green);
+      color: var(--white);
       margin-bottom: 0.5rem;
     }
 
     .social-strip p {
-      color: var(--gray);
+      color: rgba(255,255,255,0.5);
       margin-bottom: 2rem;
     }
 
@@ -591,18 +744,18 @@
     }
 
     .social-card {
-      background: var(--white);
+      background: #1e1e1e;
       border-radius: var(--radius);
       padding: 1.5rem 1rem;
-      border: 1px solid var(--border);
+      border: 1px solid var(--border-dark);
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 0.75rem;
-      transition: box-shadow 0.2s;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
 
-    .social-card:hover { box-shadow: var(--shadow); }
+    .social-card:hover { border-color: var(--gold); box-shadow: var(--shadow-gold); }
 
     .social-icon {
       width: 52px;
@@ -617,12 +770,12 @@
     .social-card-name {
       font-weight: 700;
       font-size: 0.95rem;
-      color: var(--text);
+      color: var(--white);
     }
 
     .social-card-handle {
       font-size: 0.82rem;
-      color: var(--gray);
+      color: rgba(255,255,255,0.45);
     }
 
     .social-btn {
@@ -630,22 +783,25 @@
       padding: 0.5rem 1.25rem;
       border-radius: 50px;
       font-size: 0.82rem;
-      font-weight: 600;
-      border: 1.5px solid var(--border);
-      color: var(--text);
+      font-weight: 700;
+      border: 1.5px solid var(--gold);
+      color: var(--gold);
       transition: all 0.2s;
     }
 
     .social-btn:hover {
-      border-color: var(--green);
-      color: var(--green);
+      background: var(--gold);
+      color: var(--black);
     }
 
     /* ---- CTA SECTION ---- */
     .cta-section {
-      background: linear-gradient(135deg, var(--green), var(--green-mid));
+      background: var(--black);
       padding: 5rem 2rem;
       color: var(--white);
+      border-top: 1px solid var(--border-dark);
+      position: relative;
+      overflow: hidden;
     }
 
     .cta-inner {
@@ -679,15 +835,15 @@
       align-items: center;
       gap: 0.5rem;
       background: var(--gold);
-      color: var(--green);
+      color: var(--black);
       padding: 1rem 2rem;
       border-radius: 50px;
-      font-weight: 700;
+      font-weight: 800;
       font-size: 1.05rem;
-      transition: background 0.2s, transform 0.1s;
+      transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
     }
 
-    .btn-call:hover { background: var(--gold-dark); transform: translateY(-2px); }
+    .btn-call:hover { background: var(--gold-bright); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(212,175,55,0.35); }
 
     .btn-outline {
       display: inline-flex;
@@ -709,8 +865,9 @@
 
     /* ---- FOOTER ---- */
     footer {
-      background: #0d1f16;
-      color: rgba(255,255,255,0.7);
+      background: var(--black);
+      border-top: 2px solid var(--gold);
+      color: rgba(255,255,255,0.6);
       padding: 3rem 2rem 2rem;
     }
 
@@ -996,26 +1153,28 @@
 <!-- NAVBAR -->
 <nav class="nav">
   <a href="/" class="nav-logo">
-    <div class="nav-logo-icon">🏡</div>
-    <span>Malick<em>Land</em></span>
+    <img src="/public/brand/logo-primary.png" alt="MalickLand" class="nav-logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+    <span class="nav-logo-fallback" style="display:none"><div class="nav-logo-icon">🏡</div><span>Malick<em>Land</em></span></span>
+    <span class="nav-logo-wordmark">Malick<em>Land</em></span>
   </a>
   <ul class="nav-links">
-    <li><a href="#listings">Listings</a></li>
+    <li><a href="/listings">Search</a></li>
+    <li><a href="#listings">Featured</a></li>
     <li><a href="/37-advent">37 Advent</a></li>
     <li><a href="#why">About</a></li>
     <li><a href="#contact-form">Contact</a></li>
     <li><a href="/admin" style="opacity:0.5;font-size:0.8rem">Admin</a></li>
   </ul>
-  <button class="nav-cta" onclick="openModal()">Get Land Alerts</button>
+  <button class="nav-cta" onclick="openModal()">Get Property Alerts</button>
   <button class="nav-mobile-toggle" onclick="this.parentElement.querySelector('.nav-links').style.display = this.parentElement.querySelector('.nav-links').style.display === 'flex' ? 'none' : 'flex'">☰</button>
 </nav>
 
 <!-- HERO -->
 <section class="hero" id="hero">
   <div class="hero-content">
-    <span class="hero-badge">West Virginia Land Specialist</span>
-    <h1>Find Your <em>Wild &amp; Wonderful</em> Piece of West Virginia</h1>
-    <p class="hero-sub">AI-powered property intelligence across all 55 WV counties. Local expertise, fast response.</p>
+    <span class="hero-badge">West Virginia Land &amp; Home Specialist</span>
+    <h1>Find Your <em>Wild &amp; Wonderful</em> Place in West Virginia</h1>
+    <p class="hero-sub">Land, homes, farms &amp; rural retreats across all 55 WV counties. AI-powered pricing, local expertise, fast response.</p>
 
     <div class="hero-form">
       <h3>Tell Phil What You're Looking For</h3>
@@ -1038,6 +1197,7 @@
           <label>What are you looking for?</label>
           <select name="interest">
             <option value="Buying Land">Buying Land or Acreage</option>
+            <option value="Buying a Home">Buying a Home in WV</option>
             <option value="Selling Property">Selling My Property</option>
             <option value="Hunting / Recreation Land">Hunting / Recreation Land</option>
             <option value="Cabin / Rural Retreat">Cabin or Rural Retreat</option>
@@ -1075,10 +1235,10 @@
       <span class="trust-num">AI</span>
       <span class="trust-label">Powered Pricing</span>
     </div>
-    <div class="trust-item">
+    <a href="tel:+15402461421" class="trust-item" style="text-decoration:none;">
       <span class="trust-num">2hr</span>
-      <span class="trust-label">Response Promise</span>
-    </div>
+      <span class="trust-label">Call or Text Phil</span>
+    </a>
   </div>
 </div>
 
@@ -1087,12 +1247,22 @@
   <div class="container">
     <div class="section-header">
       <span class="section-label">Available Now</span>
-      <h2 class="section-title">Featured Land Opportunities</h2>
+      <h2 class="section-title">Featured Properties</h2>
+    </div>
+    <!-- Type filter tabs -->
+    <div id="listingTabs" style="display:flex;gap:.5rem;margin-bottom:1.25rem;flex-wrap:wrap">
+      <button class="ltab ltab-active" data-type="" onclick="setListingType(this,'')">All Properties</button>
+      <button class="ltab" data-type="land" onclick="setListingType(this,'land')">🌲 Land &amp; Acreage</button>
+      <button class="ltab" data-type="residential" onclick="setListingType(this,'residential')">🏡 Homes</button>
     </div>
     <div class="listings-grid" id="listingsGrid">
       <div class="skeleton"></div>
       <div class="skeleton"></div>
       <div class="skeleton"></div>
+    </div>
+    <div style="text-align:center;margin-top:2rem">
+      <a href="/listings" style="display:inline-block;background:var(--green);color:var(--gold);padding:.85rem 2.25rem;border-radius:8px;font-weight:700;font-size:1rem;text-decoration:none;letter-spacing:.3px;transition:opacity .15s" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">🔍 Search All WV Listings →</a>
+      <p style="margin-top:.65rem;font-size:.82rem;color:var(--gray)">Filter by county, price, acreage, type &amp; more</p>
     </div>
   </div>
 </section>
@@ -1100,8 +1270,8 @@
 <!-- LEAD MAGNET -->
 <section class="lead-magnet" id="guide">
   <div class="lead-magnet-inner">
-    <h2>Don't Buy Land in WV Until You Read This</h2>
-    <p>Download our free <strong>2026 WV Land Buying Checklist</strong> — everything you need to know about septic, well access, zoning traps, and due diligence before you sign anything.</p>
+    <h2>Don't Buy Property in WV Until You Read This</h2>
+    <p>Download our free <strong>2026 WV Property Buying Guide</strong> — everything you need to know about land, homes, septic, well access, zoning traps, and due diligence before you sign anything.</p>
     <div class="lead-magnet-form">
       <form id="alertsForm">
         <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
@@ -1115,6 +1285,25 @@
       <div class="form-success" id="alertsSuccess" style="color:#c9a84c;">
         ✅ Checklist on the way! Check your email — and Phil may follow up personally.
       </div>
+    </div>
+  </div>
+</section>
+
+<!-- COUNTY LINKS -->
+<section style="background:#f9f6f0;padding:1.5rem 2rem;border-top:1px solid #e5e7eb">
+  <div style="max-width:1200px;margin:0 auto">
+    <p style="text-align:center;font-size:.8rem;color:#6b7280;margin-bottom:.85rem;text-transform:uppercase;letter-spacing:.5px;font-weight:600">Browse by County</p>
+    <div style="display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center">
+      <a href="/wv/hampshire-county" style="background:#fff;border:1px solid #d1d5db;color:#1B4332;padding:.35rem .85rem;border-radius:20px;font-size:.8rem;font-weight:600;text-decoration:none">Hampshire</a>
+      <a href="/wv/hardy-county" style="background:#fff;border:1px solid #d1d5db;color:#1B4332;padding:.35rem .85rem;border-radius:20px;font-size:.8rem;font-weight:600;text-decoration:none">Hardy</a>
+      <a href="/wv/morgan-county" style="background:#fff;border:1px solid #d1d5db;color:#1B4332;padding:.35rem .85rem;border-radius:20px;font-size:.8rem;font-weight:600;text-decoration:none">Morgan</a>
+      <a href="/wv/grant-county" style="background:#fff;border:1px solid #d1d5db;color:#1B4332;padding:.35rem .85rem;border-radius:20px;font-size:.8rem;font-weight:600;text-decoration:none">Grant</a>
+      <a href="/wv/pendleton-county" style="background:#fff;border:1px solid #d1d5db;color:#1B4332;padding:.35rem .85rem;border-radius:20px;font-size:.8rem;font-weight:600;text-decoration:none">Pendleton</a>
+      <a href="/wv/mineral-county" style="background:#fff;border:1px solid #d1d5db;color:#1B4332;padding:.35rem .85rem;border-radius:20px;font-size:.8rem;font-weight:600;text-decoration:none">Mineral</a>
+      <a href="/wv/tucker-county" style="background:#fff;border:1px solid #d1d5db;color:#1B4332;padding:.35rem .85rem;border-radius:20px;font-size:.8rem;font-weight:600;text-decoration:none">Tucker</a>
+      <a href="/wv/berkeley-county" style="background:#fff;border:1px solid #d1d5db;color:#1B4332;padding:.35rem .85rem;border-radius:20px;font-size:.8rem;font-weight:600;text-decoration:none">Berkeley</a>
+      <a href="/wv/jefferson-county" style="background:#fff;border:1px solid #d1d5db;color:#1B4332;padding:.35rem .85rem;border-radius:20px;font-size:.8rem;font-weight:600;text-decoration:none">Jefferson</a>
+      <a href="/listings" style="background:#1B4332;border:1px solid #1B4332;color:#D4AF37;padding:.35rem .85rem;border-radius:20px;font-size:.8rem;font-weight:700;text-decoration:none">All Counties →</a>
     </div>
   </div>
 </section>
@@ -1144,8 +1333,8 @@
       </div>
       <div class="why-card">
         <div class="why-icon">🌲</div>
-        <h3>Land &amp; Acreage Specialist</h3>
-        <p>Farmland, timberland, hunting tracts, cabin lots, and river frontage. Rural property is what we do best.</p>
+        <h3>Land, Homes &amp; Acreage</h3>
+        <p>Farmland, timberland, hunting tracts, and rural homes. Whether you want acreage or a move-in-ready house, Phil can find it.</p>
       </div>
       <div class="why-card">
         <div class="why-icon">⚡</div>
@@ -1156,6 +1345,27 @@
         <div class="why-icon">📢</div>
         <h3>Maximum Seller Exposure</h3>
         <p>Professional photos, video tours, social media syndication, and AI-crafted descriptions for every listing.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- AGENT BIO -->
+<section class="section agent-section" id="about" style="background:var(--cream);">
+  <div class="container">
+    <div class="agent-inner">
+      <div class="agent-photo">
+        <img src="/public/brand/headshot.jpg" alt="Phil Malick — MalickLand" class="agent-headshot" onerror="this.parentElement.innerHTML='<div class=\'agent-headshot-fallback\'>👤</div>'" />
+      </div>
+      <div class="agent-bio">
+        <span class="section-label">Your Agent</span>
+        <h2 style="font-size:2rem;margin-bottom:0.75rem;">Phil Malick</h2>
+        <p style="font-size:1.05rem;color:#444;line-height:1.7;margin-bottom:1rem;">West Virginia land and property specialist with deep roots in the Mountain State. Phil personally handles every listing, every inquiry, and every deal — no handoffs, no runarounds.</p>
+        <p style="font-size:1rem;color:#555;line-height:1.7;margin-bottom:1.5rem;">Licensed in West Virginia. Based in Romney, WV. Covering all 55 counties — from Eastern Panhandle farms to coal country timber tracts.</p>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+          <a href="tel:+15402461421" class="btn" style="background:var(--green);color:var(--white);padding:0.75rem 1.5rem;border-radius:var(--radius);font-weight:700;text-decoration:none;">📞 (540) 246-1421</a>
+          <a href="mailto:phil@malickland.net" class="btn" style="background:transparent;color:var(--green);border:2px solid var(--green);padding:0.75rem 1.5rem;border-radius:var(--radius);font-weight:700;text-decoration:none;">✉️ phil@malickland.net</a>
+        </div>
       </div>
     </div>
   </div>
@@ -1224,13 +1434,15 @@
 <footer>
   <div class="footer-inner">
     <div class="footer-brand">
-      <h4>🏡 MalickLand</h4>
-      <p>West Virginia's land &amp; rural property specialist. Serving all 55 WV counties with local expertise, AI-powered pricing, and personal service.</p>
+      <img src="/public/brand/logo-secondary.jpg" alt="MalickLand" class="footer-logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+      <h4 style="display:none">🏡 MalickLand</h4>
+      <p>West Virginia's land &amp; home specialist. Land, acreage, rural homes, and investment property across all 55 WV counties.</p>
     </div>
     <div class="footer-links">
       <h5>Quick Links</h5>
       <ul>
-        <li><a href="#listings">Browse Listings</a></li>
+        <li><a href="/listings">🔍 Search All Listings</a></li>
+        <li><a href="#listings">Featured Properties</a></li>
         <li><a href="/37-advent">37 Advent Dr</a></li>
         <li><a href="#sell">Sell Property</a></li>
         <li><a href="#guide">Free Land Guide</a></li>
@@ -1240,15 +1452,15 @@
     </div>
     <div class="footer-contact">
       <h5>Contact Phil</h5>
-      <p>📞 <a href="tel:+13045550100">(304) 555-0100</a></p>
+      <p>📞 <a href="tel:+15402461421">(540) 246-1421</a></p>
       <p>✉️ <a href="mailto:phil@malickland.net">phil@malickland.net</a></p>
       <p>📘 <a href="https://www.facebook.com/malickland.phil" target="_blank" rel="noopener">Facebook</a></p>
       <p>📷 <a href="https://www.instagram.com/malickland_wvrea" target="_blank" rel="noopener">@malickland_wvrea</a></p>
-      <p style="margin-top:0.75rem;font-size:0.82rem;color:rgba(255,255,255,0.4);">Licensed in West Virginia<br/>Romney, West Virginia</p>
+      <p style="margin-top:0.75rem;font-size:0.82rem;color:rgba(255,255,255,0.4);">Licensed in West Virginia<br/>Broker: Sheila Judy<br/>Romney, West Virginia</p>
     </div>
   </div>
   <div class="footer-bottom">
-    <p>MalickLand WV Real Estate | Phil Malick, Agent | <a href="tel:+13045550100">(304) 555-0100</a> | <a href="mailto:phil@malickland.net">phil@malickland.net</a> | Licensed in West Virginia &nbsp;·&nbsp; © 2026 MalickLand.</p>
+    <p>MalickLand WV Real Estate | Phil Malick, Agent | Broker: Sheila Judy | <a href="tel:+15402461421">(540) 246-1421</a> | <a href="mailto:phil@malickland.net">phil@malickland.net</a> | Licensed in West Virginia &nbsp;·&nbsp; © 2026 MalickLand.</p>
     <div class="footer-social">
       <a href="https://www.facebook.com/malickland.phil" target="_blank" rel="noopener" title="Facebook">📘</a>
       <a href="https://www.instagram.com/malickland_wvrea" target="_blank" rel="noopener" title="Instagram">📷</a>
@@ -1278,7 +1490,7 @@
 <div class="modal-overlay" id="leadModal">
   <div class="modal">
     <button class="modal-close" onclick="closeModal()">✕</button>
-    <h3>🌲 Get Land Alerts First</h3>
+    <h3>🏡 Get Property Alerts First</h3>
     <p>Be the first to know when new WV land hits the market — before it goes public.</p>
     <form id="modalForm">
       <div class="form-group">
@@ -1320,13 +1532,14 @@ async function submitForm(form, successId) {
   const data = {};
   new FormData(form).forEach((v, k) => data[k] = v);
   try {
-    const res = await fetch('/api/contacts', {
+    await fetch('/api/contacts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
-    if (!res.ok) return;
-  } catch(e) { return; }
+  } catch(e) {}
+  pixelEvent('Lead', { content_name: 'contact_form' });
+  if (window.gtag) gtag('event', 'generate_lead');
   form.style.display = 'none';
   document.getElementById(successId).style.display = 'block';
 }
@@ -1342,10 +1555,38 @@ async function submitForm(form, successId) {
 });
 
 // ---- LISTINGS ----
+const FEATURE_ICONS = {
+  'Timber':'🌲','Hunting':'🦌','Water':'💧','Creek':'💧','Pond':'💧','Stream':'💧',
+  'Road Access':'🛣️','Paved Road':'🛣️','Gravel Road':'🛣️',
+  'Electric':'⚡','Power':'⚡','Utilities':'⚡',
+  'Broadband':'📶','Internet':'📶','Starlink':'📶',
+  'Mountain View':'🏔️','Views':'🏔️','Pasture':'🌾','Fields':'🌾',
+  'Cabin':'🏠','Barn':'🏚️','Well':'💦','Spring':'💦',
+};
+
+function featureBadges(featStr) {
+  if (!featStr) return '';
+  const badges = featStr.split(',').map(f => f.trim()).filter(Boolean).slice(0,5);
+  if (!badges.length) return '';
+  return `<div class="card-features">${badges.map(f => {
+    const icon = Object.entries(FEATURE_ICONS).find(([k]) => f.toLowerCase().includes(k.toLowerCase()));
+    return `<span class="card-feat">${icon ? icon[1]+' ' : ''}${f}</span>`;
+  }).join('')}</div>`;
+}
+
+let _listingType = '';
+function setListingType(btn, type) {
+  _listingType = type;
+  document.querySelectorAll('.ltab').forEach(b => b.classList.remove('ltab-active'));
+  btn.classList.add('ltab-active');
+  loadListings();
+}
+
 async function loadListings() {
   const grid = document.getElementById('listingsGrid');
   try {
-    const res = await fetch('/api/properties?limit=6');
+    const url = `/api/properties?limit=6${_listingType ? '&type='+encodeURIComponent(_listingType) : ''}`;
+    const res = await fetch(url);
     const data = await res.json();
     const props = data.properties || data;
     if (!props || !props.length) {
@@ -1353,14 +1594,21 @@ async function loadListings() {
       return;
     }
     grid.innerHTML = props.slice(0, 6).map(p => {
+      const isLand = p.property_type === 'land';
       const imgHtml = p.image_url
         ? `<img src="${p.image_url}" alt="${p.address}" loading="lazy" />`
-        : `<span style="font-size:3.5rem">🌲</span>`;
-      const acres = p.lot_acres ? `${p.lot_acres} ac` : '';
-      const sqft = p.sqft ? `${p.sqft.toLocaleString()} sqft` : '';
-      const beds = p.bedrooms ? `${p.bedrooms}bd` : '';
+        : `<span style="font-size:3.5rem">${isLand ? '🌲' : '🏡'}</span>`;
       const price = p.price ? `$${Number(p.price).toLocaleString()}` : 'Contact for Price';
-      const details = [beds, sqft, acres].filter(Boolean).join(' · ');
+      // Land: acreage first; Home: beds/sqft first
+      let primaryDetail = '';
+      let secondaryLine = '';
+      if (isLand) {
+        primaryDetail = p.lot_acres ? `<strong>${p.lot_acres} acres</strong>` : '';
+        if (p.price && p.lot_acres) secondaryLine = `<div class="card-ppa">$${Math.round(p.price/p.lot_acres).toLocaleString()}/acre</div>`;
+      } else {
+        primaryDetail = [p.bedrooms ? `${p.bedrooms} bd` : '', p.bathrooms ? `${p.bathrooms} ba` : '', p.sqft ? `${Number(p.sqft).toLocaleString()} sqft` : ''].filter(Boolean).join(' · ');
+      }
+      const detailSlug = p.listing_slug || p.id;
       return `
       <div class="card">
         <div class="card-img">
@@ -1368,11 +1616,14 @@ async function loadListings() {
           <span class="card-county">${p.county || ''} County</span>
         </div>
         <div class="card-body">
-          <div class="card-type">${(p.property_type || 'Property').replace(/-/g,' ')}</div>
+          <div class="card-type">${isLand ? '🌲 Land' : '🏡 '+((p.property_type||'Home').replace(/-/g,' '))}</div>
           <div class="card-address">${p.address}${p.city ? ', ' + p.city : ''}</div>
           <div class="card-price">${price}</div>
-          ${details ? `<div class="card-details">${details}</div>` : ''}
-          <a href="/properties/${encodeURIComponent(p.listing_slug || p.id)}" class="card-btn">View Details →</a>
+          ${primaryDetail ? `<div class="card-details">${primaryDetail}</div>` : ''}
+          ${secondaryLine}
+          ${featureBadges(p.features)}
+          ${p.driveTimes ? `<div style="font-size:.75rem;color:#6b7280;margin-bottom:.6rem">🚗 ${p.driveTimes.dc} to DC · ${p.driveTimes.balt} to Baltimore</div>` : ''}
+          <a href="#" class="card-btn" onclick="event.preventDefault();showPropertyModal('${p.id}')">View Details →</a>
         </div>
       </div>`;
     }).join('');
@@ -1382,6 +1633,112 @@ async function loadListings() {
 }
 loadListings();
 
+// ---- PROPERTY DETAIL MODAL ----
+async function showPropertyModal(id) {
+  let overlay = document.getElementById('propModal');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'propModal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.style.display='none'; });
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML = '<div style="background:#fff;border-radius:12px;padding:2rem;color:#1a1a1a;font-size:1rem">Loading...</div>';
+  overlay.style.display = 'flex';
+
+  try {
+    const p = await fetch(`/api/properties/${id}`).then(r => r.json());
+    pixelEvent('ViewContent', { content_type: 'property', content_ids: [id], value: p.price, currency: 'USD' });
+    if (window.gtag) gtag('event', 'view_item', { item_id: id, price: p.price });
+    const addr = encodeURIComponent(`${p.address}${p.city?', '+p.city:''}, WV${p.zip?' '+p.zip:''}`);
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${addr}`;
+    const satUrl  = `https://www.google.com/maps/@?api=1&map_action=map&basemap=satellite&q=${addr}`;
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:14px;max-width:680px;width:100%;max-height:90vh;overflow-y:auto;position:relative;">
+        <button onclick="document.getElementById('propModal').style.display='none'"
+          style="position:absolute;top:.75rem;right:.75rem;background:#1B4332;color:#fff;border:none;border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer;z-index:1">✕</button>
+        ${p.image_url ? `<img src="${p.image_url}" alt="${p.address}" style="width:100%;max-height:300px;object-fit:cover;border-radius:14px 14px 0 0">` : ''}
+        <div style="padding:1.5rem">
+          <h2 style="font-size:1.9rem;font-weight:900;color:#0a0a0a;margin-bottom:.25rem">$${Number(p.price).toLocaleString()}</h2>
+          <p style="color:#555;margin-bottom:.75rem">${p.address}${p.city?', '+p.city:''}, ${p.county} County${p.zip?' '+p.zip:''}</p>
+          <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:.9rem">
+            <span style="background:#1B4332;color:#D4AF37;padding:.35rem .75rem;border-radius:6px;font-size:.82rem;font-weight:700">${p.property_type==='land'?'🌲 Land':'🏡 '+p.property_type}</span>
+            ${p.lot_acres ? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem;font-weight:700">🌿 ${p.lot_acres} acres</span>`:''}
+            ${p.price && p.lot_acres ? `<span style="background:#f9f6f0;padding:.35rem .75rem;border-radius:6px;font-size:.82rem;color:#666">$${Math.round(p.price/p.lot_acres).toLocaleString()}/acre</span>`:''}
+            ${p.bedrooms  ? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem">🛏 ${p.bedrooms} bd</span>`:''}
+            ${p.bathrooms ? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem">🚿 ${p.bathrooms} ba</span>`:''}
+            ${p.sqft      ? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem">📐 ${Number(p.sqft).toLocaleString()} sqft</span>`:''}
+            ${p.year_built? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem">🏗 ${p.year_built}</span>`:''}
+          </div>
+          ${p.features ? `<div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.9rem">${p.features.split(',').map(f=>f.trim()).filter(Boolean).map(f=>{const icon=Object.entries(FEATURE_ICONS).find(([k])=>f.toLowerCase().includes(k.toLowerCase()));return `<span style="background:#f0fdf4;border:1px solid #bbf7d0;padding:.25rem .6rem;border-radius:20px;font-size:.78rem;color:#166534">${icon?icon[1]+' ':''}${f}</span>`;}).join('')}</div>`:''}
+          ${p.description ? `<p style="color:#444;line-height:1.65;margin-bottom:1rem;font-size:.93rem">${p.description}</p>` : ''}
+          <!-- Land-specific detail grid -->
+          ${p.property_type==='land' ? `
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem .75rem;margin-bottom:1rem;font-size:.83rem">
+            ${p.road_access ? `<div><span style="color:#888">🛣 Road:</span> ${p.road_access}</div>` : ''}
+            ${p.broadband_type ? `<div><span style="color:#888">📶 Broadband:</span> ${p.broadband_type}</div>` : (p.internet ? `<div><span style="color:#888">📶 Internet:</span> Available</div>` : '')}
+            ${p.water_features ? `<div style="grid-column:1/-1"><span style="color:#888">💧 Water:</span> ${p.water_features}</div>` : ''}
+            ${p.mineral_rights && p.mineral_rights!=='unknown' ? `<div><span style="color:#888">⛏ Mineral Rights:</span> ${p.mineral_rights}</div>` : ''}
+            ${(p.elevation_min||p.elevation_max) ? `<div><span style="color:#888">🏔 Elevation:</span> ${[p.elevation_min,p.elevation_max].filter(Boolean).join('–')} ft</div>` : ''}
+            ${p.nearest_town ? `<div><span style="color:#888">📍 Nearest Town:</span> ${p.nearest_town}${p.miles_to_town?' ('+p.miles_to_town+' mi)':''}</div>` : ''}
+            ${p.annual_tax ? `<div><span style="color:#888">💰 Annual Tax:</span> $${Number(p.annual_tax).toLocaleString()}</div>` : ''}
+            ${p.parcel_id ? `<div><span style="color:#888">📋 Parcel ID:</span> ${p.parcel_id}</div>` : ''}
+          </div>` : ''}
+          ${p.driveTimes ? `
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.65rem 1rem;margin-bottom:1rem;font-size:.83rem;display:flex;flex-wrap:wrap;gap:.75rem">
+            <span>🚗 <strong>${p.driveTimes.dc}</strong> to DC</span>
+            <span>🚗 <strong>${p.driveTimes.balt}</strong> to Baltimore</span>
+            <span>🚗 <strong>${p.driveTimes.pit}</strong> to Pittsburgh</span>
+          </div>` : ''}
+          <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.5rem">
+            <a href="${mapsUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:.4rem;padding:.55rem 1rem;border-radius:8px;font-size:.85rem;font-weight:600;background:#f3f4f6;color:#1a1a1a;border:1px solid #e0e0e0;text-decoration:none">🗺 View on Map</a>
+            <a href="${satUrl}"  target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:.4rem;padding:.55rem 1rem;border-radius:8px;font-size:.85rem;font-weight:600;background:#f3f4f6;color:#1a1a1a;border:1px solid #e0e0e0;text-decoration:none">🛰 Satellite View</a>
+            ${p.listing_slug ? `<a href="/properties/${p.listing_slug}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:.4rem;padding:.55rem 1rem;border-radius:8px;font-size:.85rem;font-weight:600;background:#f3f4f6;color:#1a1a1a;border:1px solid #e0e0e0;text-decoration:none">🔗 Full Detail Page</a>` : ''}
+          </div>
+          <div style="border-top:1px solid #f0f0f0;padding-top:1.25rem">
+            <h3 style="color:#1B4332;margin-bottom:.5rem;font-size:1rem">Contact Phil Malick</h3>
+            <p style="font-size:.88rem;color:#555;margin-bottom:.75rem">
+              📞 <a href="tel:+15402461421" style="color:#1B4332;font-weight:600">(540) 246-1421</a>
+              &nbsp;·&nbsp;
+              💬 <a href="sms:+15402461421&body=Hi Phil, I'm interested in ${encodeURIComponent(p.address)}." style="color:#1B4332;font-weight:600">Text Phil</a>
+              &nbsp;·&nbsp;
+              ✉️ <a href="mailto:phil@malickland.net" style="color:#1B4332;font-weight:600">Email</a>
+            </p>
+            <input id="pm_name"  type="text"  placeholder="Your Name"  style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
+            <input id="pm_email" type="email" placeholder="Email"      style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
+            <input id="pm_phone" type="tel"   placeholder="Phone (optional)" style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
+            <textarea id="pm_msg" placeholder="Message" style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.75rem;min-height:80px;font-size:.9rem;font-family:inherit;resize:vertical">I'd like more information about ${p.address}.</textarea>
+            <button onclick="pmSend('${p.id}',this)" style="width:100%;padding:.85rem;background:#D4AF37;color:#0a0a0a;border:none;border-radius:8px;font-size:1rem;font-weight:800;cursor:pointer">Send Inquiry</button>
+            <p style="font-size:.72rem;color:#999;margin-top:.5rem;line-height:1.5">By submitting, you consent to receive calls and texts from MalickLand at the number provided. Message &amp; data rates may apply. Reply STOP to opt out.</p>
+          </div>
+        </div>
+      </div>`;
+  } catch(e) {
+    overlay.innerHTML = '<div style="background:#fff;padding:2rem;border-radius:12px;color:#c00">Failed to load property. Please try again.</div>';
+  }
+}
+
+async function pmSend(propertyId, btn) {
+  const name  = document.getElementById('pm_name')?.value.trim();
+  const email = document.getElementById('pm_email')?.value.trim();
+  const phone = document.getElementById('pm_phone')?.value.trim();
+  const msg   = document.getElementById('pm_msg')?.value.trim();
+  if (!name || !email) { alert('Name and email are required.'); return; }
+  btn.disabled = true; btn.textContent = 'Sending...';
+  try {
+    const r = await fetch('/api/contacts', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ property_id: propertyId, name, email, phone, message: msg, source: 'homepage_detail' })
+    });
+    if (r.ok) {
+      btn.textContent = "✅ Sent! Phil will be in touch.";
+      btn.style.background='#1B4332'; btn.style.color='#D4AF37';
+      pixelEvent('Lead', { content_name: 'property_inquiry' });
+      if (window.gtag) gtag('event', 'generate_lead');
+    } else { btn.disabled=false; btn.textContent='Send Inquiry'; alert('Failed. Please try again.'); }
+  } catch { btn.disabled=false; btn.textContent='Send Inquiry'; }
+}
+
 // ---- STICKY NAV SHADOW ----
 window.addEventListener('scroll', () => {
   document.querySelector('.nav').style.boxShadow =
@@ -1389,92 +1746,121 @@ window.addEventListener('scroll', () => {
 });
 
 // ---- CHAT WIDGET ----
-let chatState = 0;
-let chatData = {};
+// (chat state now in aiMessages array)
+
+// ---- AI CHAT ----
+const aiMessages = [];
+let chatReady = false;
+let chatConnectShown = false;
 
 function openChat() {
   const panel = document.getElementById('chatPanel');
   panel.classList.add('open');
-  if (chatState === 0) renderChatStep(0);
+  if (!chatReady) initChat();
 }
 
-const chatSteps = [
-  {
-    msg: "Hi! I'm the MalickLand assistant 🏡. What brings you here today?",
-    type: 'options',
-    opts: ['Buying land or acreage', 'Selling my property', 'Looking for a cabin lot', 'Just browsing'],
-    key: 'intent'
-  },
-  {
-    msg: "Great! Which county or area of WV are you interested in?",
-    type: 'input',
-    placeholder: 'e.g. Hampshire, Tucker, Pocahontas...',
-    key: 'county'
-  },
-  {
-    msg: "What's your budget range?",
-    type: 'options',
-    opts: ['Under $50k', '$50k – $150k', '$150k – $500k', '$500k+', 'Flexible / Not sure'],
-    key: 'budget'
-  },
-  {
-    msg: "Almost done! What's your name and best phone number so Phil can reach you?",
-    type: 'contact',
-    key: 'contact'
-  }
-];
-
-function renderChatStep(step) {
+function initChat() {
+  chatReady = true;
   const body = document.getElementById('chatBody');
-  const s = chatSteps[step];
-  let html = `<div class="chat-msg">${s.msg}</div>`;
-
-  if (s.type === 'options') {
-    html += `<div class="chat-options">${s.opts.map(o => `<button class="chat-opt" onclick="chatSelect('${o}', ${step})">${o}</button>`).join('')}</div>`;
-  } else if (s.type === 'input') {
-    html += `<div class="chat-input-row"><input class="chat-input" id="chatInput" placeholder="${s.placeholder}" /><button class="chat-send" onclick="chatInputSubmit(${step})">Continue →</button></div>`;
-  } else if (s.type === 'contact') {
-    html += `<div class="chat-input-row"><input class="chat-input" id="chatName" placeholder="Your Name" /><input class="chat-input" id="chatPhone" placeholder="(304) 555-1234" /><button class="chat-send" onclick="chatSubmitContact()">Send to Phil →</button></div>`;
-  }
-
-  body.innerHTML = html;
+  body.style.cssText = 'padding:1rem;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:.6rem';
+  addChatMsg('bot', "Hi! I'm Phil's property assistant 🏡 — I know WV land well. What are you looking for today?");
+  body.insertAdjacentHTML('beforeend', chatInputHtml());
 }
 
-function chatSelect(val, step) {
-  chatData[chatSteps[step].key] = val;
-  chatState = step + 1;
-  if (chatState >= chatSteps.length) {
-    renderChatStep(chatSteps.length - 1); // re-render contact step
-  } else {
-    renderChatStep(chatState);
-  }
+function chatInputHtml() {
+  return `<div class="chat-input-row" id="chatInputRow">
+    <input class="chat-input" id="chatUserInput" placeholder="Ask about listings, counties, pricing..." onkeydown="if(event.key==='Enter')sendChatMsg()"/>
+    <button class="chat-send" onclick="sendChatMsg()">→</button>
+  </div>`;
 }
 
-function chatInputSubmit(step) {
-  const val = document.getElementById('chatInput').value.trim();
-  if (!val) return;
-  chatData[chatSteps[step].key] = val;
-  chatState = step + 1;
-  if (chatState >= chatSteps.length) {
-    renderChatStep(chatSteps.length - 1);
-  } else {
-    renderChatStep(chatState);
-  }
+function addChatMsg(role, text) {
+  const body = document.getElementById('chatBody');
+  const el = document.createElement('div');
+  el.className = 'chat-msg';
+  el.style.cssText = role === 'user'
+    ? 'align-self:flex-end;background:var(--green);color:#fff;padding:.6rem .9rem;border-radius:12px 12px 2px 12px;font-size:.88rem;max-width:85%'
+    : 'align-self:flex-start;background:#f3f4f6;color:#1a1a1a;padding:.6rem .9rem;border-radius:12px 12px 12px 2px;font-size:.88rem;max-width:85%;line-height:1.5';
+  el.textContent = text;
+  const inputRow = document.getElementById('chatInputRow');
+  if (inputRow) body.insertBefore(el, inputRow);
+  else body.appendChild(el);
+  body.scrollTop = body.scrollHeight;
+  return el;
 }
 
-async function chatSubmitContact() {
-  const name = document.getElementById('chatName').value.trim();
-  const phone = document.getElementById('chatPhone').value.trim();
-  if (!name) { document.getElementById('chatName').focus(); return; }
-  chatData.name = name;
-  chatData.phone = phone;
-  const msg = `Intent: ${chatData.intent || ''} | County: ${chatData.county || ''} | Budget: ${chatData.budget || ''}`;
+async function sendChatMsg() {
+  const input = document.getElementById('chatUserInput');
+  const text = input?.value.trim();
+  if (!text) return;
+  input.value = '';
+  input.disabled = true;
+
+  addChatMsg('user', text);
+  aiMessages.push({ role: 'user', content: text });
+
+  const typing = addChatMsg('bot', '…');
+
   try {
-    await fetch('/api/contacts', {
+    const r = await fetch('/api/chat', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ name, phone, message: msg, source: 'website_chat' })
+      body: JSON.stringify({ messages: aiMessages })
     });
+    const data = await r.json();
+    const reply = data.reply || "I couldn't connect right now. Call Phil at (540) 246-1421.";
+    typing.textContent = reply;
+    aiMessages.push({ role: 'assistant', content: reply });
+
+    // After 3 exchanges, offer to connect with Phil
+    if (aiMessages.length >= 6 && !chatConnectShown) {
+      chatConnectShown = true;
+      const body = document.getElementById('chatBody');
+      const connectEl = document.createElement('div');
+      connectEl.style.cssText = 'align-self:center;margin:.5rem 0';
+      connectEl.innerHTML = `<button onclick="showChatContact()" style="background:var(--gold);color:var(--black);border:none;border-radius:8px;padding:.6rem 1.2rem;font-weight:700;cursor:pointer;font-size:.85rem">📞 Connect with Phil directly →</button>`;
+      const inputRow = document.getElementById('chatInputRow');
+      if (inputRow) body.insertBefore(connectEl, inputRow);
+      else body.appendChild(connectEl);
+    }
+  } catch(e) {
+    typing.textContent = "Connection issue. Call Phil at (540) 246-1421 or email phil@malickland.net.";
+  }
+  input.disabled = false;
+  input.focus();
+}
+
+function showChatContact() {
+  const body = document.getElementById('chatBody');
+  const inputRow = document.getElementById('chatInputRow');
+  const formEl = document.createElement('div');
+  formEl.style.cssText = 'background:#f9f6f0;border-radius:10px;padding:.9rem;margin:.25rem 0';
+  formEl.innerHTML = `
+    <p style="font-size:.82rem;color:#555;margin-bottom:.6rem">Leave your info and Phil will call you:</p>
+    <input id="chatLeadName" class="chat-input" placeholder="Your Name" style="margin-bottom:.4rem"/>
+    <input id="chatLeadEmail" class="chat-input" type="email" placeholder="Email" style="margin-bottom:.4rem"/>
+    <input id="chatLeadPhone" class="chat-input" type="tel" placeholder="Phone (optional)" style="margin-bottom:.6rem"/>
+    <button onclick="submitChatLead(this)" style="width:100%;background:var(--green);color:var(--gold);border:none;border-radius:6px;padding:.6rem;font-weight:700;cursor:pointer;font-size:.88rem">Send to Phil →</button>
+    <p style="font-size:.7rem;color:#999;margin-top:.4rem;line-height:1.4">By submitting, you consent to receive communications from MalickLand. Reply STOP to opt out.</p>`;
+  if (inputRow) body.insertBefore(formEl, inputRow);
+  else body.appendChild(formEl);
+  body.scrollTop = body.scrollHeight;
+}
+
+async function submitChatLead(btn) {
+  const name  = document.getElementById('chatLeadName')?.value.trim();
+  const email = document.getElementById('chatLeadEmail')?.value.trim();
+  const phone = document.getElementById('chatLeadPhone')?.value.trim();
+  if (!name || !email) { alert('Name and email are required.'); return; }
+  btn.disabled = true; btn.textContent = 'Sending…';
+  const summary = aiMessages.filter(m=>m.role==='user').map(m=>m.content).join(' | ');
+  try {
+    await fetch('/api/contacts', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ name, email, phone, message: 'Chat: ' + summary, source: 'website_chat' })
+    });
+    pixelEvent('Lead', { content_name: 'ai_chat' });
+    if (window.gtag) gtag('event', 'generate_lead');
   } catch(e) {}
   document.getElementById('chatBody').innerHTML = `<div class="chat-done">✅ Phil will reach out within 2 hours!<br/><br/>Call anytime: <a href="tel:+15402461421" style="color:var(--green);font-weight:700">(540) 246-1421</a></div>`;
 }
