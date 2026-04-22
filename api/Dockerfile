@@ -16,17 +16,18 @@ RUN apt-get update \
 WORKDIR /workspace
 
 # Copy production node_modules (includes native better-sqlite3 binaries)
-COPY --from=builder /workspace/api/node_modules ./api/node_modules
+COPY --from=builder --chown=65532:65532 /workspace/api/node_modules ./api/node_modules
 
 # Copy application source
-COPY api ./api
-COPY app ./app
+COPY --chown=65532:65532 api ./api
+COPY --chown=65532:65532 app ./app
 
-# Create runtime directories and drop to non-root user
-RUN mkdir -p data uploads \
+# Create runtime directories and drop to non-root user.
+# /data is included so a volume mounted at DATABASE_PATH=/data/... is writable.
+RUN mkdir -p /data data database listings uploads reports \
     && groupadd --system --gid 1001 appgroup \
     && useradd --system --uid 1001 --gid appgroup --no-create-home appuser \
-    && chown -R appuser:appgroup /workspace
+    && chown -R appuser:appgroup /workspace /data
 
 USER appuser
 
