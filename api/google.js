@@ -107,11 +107,7 @@ async function sendContactEmail(contact, property) {
         '',
         bodyText,
       ].join('\r\n')
-    )
-      .toString('base64')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
+    ).toString('base64url');
 
     const payload = JSON.stringify({ raw });
     const res = await httpsRequest({

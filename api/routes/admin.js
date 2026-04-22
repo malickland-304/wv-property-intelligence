@@ -115,6 +115,7 @@ router.post('/new', requireAuth, requireCsrf, adminActionRateLimit, (req, res) =
   const id = crypto.randomBytes(16).toString('hex');
   const slug = slugify((f.address||'listing') + '-' + (f.city||'wv'));
   const uniqueSlug = slug + '-' + id.slice(0,6);
+  if (!isSafePathComponent(uniqueSlug)) return res.status(500).send('Could not generate a safe listing slug');
 
   db.prepare(`
     INSERT INTO properties (
@@ -349,6 +350,7 @@ router.get('/report/:id', requireAuth, (req, res) => {
   if (!p) return res.redirect('/admin');
 
   const slug = p.listing_slug || p.id;
+  if (!isSafePathComponent(slug)) return res.status(500).send('Invalid property data');
   const compsPath = path.join(PROJECT_ROOT, 'listings', slug, 'comps.csv');
   const ddPath    = path.join(PROJECT_ROOT, 'listings', slug, 'due_diligence.md');
   const comps     = fs.existsSync(compsPath) ? fs.readFileSync(compsPath, 'utf8') : '';

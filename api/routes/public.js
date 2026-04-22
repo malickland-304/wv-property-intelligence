@@ -6,6 +6,7 @@ const fs      = require('fs');
 
 const { db }           = require('../db');
 const { PROJECT_ROOT } = require('../helpers');
+const { publicReadRateLimit } = require('../middleware/rate-limits');
 
 const router = express.Router();
 
@@ -19,7 +20,7 @@ Sitemap: https://malickland.net/sitemap.xml`
   );
 });
 
-router.get('/sitemap.xml', (_req, res) => {
+router.get('/sitemap.xml', publicReadRateLimit, (_req, res) => {
   const SITE = 'https://malickland.net';
   const now  = new Date().toISOString().split('T')[0];
 

@@ -26,7 +26,20 @@ if (process.env.NODE_ENV === 'production') {
   if (!process.env.SESSION_SECRET)  console.warn('[WARN] SESSION_SECRET not set — using insecure default');
 }
 
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc:  ["'self'", "'unsafe-inline'"],
+      styleSrc:   ["'self'", "'unsafe-inline'"],
+      imgSrc:     ["'self'", "data:", "https://placehold.co"],
+      connectSrc: ["'self'"],
+      fontSrc:    ["'self'"],
+      objectSrc:  ["'none'"],
+      frameSrc:   ["'none'"],
+    },
+  },
+}));
 app.use(cors());
 
 app.use((req, res, next) => {

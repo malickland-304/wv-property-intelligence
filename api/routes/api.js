@@ -15,7 +15,7 @@ const router = express.Router();
 router.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date() }));
 
 // ── Counties ──────────────────────────────────────────────
-router.get('/counties', (_req, res) => {
+router.get('/counties', publicReadRateLimit, (_req, res) => {
   res.json(db.prepare('SELECT id,name FROM counties ORDER BY name').all());
 });
 
@@ -69,7 +69,7 @@ router.get('/properties/:id', publicReadRateLimit, sendPropertyDetail);
 router.get('/listings/:id',   publicReadRateLimit, sendPropertyDetail);
 
 // ── Analytics ─────────────────────────────────────────────
-router.get('/analytics', (_req, res) => {
+router.get('/analytics', publicReadRateLimit, (_req, res) => {
   const row = db.prepare(`
     SELECT
       CAST(ROUND(AVG(price)) AS INTEGER) AS avgPrice,
