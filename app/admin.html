@@ -310,16 +310,6 @@
 <div id="toast"></div>
 
 <script>
-// ── HTML escaping ──────────────────────────────────────────
-function escapeHtml(str) {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 // ── Config ─────────────────────────────────────────────────
 const API = '/api';
 let apiKey = '';
@@ -382,6 +372,19 @@ function toast(msg) {
   setTimeout(() => { el.style.display = 'none'; }, 3000);
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function jsString(value) {
+  return JSON.stringify(String(value ?? '')).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+}
+
 // ── Counties ───────────────────────────────────────────────
 async function loadCounties() {
   try {
@@ -416,8 +419,8 @@ async function loadListings() {
         <td>${escapeHtml(p.property_type)}</td>
         <td><span class="badge ${escapeHtml(p.status)}">${escapeHtml(p.status)}</span></td>
         <td>
-          <button class="btn-sm" onclick="editListing(${escapeHtml(JSON.stringify(p.id))})">Edit</button>
-          <button class="btn-del" onclick="deleteListing(${escapeHtml(JSON.stringify(p.id))}, ${escapeHtml(JSON.stringify(p.address||''))})">Delete</button>
+          <button class="btn-sm" onclick="editListing(${jsString(p.id)})">Edit</button>
+          <button class="btn-del" onclick="deleteListing(${jsString(p.id)}, ${jsString(p.address||'')})">Delete</button>
         </td>
       </tr>
     `).join('');
@@ -523,12 +526,12 @@ async function loadLeads() {
     }
     tbody.innerHTML = leads.map(l => `
       <tr>
-        <td>${escapeHtml(l.name) || '—'}</td>
-        <td>${escapeHtml(l.email) || '—'}</td>
-        <td>${escapeHtml(l.phone) || '—'}</td>
-        <td>${escapeHtml(l.property_id) || '—'}</td>
-        <td style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(l.message) || '—'}</td>
-        <td style="white-space:nowrap">${l.created_at ? escapeHtml(l.created_at.slice(0,10)) : '—'}</td>
+        <td>${escapeHtml(l.name || '—')}</td>
+        <td>${escapeHtml(l.email || '—')}</td>
+        <td>${escapeHtml(l.phone || '—')}</td>
+        <td>${escapeHtml(l.property_id || '—')}</td>
+        <td style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(l.message || '—')}</td>
+        <td style="white-space:nowrap">${escapeHtml(l.created_at ? l.created_at.slice(0,10) : '—')}</td>
       </tr>
     `).join('');
   } catch (e) {

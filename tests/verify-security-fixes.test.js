@@ -157,6 +157,13 @@ test('Modern /api/properties routes exist', () => {
     'Modern GET /api/properties/:id route not found');
 });
 
+test('Description generation uses /api/properties route', () => {
+  assert(serverCode.includes("app.post('/api/properties/generate-description'"),
+    'Description generator should use /api/properties/generate-description');
+  assert(!serverCode.includes("app.post('/api/listings/generate-description'"),
+    'Legacy /api/listings/generate-description route should not exist');
+});
+
 // ============================================================
 // Test Suite 4: Documentation References
 // ============================================================
@@ -214,9 +221,76 @@ test('escapeHtml handles ampersands', () => {
 });
 
 // ============================================================
-// Test Suite 6: Gmail Helper Integrity
+// Test Suite 6: Server Security Middleware and Path Safety
 // ============================================================
-console.log('\nTest Suite 6: Gmail Helper Integrity');
+console.log('\nTest Suite 6: Server Security Middleware and Path Safety');
+console.log('-------------------------------------------------------');
+
+test('server does not use shell exec for image processing', () => {
+  assert(!serverCode.includes("const { exec }") && !serverCode.includes('promisify(exec)'),
+    'server.js should not import/promisify shell exec');
+  const dangerousExecLines = serverCode
+    .split('\n')
+    .filter(line => /\bexec\s*\(/.test(line) && !line.includes('db.exec'));
+  assert.equal(dangerousExecLines.length, 0,
+    `server.js should not execute shell commands: ${dangerousExecLines.join('; ')}`);
+  assert(serverCode.includes('execFile('),
+    'server.js should use execFile for fixed binary invocation');
+});
+
+test('listing filesystem paths go through safe path helpers', () => {
+  assert(serverCode.includes('function safePathComponent'),
+    'safePathComponent helper is required');
+  assert(serverCode.includes('function listingPath'),
+    'listingPath helper is required');
+  assert(!serverCode.includes("path.join(PROJECT_ROOT,'listings',slug"),
+    'listing paths should not join raw slug values');
+  assert(!serverCode.includes("path.join(PROJECT_ROOT, 'listings', slug"),
+    'listing paths should not join raw slug values');
+});
+
+test('admin mutating routes require CSRF protection', () => {
+  const mutatingRoutes = [
+    "app.post('/admin/new'",
+    "app.post('/admin/edit/:id'",
+    "app.post('/admin/upload/:slug'",
+    "app.post('/admin/photos/:slug/primary'",
+    "app.delete('/admin/photos/:slug/:filename'",
+    "app.post('/admin/report/:id/comps'",
+    "app.post('/admin/report/:id/dd'",
+    "app.post('/admin/leads/:id/status'",
+  ];
+  for (const route of mutatingRoutes) {
+    const routeLine = serverCode.split('\n').find(line => line.includes(route));
+    assert(routeLine && routeLine.includes('requireCsrf'), `${route} is missing requireCsrf`);
+  }
+});
+
+test('API and admin routes are rate limited', () => {
+  const limitedRoutes = [
+    ["app.get('/api/properties'", 'publicApiRateLimit'],
+    ["app.get('/api/properties/:id'", 'publicApiRateLimit'],
+    ["app.get('/api/analytics'", 'publicApiRateLimit'],
+    ["app.post('/api/contacts'", 'contactsRateLimit'],
+    ["app.post('/api/chat'", 'chatRateLimit'],
+    ["app.get('/wv/:slug'", 'publicPageRateLimit'],
+    ["app.get('/properties/:slug'", 'publicPageRateLimit'],
+    ["app.get('/listings'", 'publicPageRateLimit'],
+  ];
+  for (const [route, limiter] of limitedRoutes) {
+    const routeLine = serverCode.split('\n').find(line => line.includes(route));
+    assert(routeLine && routeLine.includes(limiter), `${route} is missing ${limiter}`);
+  }
+  assert(serverCode.includes('adminActionsRateLimit'),
+    'admin action rate limiter should exist');
+  assert(serverCode.includes('uploadRateLimit'),
+    'upload rate limiter should exist');
+});
+
+// ============================================================
+// Test Suite 7: Gmail Helper Integrity
+// ============================================================
+console.log('\nTest Suite 7: Gmail Helper Integrity');
 console.log('------------------------------------');
 
 test('api/google.js does not reference undefined getGoogle helper', () => {
@@ -230,9 +304,9 @@ test('sendTextEmail constructs Gmail client from imported google object', () => 
 });
 
 // ============================================================
-// Test Suite 7: Lead Follow-up Scheduling
+// Test Suite 8: Lead Follow-up Scheduling
 // ============================================================
-console.log('\nTest Suite 7: Lead Follow-up Scheduling');
+console.log('\nTest Suite 8: Lead Follow-up Scheduling');
 console.log('--------------------------------------');
 
 test('new leads track the first pending follow-up timestamp', () => {
