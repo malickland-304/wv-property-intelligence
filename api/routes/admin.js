@@ -22,7 +22,8 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'wvrea2026';
 // ── Multer ────────────────────────────────────────────────
 const storage = multer.diskStorage({
   destination: (req, _file, cb) => {
-    const slug = path.basename(req.params.slug || req.body.slug || 'uploads');
+    const rawSlug = req.params.slug || req.body.slug || '';
+    const slug = isSafePathComponent(rawSlug) ? rawSlug : 'uploads';
     const dir  = path.join(PROJECT_ROOT, 'listings', slug, 'photos', 'raw');
     fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);

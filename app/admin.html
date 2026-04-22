@@ -331,13 +331,13 @@ async function doAuth() {
   // Validate by hitting a write-protected endpoint (POST contacts returns 401 on bad key)
   // For simplicity, just store and do a test GET (GETs are always public)
   apiKey = key;
-  localStorage.setItem('admin_api_key', key);
+  sessionStorage.setItem('admin_api_key', key);
   document.getElementById('authGate').classList.remove('open');
   initAdmin();
 }
 
 function doLogout() {
-  localStorage.removeItem('admin_api_key');
+  sessionStorage.removeItem('admin_api_key');
   location.reload();
 }
 
@@ -351,7 +351,7 @@ document.getElementById('apiKeyInput').addEventListener('keydown', e => {
 
 // ── Init ───────────────────────────────────────────────────
 (function checkAuth() {
-  const stored = localStorage.getItem('admin_api_key');
+  const stored = sessionStorage.getItem('admin_api_key');
   if (stored) {
     apiKey = stored;
     document.getElementById('authGate').classList.remove('open');
