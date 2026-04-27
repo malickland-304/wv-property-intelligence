@@ -21,6 +21,7 @@ const fs         = require('fs');
 
 const LISTINGS_COLS = ['id','address','city','county','price','lot_acres','property_type','status','description','image_url','listed_at'];
 const LEADS_COLS    = ['id','name','email','phone','property_id','message','created_at'];
+const CONTACT_COLS  = ['id','name','email','phone','message','listingId','listingTitle','createdDate'];
 const CAPTURE_COLS  = [
   'timestamp',
   'lead_id',
@@ -86,7 +87,7 @@ function getSheetsClient() {
 // ── Helpers ───────────────────────────────────────────────
 function listingToRow(listing) {
   return LISTINGS_COLS.map(k => {
-    const val = listing[k] ?? listing[k.replace('lot_acres','acreage')] ?? '';
+    const val = listing[k] ?? (k === 'image_url' ? listing.imageUrls : undefined) ?? listing[k.replace('lot_acres','acreage')] ?? '';
     return val === null || val === undefined ? '' : String(val);
   });
 }
@@ -101,6 +102,13 @@ function leadToRow(lead) {
 function captureLeadToRow(lead) {
   return CAPTURE_COLS.map(k => {
     const val = lead[k] ?? '';
+    return val === null || val === undefined ? '' : String(val);
+  });
+}
+
+function contactToRow(contact) {
+  return CONTACT_COLS.map(k => {
+    const val = contact[k] ?? '';
     return val === null || val === undefined ? '' : String(val);
   });
 }
@@ -128,6 +136,20 @@ async function appendValues({ spreadsheetId, range, values }) {
 async function appendListing(listing) {
   const sid = process.env.LISTINGS_SHEET_ID;
   return appendValues({ spreadsheetId: sid, range: 'Sheet1!A:K', values: [listingToRow(listing)] });
+}
+
+async function getAllListings() {
+  const sheets = getSheetsClient();
+  if (!sheets) return [];
+  const sid = process.env.LISTINGS_SHEET_ID;
+  if (!sid) return [];
+
+  const rows = await getAllRows(sheets, sid, 'Sheet1!A:K');
+  return rows.map(row => {
+    const listing = Object.fromEntries(LISTINGS_COLS.map((k, i) => [k, row[i] ?? '']));
+    listing.imageUrls = listing.image_url || '';
+    return listing;
+  });
 }
 
 async function updateListing(id, listing) {
@@ -159,7 +181,9 @@ async function getListing(id) {
   const rows = await getAllRows(sheets, sid, 'Sheet1!A:K');
   const row  = rows.find(r => r[0] === String(id));
   if (!row) return null;
-  return Object.fromEntries(LISTINGS_COLS.map((k, i) => [k, row[i] ?? '']));
+  const listing = Object.fromEntries(LISTINGS_COLS.map((k, i) => [k, row[i] ?? '']));
+  listing.imageUrls = listing.image_url || '';
+  return listing;
 }
 
 // ── Leads ─────────────────────────────────────────────────
@@ -202,14 +226,21 @@ async function appendPropertyLead(lead) {
   return append37AdventLead(lead);
 }
 
+async function saveContact(contact) {
+  const spreadsheetId = process.env.CONTACTS_SHEET_ID || process.env.LEADS_SHEET_ID || process.env.LISTINGS_SHEET_ID;
+  return appendValues({ spreadsheetId, range: 'Contacts!A:H', values: [contactToRow(contact)] });
+}
+
 module.exports = {
   appendListing,
+  getAllListings,
   updateListing,
   getListing,
   getLeads,
   appendLead,
   append37AdventLead,
   appendPropertyLead,
+  saveContact,
   appendValues,
   isLeadCaptureConfigured,
 };

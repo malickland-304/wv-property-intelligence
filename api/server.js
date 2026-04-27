@@ -16,6 +16,8 @@ const { execFile } = require('child_process');
 
 const { uploadPhotoToDrive } = require('./google');
 const { sendLeadNotification } = require('./services/email');
+const googleSheets = require('./services/googleSheets');
+const SqliteSessionStore = require('./utils/sqliteSessionStore');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -29,6 +31,9 @@ if (!process.env.ADMIN_PASSWORD) {
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'wvrea2026';
 const PROJECT_ROOT   = path.join(__dirname, '..');
 const LISTINGS_ROOT  = path.join(PROJECT_ROOT, 'listings');
+const SESSION_DIR    = path.join(__dirname, 'data');
+fs.mkdirSync(SESSION_DIR, { recursive: true });
+const sessionDb = new Database(path.join(SESSION_DIR, 'sessions.db'));
 
 // ── DB ────────────────────────────────────────────────────
 // DATABASE_PATH env var must point to the Railway persistent volume (/data/wv_property.db).
@@ -366,7 +371,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 15 * 1024 * 1024, files: 20, fieldSize: 1 * 1024 * 1024 },
+  limits: { fileSize: 15 * 1024 * 1024, files: 30, fieldSize: 1 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     cb(null, /\.(jpg|jpeg|png|webp|heic)$/i.test(file.originalname));
   }
@@ -413,11 +418,19 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'tiny' : 'dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended:true }));
 app.use(session({
+  store: new SqliteSessionStore({
+    client: sessionDb,
+    expired: {
+      clear: true,
+      intervalMs: 900000,
+    },
+  }),
   secret: process.env.SESSION_SECRET || 'wvrea-secret-2026',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    maxAge: 8 * 60 * 60 * 1000,
+    maxAge: 86400000,
+    httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
   },
@@ -480,6 +493,14 @@ const contactsRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many inquiries. Please wait a moment.' },
+});
+
+const contactFormRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many contact submissions. Please try again later.' },
 });
 
 // 10 login attempts per 15 minutes per IP — brute-force guard
@@ -1225,7 +1246,7 @@ app.get('/api/properties', publicApiRateLimit, (req, res) => {
     const properties = db.prepare(`
       SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
              p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
-             p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
+             p.year_built, p.image_url, p.image_url AS imageUrls, p.listed_at, p.status, p.price_reduced,
              p.features, p.road_access, p.electric, p.well, p.internet, p.broadband_type,
              p.water_features, p.nearest_town, p.miles_to_town, p.listing_slug,
              c.name AS county
@@ -1241,7 +1262,7 @@ function sendPropertyDetail(req, res) {
   const row = db.prepare(`
     SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
            p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
-           p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
+           p.year_built, p.image_url, p.image_url AS imageUrls, p.listed_at, p.status, p.price_reduced,
            p.county_id, c.name AS county,
            p.property_description AS description,
            p.features, p.road_access, p.utilities_available,
@@ -1291,6 +1312,39 @@ app.post('/api/contacts', contactsRateLimit, publicApiRateLimit, (req, res) => {
   sendLeadNotification({ name, email, phone, message, source: String(req.body.source || '').slice(0, 80) }, property).catch(() => {});
 
   res.status(201).json({ id:result.lastInsertRowid });
+});
+
+app.post('/api/contact', contactFormRateLimit, publicApiRateLimit, async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim().slice(0, 120);
+    const email = String(req.body.email || '').trim().toLowerCase().slice(0, 254);
+    const phone = String(req.body.phone || '').trim().slice(0, 50);
+    const message = String(req.body.message || '').trim().slice(0, 5000);
+    const listingId = String(req.body.listingId || '').trim().slice(0, 128);
+    const listingTitle = String(req.body.listingTitle || '').trim().slice(0, 240);
+
+    if (!name || !email) return res.status(400).json({ error: 'Name and email are required' });
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'Invalid email address' });
+
+    const contactRecord = {
+      id: crypto.randomBytes(16).toString('hex'),
+      name,
+      email,
+      phone,
+      message,
+      listingId,
+      listingTitle,
+      createdDate: new Date().toISOString(),
+    };
+
+    const saved = await googleSheets.saveContact(contactRecord);
+    if (!saved) return res.status(503).json({ error: 'Google Sheets is not configured' });
+
+    res.json({ success: true, message: 'Message received.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save contact' });
+  }
 });
 
 app.post('/api/properties/generate-description', chatRateLimit, publicApiRateLimit, (req, res) => {
