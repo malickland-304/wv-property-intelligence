@@ -14,10 +14,10 @@ const rateLimit  = require('express-rate-limit');
 require('dotenv').config();
 const { execFile } = require('child_process');
 
-const { sendContactEmail, uploadPhotoToDrive } = require('./google');
-const { requireApiKey } = require('./middleware/auth');
-let sharp;
-try { sharp = require('sharp'); } catch (_) { sharp = null; }
+const { uploadPhotoToDrive } = require('./google');
+const { sendLeadNotification } = require('./services/email');
+const googleSheets = require('./services/googleSheets');
+const SqliteSessionStore = require('./utils/sqliteSessionStore');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -25,8 +25,15 @@ const PORT = process.env.PORT || 3000;
 // Trust one proxy hop (Cloudflare → Railway). Required for correct req.ip,
 // X-Forwarded-For in logs, and rate-limiter keying.
 app.set('trust proxy', 1);
+if (!process.env.ADMIN_PASSWORD) {
+  console.error('[SECURITY] ADMIN_PASSWORD env var is not set! Using insecure default. Set this in Railway env vars immediately.');
+}
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'wvrea2026';
 const PROJECT_ROOT   = path.join(__dirname, '..');
+const LISTINGS_ROOT  = path.join(PROJECT_ROOT, 'listings');
+const SESSION_DIR    = path.join(__dirname, 'data');
+fs.mkdirSync(SESSION_DIR, { recursive: true });
+const sessionDb = new Database(path.join(SESSION_DIR, 'sessions.db'));
 
 // ── DB ────────────────────────────────────────────────────
 // DATABASE_PATH env var must point to the Railway persistent volume (/data/wv_property.db).
@@ -117,6 +124,19 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_properties_price  ON properties(price);
 `);
 
+// Schema migrations (safe to run repeatedly)
+try { db.exec(`ALTER TABLE contacts ADD COLUMN lead_status TEXT DEFAULT 'new'`); } catch(_) {}
+try { db.exec(`ALTER TABLE contacts ADD COLUMN last_contacted_at TEXT`); } catch(_) {}
+// Land-specific fields
+try { db.exec(`ALTER TABLE properties ADD COLUMN features TEXT`); } catch(_) {}
+try { db.exec(`ALTER TABLE properties ADD COLUMN mineral_rights TEXT DEFAULT 'unknown'`); } catch(_) {}
+try { db.exec(`ALTER TABLE properties ADD COLUMN water_features TEXT`); } catch(_) {}
+try { db.exec(`ALTER TABLE properties ADD COLUMN broadband_type TEXT`); } catch(_) {}
+try { db.exec(`ALTER TABLE properties ADD COLUMN elevation_min INTEGER`); } catch(_) {}
+try { db.exec(`ALTER TABLE properties ADD COLUMN elevation_max INTEGER`); } catch(_) {}
+try { db.exec(`ALTER TABLE properties ADD COLUMN nearest_town TEXT`); } catch(_) {}
+try { db.exec(`ALTER TABLE properties ADD COLUMN miles_to_town REAL`); } catch(_) {}
+
 // Seed counties
 if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
   const ins = db.prepare('INSERT OR IGNORE INTO counties (name,fips_code) VALUES (?,?)');
@@ -200,7 +220,7 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
     const existing = db.prepare(
       "SELECT id, property_description FROM properties WHERE mls_number='WVHS2007442' OR (address LIKE '%Advent%' AND county_id=?)"
     ).get(hampshire.id);
-    const descSuffix = 'MLS# WVHS2007442 | 37 Advent Dr, Romney, WV 26757 | Hampshire County | Listed at $219,900 | Contact Phil Malick for details.';
+    const descSuffix = 'MLS# WVHS2007442 | 37 Advent Dr, Romney, WV 26757 | Hampshire County | Listed at $185,000 | Contact Phil Malick for details.';
     if (existing) {
       const cur = existing.property_description || '';
       const newDesc = cur.includes('WVHS2007442') ? cur : (cur ? cur + '\n\n' + descSuffix : descSuffix);
@@ -210,8 +230,9 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
           property_type='land',
           status='active',
           mls_number='WVHS2007442',
-          price=219900,
+          price=185000,
           property_description=?,
+          image_url=COALESCE(NULLIF(image_url,''),'/assets/advent-1.jpg'),
           updated_at=datetime('now')
         WHERE id=?
       `).run(newDesc, existing.id);
@@ -221,16 +242,32 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
       db.prepare(`
         INSERT INTO properties
           (id,county_id,address,city,state,zip,property_type,status,price,
-           mls_number,listing_agent,listing_slug,property_description)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+           mls_number,listing_agent,listing_slug,property_description,image_url)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `).run(
         newId, hampshire.id, '37 Advent Dr', 'Romney', 'WV', '26757',
-        'land', 'active', 219900,
-        'WVHS2007442', 'Phil Malick', 'advent-dr-hampshire-wv', descSuffix
+        'land', 'active', 185000,
+        'WVHS2007442', 'Phil Malick', 'advent-dr-hampshire-wv', descSuffix, '/assets/advent-1.jpg'
       );
       console.log('Inserted Advent Dr listing →', newId);
     }
   }
+}
+
+// ── DC/Baltimore drive-time lookup (Eastern Panhandle selling point) ─
+const DC_DRIVE_TIMES = {
+  Hampshire:  { dc:'~2 hrs', balt:'~2.5 hrs', pit:'~3 hrs' },
+  Hardy:      { dc:'~2.5 hrs', balt:'~3 hrs',   pit:'~3 hrs' },
+  Morgan:     { dc:'~2 hrs',   balt:'~2.5 hrs', pit:'~3 hrs' },
+  Grant:      { dc:'~2.5 hrs', balt:'~3 hrs',   pit:'~3 hrs' },
+  Pendleton:  { dc:'~3 hrs',   balt:'~3.5 hrs', pit:'~3 hrs' },
+  Mineral:    { dc:'~2.5 hrs', balt:'~2.5 hrs', pit:'~3 hrs' },
+  Tucker:     { dc:'~3 hrs',   balt:'~3 hrs',   pit:'~3 hrs' },
+  Berkeley:   { dc:'~1.5 hrs', balt:'~2 hrs',   pit:'~3.5 hrs' },
+  Jefferson:  { dc:'~1.5 hrs', balt:'~2 hrs',   pit:'~3.5 hrs' },
+};
+function getDriveTimes(countyName) {
+  return DC_DRIVE_TIMES[countyName] || null;
 }
 
 // ── Helpers ───────────────────────────────────────────────
@@ -238,7 +275,6 @@ function slugify(str) {
   return str.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 }
 
-// Escape HTML special characters to prevent XSS in server-rendered admin pages
 function esc(str) {
   return String(str ?? '')
     .replace(/&/g, '&amp;')
@@ -248,8 +284,56 @@ function esc(str) {
     .replace(/'/g, '&#39;');
 }
 
+function jsLiteral(value) {
+  return JSON.stringify(String(value ?? ''))
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
+}
+
+const SAFE_SLUG_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/;
+const SAFE_FILE_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,180}$/;
+
+function safePathComponent(value, { file = false } = {}) {
+  const raw = String(value ?? '');
+  const pattern = file ? SAFE_FILE_RE : SAFE_SLUG_RE;
+  if (!pattern.test(raw) || raw.includes('..') || raw.includes('/') || raw.includes('\\')) return null;
+  return raw;
+}
+
+function listingPath(...parts) {
+  const resolved = path.resolve(LISTINGS_ROOT, ...parts);
+  const root = path.resolve(LISTINGS_ROOT);
+  if (resolved !== root && !resolved.startsWith(root + path.sep)) {
+    throw new Error('Resolved path escaped listings directory');
+  }
+  return resolved;
+}
+
+function publicAssetUrl(value, fallback = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return fallback;
+  if (/[\x00-\x1f"'<>\s]/.test(raw)) return fallback;
+  if (raw.startsWith('/') && !raw.startsWith('//')) return raw;
+  if (/^https:\/\/[a-z0-9.-]+(?:\/[^\s"'<>]*)?$/i.test(raw)) return raw;
+  return fallback;
+}
+
+function toFiniteNumber(value, fallback = null) {
+  if (value == null || value === '') return fallback;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function clampInt(value, fallback, min, max) {
+  const number = Math.trunc(toFiniteNumber(value, fallback));
+  return Math.min(max, Math.max(min, number));
+}
+
 function initListingFolder(slug) {
-  const base = path.join(PROJECT_ROOT, 'listings', slug);
+  const safeSlug = safePathComponent(slug);
+  if (!safeSlug) throw new Error('Invalid listing slug');
+  const base = listingPath(safeSlug);
   ['photos/raw','photos/compressed','photos/mls'].forEach(p =>
     fs.mkdirSync(path.join(base,p), { recursive:true })
   );
@@ -270,36 +354,63 @@ function initListingFolder(slug) {
 // ── Multer (photo upload) ─────────────────────────────────
 const storage = multer.diskStorage({
   destination: (req, _file, cb) => {
-    // Use path.basename() to strip any path separators from the slug
-    const slug = path.basename(req.params.slug || req.body.slug || 'uploads');
-    const dir  = path.join(PROJECT_ROOT, 'listings', slug, 'photos', 'raw');
+    const slug = safePathComponent(req.params.slug || req.body.slug || 'uploads');
+    if (!slug) return cb(new Error('Invalid upload slug'));
+    const dir = listingPath(slug, 'photos', 'raw');
     fs.mkdirSync(dir, { recursive:true });
     cb(null, dir);
   },
   filename: (_req, file, cb) => {
     const ext  = path.extname(file.originalname).toLowerCase();
+    if (!['.jpg', '.jpeg', '.png', '.webp', '.heic'].includes(ext)) {
+      return cb(new Error('Invalid upload extension'));
+    }
     const name = Date.now() + '-' + crypto.randomBytes(4).toString('hex') + ext;
     cb(null, name);
   }
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 15 * 1024 * 1024, files: 20, fieldSize: 1 * 1024 * 1024 },
+  limits: { fileSize: 15 * 1024 * 1024, files: 30, fieldSize: 1 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     cb(null, /\.(jpg|jpeg|png|webp|heic)$/i.test(file.originalname));
   }
 });
 
 // ── Middleware ────────────────────────────────────────────
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      "default-src": ["'self'"],
+      "script-src": [
+        "'self'",
+        "'unsafe-inline'",
+        "https://www.googletagmanager.com",
+        "https://www.google-analytics.com",
+        "https://connect.facebook.net",
+      ],
+      "script-src-attr": ["'unsafe-inline'"],
+      "style-src": ["'self'", "'unsafe-inline'"],
+      "img-src": ["'self'", "data:", "https:"],
+      "connect-src": ["'self'", "https://www.google-analytics.com", "https://www.facebook.com"],
+      "object-src": ["'none'"],
+      "frame-ancestors": ["'self'"],
+    },
+  },
+}));
 app.use(cors());
 
 // ── www → apex canonical redirect ───────────────────────
 app.use((req, res, next) => {
   const host = req.hostname || '';
+  // www.malickland.net → malickland.net
   if (host.startsWith('www.')) {
-    const target = 'https://malickland.net' + req.originalUrl;
-    return res.redirect(301, target);
+    return res.redirect(301, 'https://malickland.net/');
+  }
+  // malickland.com (any variant) → malickland.net
+  if (host === 'malickland.com' || host === 'www.malickland.com') {
+    return res.redirect(301, 'https://malickland.net/');
   }
   next();
 });
@@ -307,11 +418,19 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'tiny' : 'dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended:true }));
 app.use(session({
+  store: new SqliteSessionStore({
+    client: sessionDb,
+    expired: {
+      clear: true,
+      intervalMs: 900000,
+    },
+  }),
   secret: process.env.SESSION_SECRET || 'wvrea-secret-2026',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    maxAge: 8 * 60 * 60 * 1000,
+    maxAge: 86400000,
+    httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
   },
@@ -328,17 +447,14 @@ function requireAuth(req, res, next) {
   res.redirect('/admin/login');
 }
 
-// ── CSRF protection (session-based double-submit token) ───
 function csrfToken(req) {
   if (!req.session.csrfToken) {
-    req.session.csrfToken = crypto.randomBytes(16).toString('hex');
+    req.session.csrfToken = crypto.randomBytes(32).toString('hex');
   }
   return req.session.csrfToken;
 }
 
 function requireCsrf(req, res, next) {
-  // Skip CSRF for API endpoints (protected by API key, not session cookie)
-  if (req.path.startsWith('/api/')) return next();
   const token = req.body._csrf || req.headers['x-csrf-token'];
   if (!token || token !== req.session.csrfToken) {
     return res.status(403).send('Invalid CSRF token');
@@ -347,12 +463,44 @@ function requireCsrf(req, res, next) {
 }
 
 // ── Rate limiters ─────────────────────────────────────────
+const publicApiRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many API requests. Please wait a moment.' },
+});
+
+const publicPageRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 180,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many requests. Please wait a moment.',
+});
+
+const chatRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Chat rate limit exceeded. Please wait a moment.' },
+});
+
 const contactsRateLimit = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many inquiries. Please wait a moment.' },
+});
+
+const contactFormRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many contact submissions. Please try again later.' },
 });
 
 // 10 login attempts per 15 minutes per IP — brute-force guard
@@ -364,51 +512,26 @@ const adminLoginRateLimit = rateLimit({
   skipSuccessfulRequests: true,
 });
 
-// 20 description-generate calls per minute per IP
-const generateDescRateLimit = rateLimit({
-  windowMs: 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many generate requests. Please wait a moment.' },
-});
-
-// 60 API write calls per minute per IP (contacts read + properties CRUD)
-const apiWriteRateLimit = rateLimit({
+const adminActionsRateLimit = rateLimit({
   windowMs: 60 * 1000,
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many API requests. Please wait a moment.' },
+  message: { error: 'Too many admin requests. Please slow down.' },
 });
 
-// 30 photo uploads per minute per IP (admin upload handler)
 const uploadRateLimit = rateLimit({
   windowMs: 60 * 1000,
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many upload requests. Please wait a moment.' },
+  message: { error: 'Too many upload requests. Please slow down.' },
 });
-
-// 60 admin form submissions per minute per IP (listing create/edit, report saves, etc.)
-const adminActionRateLimit = rateLimit({
-  windowMs: 60 * 1000,
-  max: 60,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: 'Too many admin actions. Please slow down.',
-});
-
-// Validate that a slug/filename only contains safe characters (alphanumeric, hyphens, underscores)
-const SAFE_PATH_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*(\.[a-zA-Z0-9]+)?$/;
-function isSafePathComponent(str) {
-  return typeof str === 'string' && SAFE_PATH_RE.test(str) && !str.includes('..');
-}
 
 // ── Admin login ───────────────────────────────────────────
-app.get('/admin/login', (_req, res) => {
-  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+function loginPage(req, error = '') {
+  const csrf = csrfToken(req);
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
   <title>Admin Login</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
@@ -424,50 +547,35 @@ app.get('/admin/login', (_req, res) => {
   </style></head><body>
   <div class="box">
     <h2>🏡 WVREA Admin</h2>
+    ${error ? `<p class="err">${esc(error)}</p>` : ''}
     <form method="POST" action="/admin/login">
+      <input type="hidden" name="_csrf" value="${esc(csrf)}" />
       <input type="password" name="password" placeholder="Admin Password" autofocus />
       <button type="submit">Sign In</button>
     </form>
-  </div></body></html>`);
+  </div></body></html>`;
+}
+
+app.get('/admin/login', adminLoginRateLimit, (req, res) => {
+  res.send(loginPage(req));
 });
 
-app.post('/admin/login', adminLoginRateLimit, (req, res) => {
+app.post('/admin/login', adminLoginRateLimit, requireCsrf, (req, res) => {
   if (req.body.password === ADMIN_PASSWORD) {
     req.session.admin = true;
     res.redirect('/admin');
   } else {
-    res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-    <title>Admin Login</title>
-    <style>
-      *{box-sizing:border-box;margin:0;padding:0}
-      body{font-family:'Segoe UI',sans-serif;background:#1a3a2a;display:flex;
-        align-items:center;justify-content:center;min-height:100vh}
-      .box{background:#fff;padding:2.5rem;border-radius:12px;width:100%;max-width:380px;text-align:center}
-      h2{color:#1a3a2a;margin-bottom:1.5rem}
-      input{width:100%;padding:.75rem;border:1px solid #ddd;border-radius:6px;
-        margin-bottom:1rem;font-size:1rem}
-      button{width:100%;padding:.85rem;background:#c9a84c;color:#1a3a2a;
-        border:none;border-radius:6px;font-weight:700;font-size:1rem;cursor:pointer}
-      .err{color:#c0392b;margin-bottom:1rem;font-size:.9rem}
-    </style></head><body>
-    <div class="box">
-      <h2>🏡 WVREA Admin</h2>
-      <p class="err">Incorrect password</p>
-      <form method="POST" action="/admin/login">
-        <input type="password" name="password" placeholder="Admin Password" autofocus />
-        <button type="submit">Sign In</button>
-      </form>
-    </div></body></html>`);
+    res.status(401).send(loginPage(req, 'Incorrect password'));
   }
 });
 
-app.get('/admin/logout', (req, res) => {
+app.post('/admin/logout', adminActionsRateLimit, requireAuth, requireCsrf, (req, res) => {
   req.session.destroy();
   res.redirect('/admin/login');
 });
 
 // ── Admin dashboard ───────────────────────────────────────
-app.get('/admin', requireAuth, (_req, res) => {
+app.get('/admin', adminActionsRateLimit, requireAuth, (req, res) => {
   const listings = db.prepare(`
     SELECT p.id, p.address, p.city, p.price, p.property_type, p.status,
            p.listing_slug, p.acreage, p.photos_uploaded, p.mls_status,
@@ -487,13 +595,13 @@ app.get('/admin', requireAuth, (_req, res) => {
       <td><span class="badge ${esc(p.status)}">${esc(p.status)}</span></td>
       <td>${esc(p.mls_status||'draft')}</td>
       <td>
-        <a href="/admin/edit/${esc(p.id)}" class="btn-sm">Edit</a>
-        <a href="/admin/photos/${esc(p.listing_slug||p.id)}" class="btn-sm">Photos</a>
-        <a href="/admin/report/${esc(p.id)}" class="btn-sm">Report</a>
+        <a href="/admin/edit/${encodeURIComponent(p.id)}" class="btn-sm">Edit</a>
+        <a href="/admin/photos/${encodeURIComponent(p.listing_slug||p.id)}" class="btn-sm">Photos</a>
+        <a href="/admin/report/${encodeURIComponent(p.id)}" class="btn-sm">Report</a>
       </td>
     </tr>`).join('');
 
-  res.send(adminShell('Dashboard', `
+  res.send(adminShell(req, 'Dashboard', `
     <div class="dash-header">
       <h1>Listings</h1>
       <a href="/admin/new" class="btn">+ New Listing</a>
@@ -505,23 +613,28 @@ app.get('/admin', requireAuth, (_req, res) => {
       </tr></thead>
       <tbody>${rows || '<tr><td colspan="8" style="text-align:center;padding:2rem;color:#999">No listings yet. <a href="/admin/new">Add your first listing →</a></td></tr>'}</tbody>
     </table>
-  `, csrfToken(req)));
+  `));
 });
 
 // ── New listing form ──────────────────────────────────────
-app.get('/admin/new', requireAuth, (req, res) => {
+app.get('/admin/new', adminActionsRateLimit, requireAuth, (req, res) => {
   const counties = db.prepare('SELECT id,name FROM counties ORDER BY name').all();
-  res.send(adminShell('New Listing', listingForm(null, counties), csrfToken(req)));
+  res.send(adminShell(req, 'New Listing', listingForm(null, counties)));
 });
 
 function normalizeAcreage(body) {
-  return body.acreage ?? body.lot_acres ?? null;
+  const raw = body.acreage ?? body.lot_acres ?? null;
+  if (raw == null) return null;
+  const trimmed = typeof raw === 'string' ? raw.trim() : raw;
+  if (trimmed === '') return null;
+  const n = Number(trimmed);
+  return Number.isNaN(n) ? null : n;
 }
 
-app.post('/admin/new', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
+app.post('/admin/new', adminActionsRateLimit, requireAuth, requireCsrf, (req, res) => {
   const f = req.body;
   const id   = crypto.randomBytes(16).toString('hex');
-  const slug = slugify((f.address||'listing') + '-' + (f.city||'wv'));
+  const slug = slugify((f.address||'listing') + '-' + (f.city||'wv')) || 'listing';
   const uniqueSlug = slug + '-' + id.slice(0,6);
 
   db.prepare(`
@@ -534,9 +647,11 @@ app.post('/admin/new', requireAuth, requireCsrf, adminActionRateLimit, (req, res
       latitude, longitude, flood_zone, school_district,
       bedrooms, bathrooms, sqft, year_built,
       property_description, marketing_description, seller_notes, internal_notes,
+      features, mineral_rights, water_features, broadband_type,
+      elevation_min, elevation_max, nearest_town, miles_to_town,
       listing_slug
     ) VALUES (
-      ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+      ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
     )
   `).run(
     id, f.county_id||1, f.address, f.city, f.state||'WV', f.zip,
@@ -550,13 +665,15 @@ app.post('/admin/new', requireAuth, requireCsrf, adminActionRateLimit, (req, res
     f.latitude||null, f.longitude||null, f.flood_zone, f.school_district,
     f.bedrooms||null, f.bathrooms||null, f.sqft||null, f.year_built||null,
     f.property_description, f.marketing_description, f.seller_notes, f.internal_notes,
+    f.features||null, f.mineral_rights||'unknown', f.water_features||null, f.broadband_type||null,
+    f.elevation_min||null, f.elevation_max||null, f.nearest_town||null, f.miles_to_town||null,
     uniqueSlug
   );
 
   // Write listing.json
   initListingFolder(uniqueSlug);
   fs.writeFileSync(
-    path.join(PROJECT_ROOT,'listings',uniqueSlug,'listing.json'),
+    listingPath(uniqueSlug, 'listing.json'),
     JSON.stringify({ id, ...f, listing_slug: uniqueSlug }, null, 2)
   );
 
@@ -564,14 +681,14 @@ app.post('/admin/new', requireAuth, requireCsrf, adminActionRateLimit, (req, res
 });
 
 // ── Edit listing ──────────────────────────────────────────
-app.get('/admin/edit/:id', requireAuth, (req, res) => {
+app.get('/admin/edit/:id', adminActionsRateLimit, requireAuth, (req, res) => {
   const p = db.prepare('SELECT * FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.redirect('/admin');
   const counties = db.prepare('SELECT id,name FROM counties ORDER BY name').all();
-  res.send(adminShell('Edit Listing', listingForm(p, counties), csrfToken(req)));
+  res.send(adminShell(req, 'Edit Listing', listingForm(p, counties)));
 });
 
-app.post('/admin/edit/:id', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
+app.post('/admin/edit/:id', adminActionsRateLimit, requireAuth, requireCsrf, (req, res) => {
   const f = req.body;
   db.prepare(`
     UPDATE properties SET
@@ -583,6 +700,8 @@ app.post('/admin/edit/:id', requireAuth, requireCsrf, adminActionRateLimit, (req
       latitude=?, longitude=?, flood_zone=?, school_district=?,
       bedrooms=?, bathrooms=?, sqft=?, year_built=?,
       property_description=?, marketing_description=?, seller_notes=?, internal_notes=?,
+      features=?, mineral_rights=?, water_features=?, broadband_type=?,
+      elevation_min=?, elevation_max=?, nearest_town=?, miles_to_town=?,
       updated_at=datetime('now')
     WHERE id=?
   `).run(
@@ -596,32 +715,33 @@ app.post('/admin/edit/:id', requireAuth, requireCsrf, adminActionRateLimit, (req
     f.latitude||null, f.longitude||null, f.flood_zone, f.school_district,
     f.bedrooms||null, f.bathrooms||null, f.sqft||null, f.year_built||null,
     f.property_description, f.marketing_description, f.seller_notes, f.internal_notes,
+    f.features||null, f.mineral_rights||'unknown', f.water_features||null, f.broadband_type||null,
+    f.elevation_min||null, f.elevation_max||null, f.nearest_town||null, f.miles_to_town||null,
     req.params.id
   );
   res.redirect('/admin');
 });
 
 // ── Photo upload page ─────────────────────────────────────
-app.get('/admin/photos/:slug', requireAuth, (req, res) => {
-  const slug = req.params.slug;
-  if (!isSafePathComponent(slug)) return res.status(400).send('Invalid slug');
+function listListingPhotos(slug) {
+  const photoDir = listingPath(slug, 'photos', 'compressed');
+  if (!fs.existsSync(photoDir)) return [];
+  return fs.readdirSync(photoDir)
+    .filter(f => safePathComponent(f, { file: true }) && /\.(jpg|jpeg|png|webp)$/i.test(f));
+}
+
+app.get('/admin/photos/:slug/list', adminActionsRateLimit, requireAuth, (req, res) => {
+  const slug = safePathComponent(req.params.slug);
+  if (!slug) return res.status(400).json({ error: 'Invalid slug' });
+  res.json({ photos: listListingPhotos(slug) });
+});
+
+app.get('/admin/photos/:slug', adminActionsRateLimit, requireAuth, (req, res) => {
+  const slug = safePathComponent(req.params.slug);
+  if (!slug) return res.status(400).send('Invalid slug');
   const p = db.prepare('SELECT * FROM properties WHERE listing_slug=?').get(slug);
-  const photoDir = path.join(PROJECT_ROOT,'listings',slug,'photos','compressed');
-  let photos = [];
-  if (fs.existsSync(photoDir)) {
-    photos = fs.readdirSync(photoDir).filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f));
-  }
 
-  const photoGrid = photos.map((f,i) => `
-    <div class="photo-item">
-      <img src="/images/${esc(slug)}/photos/compressed/${esc(f)}" alt="Photo ${i+1}" />
-      <div class="photo-actions">
-        ${i===0 ? '<span class="primary-badge">Primary</span>' : `<button onclick="setPrimary('${esc(slug)}','${esc(f)}')">Set Primary</button>`}
-        <button onclick="deletePhoto('${esc(slug)}','${esc(f)}')" class="del">Delete</button>
-      </div>
-    </div>`).join('');
-
-  res.send(adminShell('Upload Photos', `
+  res.send(adminShell(req, 'Upload Photos', `
     <div class="dash-header">
       <h1>Photos — ${p ? esc(p.address) : esc(slug)}</h1>
       <a href="/admin" class="btn-outline">← Back</a>
@@ -638,13 +758,63 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
       <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
       <p id="progressText">Uploading...</p>
     </div>
-    <h3 style="margin:1.5rem 0 1rem">Uploaded Photos (${photos.length})</h3>
-    <div class="photo-grid" id="photoGrid">${photoGrid}</div>
+    <h3 style="margin:1.5rem 0 1rem">Uploaded Photos <span id="photoCount"></span></h3>
+    <div class="photo-grid" id="photoGrid"></div>
     <script>
-      const slug = '${esc(slug)}';
-      const _csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+      const slug = ${jsLiteral(slug)};
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
       const dropZone = document.getElementById('dropZone');
       const fileInput = document.getElementById('fileInput');
+      const photoGrid = document.getElementById('photoGrid');
+      const photoCount = document.getElementById('photoCount');
+
+      function renderPhoto(filename, index) {
+        const item = document.createElement('div');
+        item.className = 'photo-item';
+
+        const img = document.createElement('img');
+        img.src = '/images/' + encodeURIComponent(slug) + '/photos/compressed/' + encodeURIComponent(filename);
+        img.alt = 'Photo ' + (index + 1);
+        item.appendChild(img);
+
+        const actions = document.createElement('div');
+        actions.className = 'photo-actions';
+        if (index === 0) {
+          const badge = document.createElement('span');
+          badge.className = 'primary-badge';
+          badge.textContent = 'Primary';
+          actions.appendChild(badge);
+        } else {
+          const primary = document.createElement('button');
+          primary.type = 'button';
+          primary.textContent = 'Set Primary';
+          primary.addEventListener('click', () => setPrimary(slug, filename));
+          actions.appendChild(primary);
+        }
+
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'del';
+        del.textContent = 'Delete';
+        del.addEventListener('click', () => deletePhoto(slug, filename));
+        actions.appendChild(del);
+        item.appendChild(actions);
+        photoGrid.appendChild(item);
+      }
+
+      async function loadPhotos() {
+        const response = await fetch('/admin/photos/' + encodeURIComponent(slug) + '/list', {
+          headers: { 'Accept': 'application/json' },
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        const photos = Array.isArray(data.photos) ? data.photos.filter(name => typeof name === 'string') : [];
+        photoGrid.replaceChildren();
+        photoCount.textContent = '(' + photos.length + ')';
+        photos.forEach(renderPhoto);
+      }
+
+      loadPhotos();
 
       dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
       dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
@@ -664,7 +834,7 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
         for (const file of files) {
           const fd = new FormData();
           fd.append('photo', file);
-          await fetch('/admin/upload/' + slug, { method:'POST', body:fd, headers:{'x-csrf-token':_csrf} });
+          await fetch('/admin/upload/' + encodeURIComponent(slug), { method:'POST', body:fd, headers:{'x-csrf-token':csrf} });
           done++;
           const pct = Math.round(done/files.length*100);
           fill.style.width = pct+'%';
@@ -677,7 +847,7 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
       async function setPrimary(slug, filename) {
         await fetch('/admin/photos/' + slug + '/primary', {
           method:'POST',
-          headers:{'Content-Type':'application/json','x-csrf-token':_csrf},
+          headers:{'Content-Type':'application/json','x-csrf-token':csrf},
           body: JSON.stringify({ filename })
         });
         location.reload();
@@ -685,35 +855,25 @@ app.get('/admin/photos/:slug', requireAuth, (req, res) => {
 
       async function deletePhoto(slug, filename) {
         if (!confirm('Delete this photo?')) return;
-        await fetch('/admin/photos/' + slug + '/' + filename, { method:'DELETE', headers:{'x-csrf-token':_csrf} });
+        await fetch('/admin/photos/' + encodeURIComponent(slug) + '/' + encodeURIComponent(filename), { method:'DELETE', headers:{'x-csrf-token':csrf} });
         location.reload();
       }
     </script>
-  `, csrfToken(req)));
+  `));
 });
 
 // Upload handler
-app.post('/admin/upload/:slug', requireAuth, requireCsrf, uploadRateLimit, upload.single('photo'), async (req, res) => {
-  // Sanitise slug via path.basename() to strip any path separators, then validate
-  const slug = path.basename(req.params.slug || '');
-  if (!isSafePathComponent(slug)) return res.status(400).json({ error: 'Invalid slug' });
+app.post('/admin/upload/:slug', uploadRateLimit, requireAuth, requireCsrf, upload.single('photo'), async (req, res) => {
+  const slug = safePathComponent(req.params.slug);
+  if (!slug) return res.status(400).json({ error: 'Invalid slug' });
   if (!req.file) return res.status(400).json({ error: 'No file' });
 
-  // Sanitise multer-generated filename via path.basename() (should always be safe, but belt-and-suspenders)
-  const filename = path.basename(req.file.filename || '');
-  if (!isSafePathComponent(filename)) {
-    // Clean up by deleting the file multer placed in the raw dir
-    const rawDir = path.join(PROJECT_ROOT, 'listings', slug, 'photos', 'raw');
-    fs.unlink(path.join(rawDir, filename), err => {
-      if (err) console.error('[upload] cleanup failed:', err.message);
-    });
-    return res.status(400).json({ error: 'Invalid filename' });
-  }
+  const filename = safePathComponent(req.file.filename, { file: true });
+  if (!filename) return res.status(400).json({ error: 'Invalid filename' });
 
-  // Use sanitised slug/filename for all path operations
-  const rawPath = path.join(PROJECT_ROOT, 'listings', slug, 'photos', 'raw', filename);
-  const compDir = path.join(PROJECT_ROOT,'listings',slug,'photos','compressed');
-  const mlsDir  = path.join(PROJECT_ROOT,'listings',slug,'photos','mls');
+  const rawPath = listingPath(slug, 'photos', 'raw', filename);
+  const compDir = listingPath(slug, 'photos', 'compressed');
+  const mlsDir  = listingPath(slug, 'photos', 'mls');
   fs.mkdirSync(compDir, { recursive:true });
   fs.mkdirSync(mlsDir,  { recursive:true });
 
@@ -733,30 +893,13 @@ app.post('/admin/upload/:slug', requireAuth, requireCsrf, uploadRateLimit, uploa
     res.json({ ok:true, filename });
   }
 
-  if (process.platform === 'darwin' && !sharp) {
-    // sips is macOS-only fallback when sharp is unavailable
-    execFile('sips', ['-Z', '1200', rawPath, '--out', compPath], (err) => {
-      if (err) console.error('[sips] compress failed:', err.message);
-      execFile('sips', ['-Z', '1024', rawPath, '--out', mlsPath], (err2) => {
-        if (err2) console.error('[sips] mls resize failed:', err2.message);
-        afterCompress();
-      });
+  if (process.platform === 'darwin') {
+    // sips is macOS-only — use it when available for lossless resize
+    execFile('sips', ['-Z', '1200', rawPath, '--out', compPath], () => {
+      execFile('sips', ['-Z', '1024', rawPath, '--out', mlsPath], afterCompress);
     });
-  } else if (sharp) {
-    // Use sharp for cross-platform image compression (Linux / Railway / macOS)
-    Promise.all([
-      sharp(rawPath).resize({ width: 1200, withoutEnlargement: true }).jpeg({ quality: 85 }).toFile(compPath),
-      sharp(rawPath).resize({ width: 1024, withoutEnlargement: true }).jpeg({ quality: 80 }).toFile(mlsPath),
-    ])
-      .then(afterCompress)
-      .catch(err => {
-        console.error('[sharp] compression failed, using original:', err.message);
-        fs.copyFileSync(rawPath, compPath);
-        fs.copyFileSync(rawPath, mlsPath);
-        afterCompress();
-      });
   } else {
-    // Last resort: copy raw file as-is
+    // Linux/Railway: copy raw file as-is; compression can be added via sharp later
     fs.copyFileSync(rawPath, compPath);
     fs.copyFileSync(rawPath, mlsPath);
     afterCompress();
@@ -764,30 +907,29 @@ app.post('/admin/upload/:slug', requireAuth, requireCsrf, uploadRateLimit, uploa
 });
 
 // Set primary photo
-app.post('/admin/photos/:slug/primary', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
-  const { slug } = req.params;
-  const { filename } = req.body;
-  if (!isSafePathComponent(slug) || !isSafePathComponent(filename||''))
-    return res.status(400).json({ error: 'Invalid slug or filename' });
+app.post('/admin/photos/:slug/primary', adminActionsRateLimit, requireAuth, requireCsrf, (req, res) => {
+  const slug = safePathComponent(req.params.slug);
+  const filename = safePathComponent(req.body.filename, { file: true });
+  if (!slug || !filename) return res.status(400).json({ error: 'Invalid slug or filename' });
   db.prepare('UPDATE properties SET image_url=? WHERE listing_slug=?')
     .run(`/images/${slug}/photos/compressed/${filename}`, slug);
   res.json({ ok:true });
 });
 
 // Delete photo
-app.delete('/admin/photos/:slug/:filename', requireAuth, requireCsrf, (req, res) => {
-  const { slug, filename } = req.params;
-  if (!isSafePathComponent(slug) || !isSafePathComponent(filename))
-    return res.status(400).json({ error: 'Invalid slug or filename' });
+app.delete('/admin/photos/:slug/:filename', adminActionsRateLimit, requireAuth, requireCsrf, (req, res) => {
+  const slug = safePathComponent(req.params.slug);
+  const filename = safePathComponent(req.params.filename, { file: true });
+  if (!slug || !filename) return res.status(400).json({ error: 'Invalid slug or filename' });
   ['raw','compressed','mls'].forEach(dir => {
-    const fp = path.join(PROJECT_ROOT,'listings',slug,'photos',dir,filename);
+    const fp = listingPath(slug, 'photos', dir, filename);
     if (fs.existsSync(fp)) fs.unlinkSync(fp);
   });
   res.json({ ok:true });
 });
 
 // ── Report page ───────────────────────────────────────────
-app.get('/admin/report/:id', requireAuth, (req, res) => {
+app.get('/admin/report/:id', adminActionsRateLimit, requireAuth, (req, res) => {
   const p = db.prepare(`
     SELECT p.*, c.name AS county FROM properties p
     LEFT JOIN counties c ON c.id=p.county_id
@@ -795,13 +937,14 @@ app.get('/admin/report/:id', requireAuth, (req, res) => {
   `).get(req.params.id);
   if (!p) return res.redirect('/admin');
 
-  const slug = p.listing_slug || p.id;
-  const compsPath = path.join(PROJECT_ROOT,'listings',slug,'comps.csv');
-  const ddPath    = path.join(PROJECT_ROOT,'listings',slug,'due_diligence.md');
+  const slug = safePathComponent(p.listing_slug || p.id);
+  if (!slug) return res.status(400).send('Invalid listing slug');
+  const compsPath = listingPath(slug, 'comps.csv');
+  const ddPath    = listingPath(slug, 'due_diligence.md');
   const comps     = fs.existsSync(compsPath) ? fs.readFileSync(compsPath,'utf8') : '';
   const dd        = fs.existsSync(ddPath)    ? fs.readFileSync(ddPath,'utf8')    : '';
 
-  res.send(adminShell('Report', `
+  res.send(adminShell(req, 'Report', `
     <div class="dash-header">
       <h1>Report — ${esc(p.address)}</h1>
       <a href="/admin" class="btn-outline">← Back</a>
@@ -824,56 +967,110 @@ app.get('/admin/report/:id', requireAuth, (req, res) => {
       <div class="report-card">
         <h3>Comparable Sales</h3>
         <textarea id="compsArea" rows="10">${esc(comps)}</textarea>
-        <button onclick="saveComps('${esc(p.id)}')">Save Comps</button>
+        <button onclick="saveComps(${jsLiteral(p.id)})">Save Comps</button>
       </div>
       <div class="report-card full">
         <h3>Due Diligence Notes</h3>
         <textarea id="ddArea" rows="15">${esc(dd)}</textarea>
-        <button onclick="saveDD('${esc(p.id)}')">Save Notes</button>
+        <button onclick="saveDD(${jsLiteral(p.id)})">Save Notes</button>
+      </div>
+
+      <!-- FB MARKETPLACE POST GENERATOR -->
+      <div class="report-card full" style="border:2px solid #1877F2">
+        <h3 style="color:#1877F2">📘 Facebook Marketplace Post</h3>
+        <p style="font-size:.85rem;color:#666;margin-bottom:.75rem">Auto-generated from listing data. Edit before posting.</p>
+        <textarea id="fbPost" rows="18" style="font-family:monospace;font-size:.85rem">${esc((() => {
+          const price = p.price ? '$' + Number(p.price).toLocaleString() : 'Contact for Price';
+          const ppa   = p.acreage && p.price ? ` ($${Math.round(p.price/p.acreage).toLocaleString()}/acre)` : '';
+          const acres = p.acreage ? `\n🌿 ${p.acreage} acres` : '';
+          const beds  = p.bedrooms ? `\n🛏 ${p.bedrooms} bed` : '';
+          const baths = p.bathrooms ? `  🚿 ${p.bathrooms} bath` : '';
+          const sqft  = p.sqft ? `\n📐 ${Number(p.sqft).toLocaleString()} sqft` : '';
+          const road  = p.road_access ? `\n🛣 Road: ${p.road_access}` : '';
+          const bb    = p.broadband_type ? `\n📶 ${p.broadband_type}` : '';
+          const water = p.water_features ? `\n💧 ${p.water_features}` : '';
+          const mins  = p.mineral_rights && p.mineral_rights !== 'unknown' ? `\n⛏ Minerals: ${p.mineral_rights}` : '';
+          const town  = p.nearest_town ? `\n📍 ${p.miles_to_town ? p.miles_to_town + ' mi to ' : ''}${p.nearest_town}` : '';
+          const desc  = p.description ? '\n\n' + p.description.slice(0, 800) : '';
+          const feat  = p.features ? '\n\n✅ ' + p.features.split(',').map(f=>f.trim()).join('\n✅ ') : '';
+          const slug  = p.listing_slug || p.id;
+          return `${price}${ppa} — ${p.property_type === 'land' ? 'Land / Acreage' : p.property_type} in ${p.county} County, WV
+
+📍 ${p.address}${p.city ? ', ' + p.city : ''}, WV${p.zip ? ' ' + p.zip : ''}${acres}${beds}${baths}${sqft}${road}${bb}${water}${mins}${town}${feat}${desc}
+
+🚗 ~2 hrs from DC & Northern Virginia
+
+📞 Phil Malick — WV Land Specialist
+📱 (540) 246-1421 — Call or Text
+🌐 malickland.net/properties/${slug}
+
+#WestVirginia #WVLand #${String(p.county || '').replace(' ','')}County #LandForSale #WVRealEstate #MalickLand`;
+        })())}</textarea>
+        <div style="display:flex;gap:.75rem;margin-top:.75rem;flex-wrap:wrap">
+          <button onclick="copyFbPost()" style="background:#1877F2;color:#fff;padding:.6rem 1.25rem;border-radius:6px;font-weight:700;font-size:.9rem">📋 Copy Post</button>
+          <a href="https://www.facebook.com/marketplace/create/item" target="_blank" rel="noopener"
+             style="background:#fff;border:2px solid #1877F2;color:#1877F2;padding:.6rem 1.25rem;border-radius:6px;font-weight:700;font-size:.9rem;text-decoration:none">
+            🚀 Open FB Marketplace
+          </a>
+          <a href="https://www.facebook.com/malickland.phil" target="_blank" rel="noopener"
+             style="background:#fff;border:1px solid #ccc;color:#555;padding:.6rem 1.25rem;border-radius:6px;font-weight:600;font-size:.9rem;text-decoration:none">
+            📘 Phil's FB Page
+          </a>
+        </div>
+        <p id="copyMsg" style="color:green;font-size:.82rem;margin-top:.5rem;display:none">✅ Copied to clipboard!</p>
       </div>
     </div>
     <script>
-      const _csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+      function copyFbPost() {
+        const txt = document.getElementById('fbPost').value;
+        navigator.clipboard.writeText(txt).then(() => {
+          const msg = document.getElementById('copyMsg');
+          msg.style.display = 'block';
+          setTimeout(() => msg.style.display = 'none', 3000);
+        });
+      }
       async function saveComps(id) {
         const content = document.getElementById('compsArea').value;
-        await fetch('/admin/report/'+id+'/comps', {
-          method:'POST', headers:{'Content-Type':'application/json','x-csrf-token':_csrf},
+        await fetch('/admin/report/'+encodeURIComponent(id)+'/comps', {
+          method:'POST', headers:{'Content-Type':'application/json','x-csrf-token':document.querySelector('meta[name="csrf-token"]')?.content || ''},
           body: JSON.stringify({ content })
         });
         alert('Comps saved');
       }
       async function saveDD(id) {
         const content = document.getElementById('ddArea').value;
-        await fetch('/admin/report/'+id+'/dd', {
-          method:'POST', headers:{'Content-Type':'application/json','x-csrf-token':_csrf},
+        await fetch('/admin/report/'+encodeURIComponent(id)+'/dd', {
+          method:'POST', headers:{'Content-Type':'application/json','x-csrf-token':document.querySelector('meta[name="csrf-token"]')?.content || ''},
           body: JSON.stringify({ content })
         });
         alert('Due diligence saved');
       }
     </script>
-  `, csrfToken(req)));
+  `));
 });
 
-app.post('/admin/report/:id/comps', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
+app.post('/admin/report/:id/comps', adminActionsRateLimit, requireAuth, requireCsrf, (req, res) => {
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
-  const slug = p.listing_slug || req.params.id;
-  fs.mkdirSync(path.join(PROJECT_ROOT,'listings',slug), { recursive:true });
-  fs.writeFileSync(path.join(PROJECT_ROOT,'listings',slug,'comps.csv'), req.body.content);
+  const slug = safePathComponent(p.listing_slug || req.params.id);
+  if (!slug) return res.status(400).json({ error: 'Invalid listing slug' });
+  fs.mkdirSync(listingPath(slug), { recursive:true });
+  fs.writeFileSync(listingPath(slug, 'comps.csv'), String(req.body.content || '').slice(0, 100000));
   res.json({ ok:true });
 });
 
-app.post('/admin/report/:id/dd', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
+app.post('/admin/report/:id/dd', adminActionsRateLimit, requireAuth, requireCsrf, (req, res) => {
   const p = db.prepare('SELECT listing_slug FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.status(404).json({ error:'Not found' });
-  const slug = p.listing_slug || req.params.id;
-  fs.mkdirSync(path.join(PROJECT_ROOT,'listings',slug), { recursive:true });
-  fs.writeFileSync(path.join(PROJECT_ROOT,'listings',slug,'due_diligence.md'), req.body.content);
+  const slug = safePathComponent(p.listing_slug || req.params.id);
+  if (!slug) return res.status(400).json({ error: 'Invalid listing slug' });
+  fs.mkdirSync(listingPath(slug), { recursive:true });
+  fs.writeFileSync(listingPath(slug, 'due_diligence.md'), String(req.body.content || '').slice(0, 100000));
   res.json({ ok:true });
 });
 
 // ── Integrations status page ──────────────────────────────
-app.get('/admin/integrations', requireAuth, (req, res) => {
+app.get('/admin/integrations', adminActionsRateLimit, requireAuth, (req, res) => {
   const gmailUser    = process.env.GOOGLE_GMAIL_USER    || '';
   const notifyEmail  = process.env.NOTIFICATION_EMAIL   || '';
   const driveFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID || '';
@@ -884,7 +1081,11 @@ app.get('/admin/integrations', requireAuth, (req, res) => {
     ? '<span style="background:#d4edda;color:#155724;padding:.2rem .6rem;border-radius:4px;font-size:.8rem;font-weight:700">✓ Configured</span>'
     : '<span style="background:#fff3cd;color:#856404;padding:.2rem .6rem;border-radius:4px;font-size:.8rem;font-weight:700">⚠ Not Set</span>';
 
-  res.send(adminShell('Integrations', `
+  const driveFolderUrl = /^[a-zA-Z0-9_-]+$/.test(driveFolderId)
+    ? `https://drive.google.com/drive/folders/${driveFolderId}`
+    : '';
+
+  res.send(adminShell(req, 'Integrations', `
     <div class="dash-header">
       <h1>🔗 Google Integrations</h1>
     </div>
@@ -892,7 +1093,7 @@ app.get('/admin/integrations', requireAuth, (req, res) => {
       <div style="background:#fff;border-radius:10px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:1.5rem">
         <h3 style="color:#1a3a2a;margin-bottom:1rem">OAuth2 Credentials</h3>
         <table class="detail-table">
-          <tr><td>Client ID</td><td>${clientId ? clientId.slice(0,20)+'…' : '—'} ${statusBadge(clientId)}</td></tr>
+          <tr><td>Client ID</td><td>${clientId ? esc(clientId.slice(0,20))+'…' : '—'} ${statusBadge(clientId)}</td></tr>
           <tr><td>Client Secret</td><td>${process.env.GOOGLE_CLIENT_SECRET ? '••••••••' : '—'} ${statusBadge(process.env.GOOGLE_CLIENT_SECRET)}</td></tr>
           <tr><td>Refresh Token</td><td>${process.env.GOOGLE_REFRESH_TOKEN ? '••••••••' : '—'} ${statusBadge(process.env.GOOGLE_REFRESH_TOKEN)}</td></tr>
         </table>
@@ -901,8 +1102,8 @@ app.get('/admin/integrations', requireAuth, (req, res) => {
       <div style="background:#fff;border-radius:10px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:1.5rem">
         <h3 style="color:#1a3a2a;margin-bottom:1rem">📧 Gmail – Inquiry Notifications</h3>
         <table class="detail-table">
-          <tr><td>Send From</td><td>${gmailUser || '—'} ${statusBadge(gmailUser)}</td></tr>
-          <tr><td>Send To</td><td>${notifyEmail || '—'} ${statusBadge(notifyEmail)}</td></tr>
+          <tr><td>Send From</td><td>${esc(gmailUser) || '—'} ${statusBadge(gmailUser)}</td></tr>
+          <tr><td>Send To</td><td>${esc(notifyEmail) || '—'} ${statusBadge(notifyEmail)}</td></tr>
         </table>
         <p style="margin-top:.75rem;font-size:.85rem;color:#666">
           When a visitor submits a contact inquiry on the public site, a notification email will
@@ -913,12 +1114,12 @@ app.get('/admin/integrations', requireAuth, (req, res) => {
       <div style="background:#fff;border-radius:10px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:1.5rem">
         <h3 style="color:#1a3a2a;margin-bottom:1rem">📁 Google Drive – Photo Backup</h3>
         <table class="detail-table">
-          <tr><td>Root Folder ID</td><td>${driveFolderId || '—'} ${statusBadge(driveFolderId)}</td></tr>
+          <tr><td>Root Folder ID</td><td>${esc(driveFolderId) || '—'} ${statusBadge(driveFolderId)}</td></tr>
         </table>
         <p style="margin-top:.75rem;font-size:.85rem;color:#666">
           Every photo uploaded through the admin panel is automatically backed up to Google Drive
           inside a subfolder named after the property slug.
-          ${driveFolderId ? `<br><a href="https://drive.google.com/drive/folders/${driveFolderId}" target="_blank" rel="noopener noreferrer">Open root folder in Drive →</a>` : ''}
+          ${driveFolderUrl ? `<br><a href="${esc(driveFolderUrl)}" target="_blank" rel="noopener noreferrer">Open root folder in Drive →</a>` : ''}
         </p>
       </div>
 
@@ -937,55 +1138,148 @@ app.get('/admin/integrations', requireAuth, (req, res) => {
         </ol>
       </div>
     </div>
-  `, csrfToken(req)));
+  `));
+});
+
+// ── Leads view ───────────────────────────────────────────
+app.get('/admin/leads', adminActionsRateLimit, requireAuth, (req, res) => {
+  const leads = db.prepare(`
+    SELECT ct.id, ct.name, ct.email, ct.phone, ct.message, ct.source,
+           ct.created_at, ct.lead_status,
+           p.address, p.city, c.name AS county
+    FROM contacts ct
+    LEFT JOIN properties p ON p.id = ct.property_id
+    LEFT JOIN counties c ON c.id = p.county_id
+    ORDER BY ct.created_at DESC
+    LIMIT 200
+  `).all();
+
+  const rows = leads.map(l => {
+    const status = l.lead_status || 'new';
+    const email = String(l.email || '');
+    const phone = String(l.phone || '');
+    return `
+    <tr id="lead-${l.id}">
+      <td>${new Date(l.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}</td>
+      <td><strong>${esc(l.name||'—')}</strong></td>
+      <td>${email ? `<a href="mailto:${encodeURIComponent(email)}" style="color:#1a3a2a">${esc(email)}</a>` : '—'}</td>
+      <td>${phone ? `<a href="tel:${encodeURIComponent(phone)}" style="color:#1a3a2a">${esc(phone)}</a>` : '—'}</td>
+      <td style="font-size:.82rem">${l.address ? `${esc(l.address)}${l.city?', '+esc(l.city):''}, ${esc(l.county||'')}` : '—'}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.82rem" title="${esc(l.message||'')}">${esc(l.message||'—')}</td>
+      <td>
+        <select onchange="updateLeadStatus(${l.id},this.value)" style="padding:.25rem .5rem;border:1px solid #ddd;border-radius:4px;font-size:.8rem;background:#fff">
+          ${['new','contacted','qualified','closed','lost'].map(s=>`<option value="${s}"${s===status?' selected':''}>${s}</option>`).join('')}
+        </select>
+      </td>
+    </tr>`;
+  }).join('');
+
+  res.send(adminShell(req, 'Leads', `
+    <div class="dash-header">
+      <h1>Leads &amp; Inquiries</h1>
+      <span style="color:#666;font-size:.9rem">${leads.length} total &middot; ${leads.filter(l=>!l.lead_status||l.lead_status==='new').length} new</span>
+    </div>
+    ${leads.length ? `
+    <table class="listings-table">
+      <thead><tr>
+        <th>Date</th><th>Name</th><th>Email</th><th>Phone</th><th>Property</th><th>Message</th><th>Status</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <script>
+    async function updateLeadStatus(id, status) {
+      await fetch('/admin/leads/'+encodeURIComponent(id)+'/status', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-csrf-token':document.querySelector('meta[name="csrf-token"]')?.content || ''},
+        body:JSON.stringify({status})
+      });
+    }
+    </script>` : `<p style="color:#666;padding:2rem">No leads yet. Share your listings!</p>`}
+  `));
+});
+
+app.post('/admin/leads/:id/status', adminActionsRateLimit, requireAuth, requireCsrf, (req, res) => {
+  const valid = ['new','contacted','qualified','closed','lost'];
+  const status = req.body.status;
+  if (!valid.includes(status)) return res.status(400).json({ error: 'Invalid status' });
+  db.prepare(`UPDATE contacts SET lead_status=?, last_contacted_at=datetime('now') WHERE id=?`).run(status, req.params.id);
+  res.json({ ok: true });
 });
 
 // ── Public API ────────────────────────────────────────────
-app.get('/api/health', (_req, res) => res.json({ status:'ok', ts:new Date() }));
+app.get('/api/health', publicApiRateLimit, (_req, res) => res.json({ status:'ok', ts:new Date() }));
 
-app.get('/api/counties', (_req, res) => {
+// Public config (GA ID, Meta Pixel, etc.) — safe to expose
+app.get('/api/config', publicApiRateLimit, (_req, res) => {
+  res.json({
+    gaId:    process.env.GA_MEASUREMENT_ID || '',
+    pixelId: process.env.META_PIXEL_ID     || '',
+  });
+});
+
+app.get('/api/counties', publicApiRateLimit, (_req, res) => {
   res.json(db.prepare('SELECT id,name FROM counties ORDER BY name').all());
 });
 
-app.get('/api/properties', (req, res) => {
+app.get('/api/properties', publicApiRateLimit, (req, res) => {
   try {
-    const { q='',county='',type='',minPrice='',maxPrice='',page=1,limit=12 } = req.query;
+    const { q='',county='',type='',minPrice='',maxPrice='',minAcres='',maxAcres='',page=1,limit=12 } = req.query;
     const conditions = ["p.status = 'active'"];
     const values = [];
-    if (q)        { conditions.push(`(p.address LIKE ? OR p.zip LIKE ?)`); values.push(`%${q}%`,`%${q}%`); }
-    if (county)   { conditions.push(`p.county_id = ?`);       values.push(Number(county)); }
-    if (type)     { conditions.push(`p.property_type = ?`);   values.push(type); }
-    if (minPrice) { conditions.push(`p.price >= ?`);          values.push(Number(minPrice)); }
-    if (maxPrice) { conditions.push(`p.price <= ?`);          values.push(Number(maxPrice)); }
+    const query = String(q || '').trim().slice(0, 80);
+    if (query)     { conditions.push(`(p.address LIKE ? OR p.zip LIKE ? OR p.city LIKE ?)`); values.push(`%${query}%`,`%${query}%`,`%${query}%`); }
+    if (county && Number.isInteger(Number(county))) { conditions.push(`p.county_id = ?`); values.push(Number(county)); }
+    if (type && ['residential','commercial','land','multi-family','industrial'].includes(String(type))) { conditions.push(`p.property_type = ?`); values.push(String(type)); }
+    const minPriceValue = toFiniteNumber(minPrice);
+    const maxPriceValue = toFiniteNumber(maxPrice);
+    const minAcresValue = toFiniteNumber(minAcres);
+    const maxAcresValue = toFiniteNumber(maxAcres);
+    if (minPriceValue != null) { conditions.push(`p.price >= ?`); values.push(minPriceValue); }
+    if (maxPriceValue != null) { conditions.push(`p.price <= ?`); values.push(maxPriceValue); }
+    if (minAcresValue != null) { conditions.push(`p.acreage >= ?`); values.push(minAcresValue); }
+    if (maxAcresValue != null) { conditions.push(`p.acreage <= ?`); values.push(maxAcresValue); }
     const where  = 'WHERE ' + conditions.join(' AND ');
-    const offset = (Number(page)-1) * Number(limit);
+    const pageNumber = clampInt(page, 1, 1, 1000);
+    const limitNumber = clampInt(limit, 12, 1, 50);
+    const offset = (pageNumber - 1) * limitNumber;
     const total  = db.prepare(`SELECT COUNT(*) as c FROM properties p ${where}`).get(...values).c;
-    // DB stores `acreage`; the public API exposes `lot_acres` (aliased) for the UI
     const properties = db.prepare(`
       SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
              p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
-             p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
+             p.year_built, p.image_url, p.image_url AS imageUrls, p.listed_at, p.status, p.price_reduced,
+             p.features, p.road_access, p.electric, p.well, p.internet, p.broadband_type,
+             p.water_features, p.nearest_town, p.miles_to_town, p.listing_slug,
              c.name AS county
       FROM properties p JOIN counties c ON c.id=p.county_id
       ${where} ORDER BY p.listed_at DESC LIMIT ? OFFSET ?
-    `).all(...values, Number(limit), offset);
-    res.json({ total, page:Number(page), properties });
+    `).all(...values, limitNumber, offset);
+    const propsWithDrive = properties.map(p => ({ ...p, driveTimes: getDriveTimes(p.county) }));
+    res.json({ total, page:pageNumber, properties: propsWithDrive });
   } catch(err) { console.error(err); res.status(500).json({ error:'Failed' }); }
 });
 
-app.get('/api/properties/:id', (req, res) => {
+function sendPropertyDetail(req, res) {
   const row = db.prepare(`
     SELECT p.id, p.address, p.city, p.zip, p.price, p.property_type,
            p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
-           p.year_built, p.image_url, p.listed_at, p.status, p.price_reduced,
-           p.county_id, c.name AS county, p.property_description AS description
-    FROM properties p JOIN counties c ON c.id=p.county_id WHERE p.id=?
-  `).get(req.params.id);
+           p.year_built, p.image_url, p.image_url AS imageUrls, p.listed_at, p.status, p.price_reduced,
+           p.county_id, c.name AS county,
+           p.property_description AS description,
+           p.features, p.road_access, p.utilities_available,
+           p.electric, p.well, p.septic, p.internet, p.broadband_type,
+           p.mineral_rights, p.water_features, p.elevation_min, p.elevation_max,
+           p.nearest_town, p.miles_to_town, p.annual_tax, p.parcel_id,
+           p.flood_zone, p.listing_slug
+    FROM properties p JOIN counties c ON c.id=p.county_id
+    WHERE (p.id=? OR p.listing_slug=?) AND p.status='active'
+  `).get(req.params.id, req.params.id);
   if (!row) return res.status(404).json({ error:'Not found' });
-  res.json(row);
-});
+  res.json({ ...row, driveTimes: getDriveTimes(row.county) });
+}
 
-app.get('/api/analytics', (_req, res) => {
+app.get('/api/properties/:id', publicApiRateLimit, sendPropertyDetail);
+
+app.get('/api/analytics', publicApiRateLimit, (_req, res) => {
   const row = db.prepare(`
     SELECT
       CAST(ROUND(AVG(price)) AS INTEGER) AS avgPrice,
@@ -997,9 +1291,14 @@ app.get('/api/analytics', (_req, res) => {
   res.json(row);
 });
 
-app.post('/api/contacts', contactsRateLimit, (req, res) => {
-  const { property_id,name,email,phone,message } = req.body;
+app.post('/api/contacts', contactsRateLimit, publicApiRateLimit, (req, res) => {
+  const property_id = String(req.body.property_id || '').trim().slice(0, 128);
+  const name = String(req.body.name || '').trim().slice(0, 120);
+  const email = String(req.body.email || '').trim().toLowerCase().slice(0, 254);
+  const phone = String(req.body.phone || '').trim().slice(0, 50);
+  const message = String(req.body.message || '').trim().slice(0, 5000);
   if (!name||!email) return res.status(400).json({ error:'Name and email required' });
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error:'Invalid email address' });
   const result = db.prepare(
     `INSERT INTO contacts (property_id,name,email,phone,message) VALUES (?,?,?,?,?)`
   ).run(property_id||null,name,email,phone,message);
@@ -1010,105 +1309,45 @@ app.post('/api/contacts', contactsRateLimit, (req, res) => {
                   FROM properties p LEFT JOIN counties c ON c.id=p.county_id
                   WHERE p.id=?`).get(property_id)
     : null;
-  sendContactEmail({ name, email, phone, message }, property).catch(() => {});
+  sendLeadNotification({ name, email, phone, message, source: String(req.body.source || '').slice(0, 80) }, property).catch(() => {});
 
   res.status(201).json({ id:result.lastInsertRowid });
 });
 
-// List contacts / leads (API-key protected — used by app/admin.html)
-app.get('/api/contacts', apiWriteRateLimit, requireApiKey, (_req, res) => {
-  const contacts = db.prepare(`
-    SELECT c.id, c.name, c.email, c.phone, c.property_id, c.message, c.source, c.created_at,
-           p.address AS property_address
-    FROM contacts c
-    LEFT JOIN properties p ON p.id = c.property_id
-    ORDER BY c.created_at DESC
-  `).all();
-  res.json(contacts);
-});
-
-// Create property via REST (API-key protected — used by app/admin.html)
-app.post('/api/properties', apiWriteRateLimit, requireApiKey, (req, res) => {
+app.post('/api/contact', contactFormRateLimit, publicApiRateLimit, async (req, res) => {
   try {
-    const f = req.body;
-    if (!f.address) return res.status(400).json({ error: 'address is required' });
-    const id   = crypto.randomBytes(16).toString('hex');
-    const slug = slugify((f.address||'listing') + '-' + (f.city||'wv')) + '-' + id.slice(0,6);
-    db.prepare(`
-      INSERT INTO properties (
-        id, county_id, address, city, state, zip, parcel_id, subdivision,
-        property_type, status, acreage, lot_size, road_access, utilities_available,
-        septic, well, electric, internet,
-        price, recommended_list_price, price_per_acre, tax_assessed, annual_tax,
-        mls_status, mls_number, listing_agent, listing_office,
-        latitude, longitude, flood_zone, school_district,
-        bedrooms, bathrooms, sqft, year_built,
-        property_description, marketing_description, seller_notes, internal_notes,
-        listing_slug
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    `).run(
-      id, f.county_id||1, f.address, f.city||null, f.state||'WV', f.zip||null,
-      f.parcel_id||null, f.subdivision||null, f.property_type||'land', f.status||'draft',
-      f.acreage||null, f.lot_size||null, f.road_access||null, f.utilities_available||null,
-      f.septic?1:0, f.well?1:0, f.electric?1:0, f.internet?1:0,
-      f.price||null, f.recommended_list_price||null, f.price_per_acre||null,
-      f.tax_assessed||null, f.annual_tax||null,
-      f.mls_status||'draft', f.mls_number||null, f.listing_agent||'Phil Malick',
-      f.listing_office||'WV Real Estate Agency',
-      f.latitude||null, f.longitude||null, f.flood_zone||null, f.school_district||null,
-      f.bedrooms||null, f.bathrooms||null, f.sqft||null, f.year_built||null,
-      f.property_description||null, f.marketing_description||null,
-      f.seller_notes||null, f.internal_notes||null, slug
-    );
-    res.status(201).json({ id, listing_slug: slug });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to create property' }); }
+    const name = String(req.body.name || '').trim().slice(0, 120);
+    const email = String(req.body.email || '').trim().toLowerCase().slice(0, 254);
+    const phone = String(req.body.phone || '').trim().slice(0, 50);
+    const message = String(req.body.message || '').trim().slice(0, 5000);
+    const listingId = String(req.body.listingId || '').trim().slice(0, 128);
+    const listingTitle = String(req.body.listingTitle || '').trim().slice(0, 240);
+
+    if (!name || !email) return res.status(400).json({ error: 'Name and email are required' });
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'Invalid email address' });
+
+    const contactRecord = {
+      id: crypto.randomBytes(16).toString('hex'),
+      name,
+      email,
+      phone,
+      message,
+      listingId,
+      listingTitle,
+      createdDate: new Date().toISOString(),
+    };
+
+    const saved = await googleSheets.saveContact(contactRecord);
+    if (!saved) return res.status(503).json({ error: 'Google Sheets is not configured' });
+
+    res.json({ success: true, message: 'Message received.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save contact' });
+  }
 });
 
-// Update property via REST (API-key protected — used by app/admin.html)
-app.put('/api/properties/:id', apiWriteRateLimit, requireApiKey, (req, res) => {
-  try {
-    const f = req.body;
-    const existing = db.prepare('SELECT id FROM properties WHERE id=?').get(req.params.id);
-    if (!existing) return res.status(404).json({ error: 'Not found' });
-    db.prepare(`
-      UPDATE properties SET
-        county_id=?, address=?, city=?, state=?, zip=?, parcel_id=?, subdivision=?,
-        property_type=?, status=?, acreage=?, lot_size=?, road_access=?, utilities_available=?,
-        septic=?, well=?, electric=?, internet=?,
-        price=?, recommended_list_price=?, price_per_acre=?, tax_assessed=?, annual_tax=?,
-        mls_status=?, mls_number=?, listing_agent=?, listing_office=?,
-        latitude=?, longitude=?, flood_zone=?, school_district=?,
-        bedrooms=?, bathrooms=?, sqft=?, year_built=?,
-        property_description=?, marketing_description=?, seller_notes=?, internal_notes=?,
-        updated_at=datetime('now')
-      WHERE id=?
-    `).run(
-      f.county_id||1, f.address, f.city||null, f.state||'WV', f.zip||null,
-      f.parcel_id||null, f.subdivision||null, f.property_type||'land', f.status||'draft',
-      f.acreage||null, f.lot_size||null, f.road_access||null, f.utilities_available||null,
-      f.septic?1:0, f.well?1:0, f.electric?1:0, f.internet?1:0,
-      f.price||null, f.recommended_list_price||null, f.price_per_acre||null,
-      f.tax_assessed||null, f.annual_tax||null,
-      f.mls_status||'draft', f.mls_number||null, f.listing_agent||null, f.listing_office||null,
-      f.latitude||null, f.longitude||null, f.flood_zone||null, f.school_district||null,
-      f.bedrooms||null, f.bathrooms||null, f.sqft||null, f.year_built||null,
-      f.property_description||null, f.marketing_description||null,
-      f.seller_notes||null, f.internal_notes||null,
-      req.params.id
-    );
-    res.json({ ok: true });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to update property' }); }
-});
-
-// Delete property via REST (API-key protected — used by app/admin.html)
-app.delete('/api/properties/:id', apiWriteRateLimit, requireApiKey, (req, res) => {
-  const existing = db.prepare('SELECT id FROM properties WHERE id=?').get(req.params.id);
-  if (!existing) return res.status(404).json({ error: 'Not found' });
-  db.prepare('DELETE FROM properties WHERE id=?').run(req.params.id);
-  res.json({ ok: true });
-});
-
-app.post('/api/properties/generate-description', generateDescRateLimit, (req, res) => {
+app.post('/api/properties/generate-description', chatRateLimit, publicApiRateLimit, (req, res) => {
   const { acreage, county, property_type, features } = req.body;
   if (!county) return res.status(400).json({ error: 'county is required' });
   const type = (property_type || 'land').toLowerCase();
@@ -1124,8 +1363,89 @@ app.post('/api/properties/generate-description', generateDescRateLimit, (req, re
   res.json({ description });
 });
 
+// ── AI Chat widget ────────────────────────────────────────
+app.post('/api/chat', chatRateLimit, publicApiRateLimit, async (req, res) => {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.json({ reply: "Hi! I'm Phil's property assistant. Call me at (540) 246-1421 or email phil@malickland.net for help." });
+  }
+
+  const { messages } = req.body;
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'messages array required' });
+  }
+
+  // Pull fresh listing summary for context
+  let listingContext = '';
+  try {
+    const active = db.prepare(`
+      SELECT p.address, p.city, c.name AS county, p.price, p.property_type, p.lot_acres
+      FROM properties p JOIN counties c ON c.id = p.county_id
+      WHERE p.status = 'active' LIMIT 20
+    `).all();
+    if (active.length) {
+      listingContext = '\n\nCurrent active listings:\n' + active.map(p =>
+        `- ${p.address}${p.city?', '+p.city:''}, ${p.county} County — ${p.property_type}${p.lot_acres?' ('+p.lot_acres+' ac)':''} — ${p.price?'$'+Number(p.price).toLocaleString():'Price TBD'}`
+      ).join('\n');
+    }
+  } catch(_) {}
+
+  const systemPrompt = `You are a helpful property assistant for MalickLand, a West Virginia real estate business run by Phil Malick. You help buyers and sellers find land, homes, and rural property across all 55 WV counties.
+
+Phil Malick's contact info: (540) 246-1421, phil@malickland.net
+Website: malickland.net
+Primary focus: Hampshire, Hardy, Morgan, Grant, Pendleton, Mineral, and eastern WV counties.${listingContext}
+
+Guidelines:
+- Be warm, brief, and local — like a friendly WV neighbor
+- For specific property questions, suggest they call/email Phil or submit an inquiry
+- If someone seems interested in a property, ask for their name and email so Phil can follow up
+- Never invent listing details not shown above
+- Keep responses under 120 words`;
+
+  try {
+    const body = JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
+      system: systemPrompt,
+      messages: messages.slice(-8).map(m => ({ role: m.role, content: m.content })),
+    });
+
+    const reply = await new Promise((resolve, reject) => {
+      const reqOptions = {
+        hostname: 'api.anthropic.com',
+        path: '/v1/messages',
+        method: 'POST',
+        headers: {
+          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(body),
+        },
+      };
+      const r = require('https').request(reqOptions, resp => {
+        let data = '';
+        resp.on('data', c => data += c);
+        resp.on('end', () => {
+          try {
+            const parsed = JSON.parse(data);
+            resolve(parsed.content?.[0]?.text || 'Sorry, I had trouble responding. Call Phil at (540) 246-1421.');
+          } catch { reject(new Error('Parse error')); }
+        });
+      });
+      r.on('error', reject);
+      r.write(body);
+      r.end();
+    });
+
+    res.json({ reply });
+  } catch(err) {
+    console.error('[Chat]', err.message);
+    res.json({ reply: "I'm having trouble right now. Please call Phil directly at (540) 246-1421 or email phil@malickland.net." });
+  }
+});
+
 // ── Sitemap & Robots ─────────────────────────────────────
-app.get('/robots.txt', (_req, res) => {
+app.get('/robots.txt', publicPageRateLimit, (_req, res) => {
   res.type('text/plain');
   res.send(
 `User-agent: *
@@ -1136,14 +1456,15 @@ Sitemap: https://malickland.net/sitemap.xml`
   );
 });
 
-app.get('/sitemap.xml', (_req, res) => {
+app.get('/sitemap.xml', publicPageRateLimit, (_req, res) => {
   const SITE = 'https://malickland.net';
   const now  = new Date().toISOString().split('T')[0];
 
   // Static pages
   const staticPages = [
-    { loc: SITE + '/',        changefreq: 'weekly',  priority: '1.0' },
-    { loc: SITE + '/admin',   changefreq: 'never',   priority: '0.1' },
+    { loc: SITE + '/',         changefreq: 'weekly',  priority: '1.0' },
+    { loc: SITE + '/listings', changefreq: 'daily',   priority: '0.9' },
+    { loc: SITE + '/admin',    changefreq: 'never',   priority: '0.1' },
   ];
 
   // Dynamic property pages
@@ -1162,7 +1483,25 @@ app.get('/sitemap.xml', (_req, res) => {
     }));
   } catch (_) {}
 
-  const allPages = [...staticPages, ...propertyPages];
+  // County SEO pages (Phil's primary coverage + any county with active listings)
+  const PRIMARY_COUNTIES = ['Hampshire','Hardy','Morgan','Grant','Pendleton','Mineral','Berkeley','Jefferson','Tucker'];
+  let countyPages = [];
+  try {
+    const activeCnty = db.prepare(`
+      SELECT DISTINCT c.name FROM counties c
+      JOIN properties p ON p.county_id = c.id
+      WHERE p.status = 'active'
+    `).all().map(r => r.name);
+    const allCnty = [...new Set([...PRIMARY_COUNTIES, ...activeCnty])];
+    countyPages = allCnty.map(name => ({
+      loc: `${SITE}/wv/${name.toLowerCase().replace(/\s+/g,'-')}-county`,
+      lastmod: now,
+      changefreq: 'weekly',
+      priority: '0.7',
+    }));
+  } catch (_) {}
+
+  const allPages = [...staticPages, ...propertyPages, ...countyPages];
 
   const xml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -1181,6 +1520,472 @@ app.get('/sitemap.xml', (_req, res) => {
   res.type('application/xml');
   res.send(xml);
 });
+
+// ── Shared helpers ────────────────────────────────────────
+function gaSnippet() {
+  const gaId    = /^[A-Z0-9-]+$/.test(process.env.GA_MEASUREMENT_ID || '') ? process.env.GA_MEASUREMENT_ID : '';
+  const pixelId = /^[0-9]+$/.test(process.env.META_PIXEL_ID || '') ? process.env.META_PIXEL_ID : '';
+  let html = '';
+  if (gaId) {
+    html += `<script async src="https://www.googletagmanager.com/gtag/js?id=${gaId}"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${gaId}');</script>`;
+  }
+  if (pixelId) {
+    html += `<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${pixelId}');fbq('track','PageView');</script>`;
+  }
+  return html;
+}
+
+// ── County SEO pages  /wv/:county-county ──────────────────
+app.get('/wv/:slug', publicPageRateLimit, (req, res) => {
+  const slug = safePathComponent(req.params.slug); // e.g. "hampshire-county"
+  if (!slug || !/-county$/i.test(slug)) return res.status(400).json({ error: 'Invalid county slug' });
+  const countyName = slug
+    .replace(/-county$/i, '')
+    .split('-')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+
+  const county = db.prepare(`SELECT id, name FROM counties WHERE name = ?`).get(countyName);
+  if (!county) return res.status(404).json({ error: 'County not found' });
+
+  const listings = db.prepare(`
+    SELECT id, listing_slug, address, city, price, property_type, acreage, bedrooms, image_url, description, features
+    FROM properties
+    WHERE county_id = ? AND status = 'active'
+    ORDER BY price ASC
+  `).all(county.id);
+  const countyDt = getDriveTimes(county.name);
+
+  const SITE = 'https://malickland.net';
+  const title = `Land & Property for Sale in ${county.name} County, WV | MalickLand`;
+  const desc  = `Browse ${listings.length || ''} active listings in ${county.name} County, West Virginia. Hunting land, rural homes, and investment property listed by Phil Malick — local WV land specialist.`;
+
+  const cardHtml = listings.length ? listings.map(p => {
+    const listingId = encodeURIComponent(p.listing_slug || p.id);
+    const url = `${SITE}/properties/${listingId}`;
+    const price = p.price ? `$${Number(p.price).toLocaleString()}` : 'Price TBD';
+    const imageUrl = publicAssetUrl(p.image_url);
+    return `
+    <div class="lcard">
+      ${imageUrl ? `<img src="${esc(imageUrl)}" alt="${esc(p.address)}" loading="lazy">` : `<div class="lcard-img-ph"></div>`}
+      <div class="lcard-body">
+        <div class="lcard-price">${price}</div>
+        <div class="lcard-addr">${esc(p.address)}${p.city ? ', ' + esc(p.city) : ''}</div>
+        <div class="lcard-type">${esc(p.property_type)}${p.acreage ? ' · ' + esc(p.acreage) + ' ac' : ''}${p.bedrooms ? ' · ' + esc(p.bedrooms) + ' bd' : ''}</div>
+        ${p.description ? `<p class="lcard-desc">${esc(String(p.description).slice(0,160))}…</p>` : ''}
+        <a href="${esc(url)}" class="lcard-btn">View Listing →</a>
+      </div>
+    </div>`;
+  }).join('') : `
+  <div style="grid-column:1/-1;background:#fff;border-radius:12px;padding:2rem;text-align:center;border:1px solid #e0e0e0">
+    <div style="font-size:2.5rem;margin-bottom:.75rem">🌲</div>
+    <h3 style="color:#1B4332;margin-bottom:.5rem">No Active Listings Right Now</h3>
+    <p style="color:#666;margin-bottom:1.25rem">Be the first to know when ${esc(county.name)} County listings come available.</p>
+    <form id="notifyForm" style="display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap" onsubmit="return notifySubmit(event,${jsLiteral(county.name)})">
+      <input type="email" placeholder="Your email" required style="padding:.65rem 1rem;border:1px solid #ddd;border-radius:8px;font-size:.9rem;min-width:220px">
+      <button type="submit" style="background:#D4AF37;color:#0a0a0a;border:none;border-radius:8px;padding:.65rem 1.25rem;font-weight:700;cursor:pointer">Notify Me</button>
+    </form>
+    <script>
+    function notifySubmit(e, county) {
+      e.preventDefault();
+      var email = e.target.querySelector('input[type=email]').value;
+      fetch('/api/contacts',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({name:'County Alert',email:email,message:'Notify me for '+county+' County listings',source:'county_notify'})
+      }).then(r=>{if(r.ok)e.target.innerHTML='<p style="color:#1B4332;font-weight:600">✅ You\'re on the list!</p>';}).catch(()=>{});
+      return false;
+    }
+    </script>
+  </div>`;
+
+  const jsonLd = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: `Properties for Sale in ${county.name} County WV`,
+    url: `${SITE}/wv/${slug}`,
+    numberOfItems: listings.length,
+    itemListElement: listings.map((p, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      url: `${SITE}/properties/${p.listing_slug || p.id}`,
+      name: `${p.address} — ${county.name} County WV`,
+    })),
+  });
+
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${esc(title)}</title>
+  <meta name="description" content="${esc(desc)}">
+  <link rel="canonical" href="${SITE}/wv/${slug}">
+  <meta property="og:title" content="${esc(title)}">
+  <meta property="og:description" content="${esc(desc)}">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="${SITE}/wv/${slug}">
+  <meta property="og:image" content="${SITE}/public/brand/og-image.jpg">
+  <script type="application/ld+json">${jsonLd}</script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',sans-serif;background:#f9f6f0;color:#1a1a1a}
+    .nav{background:#1B4332;border-bottom:2px solid #D4AF37;padding:.75rem 2rem;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:50}
+    .nav-brand{color:#D4AF37;text-decoration:none;font-weight:800;font-size:1.1rem}
+    .nav-right{display:flex;gap:1rem;align-items:center}
+    .nav-link{color:rgba(255,255,255,.85);font-size:.85rem;text-decoration:none}
+    .nav-link:hover{color:#D4AF37}
+    .nav-cta{background:#D4AF37;color:#1B4332;padding:.45rem 1rem;border-radius:6px;font-weight:700;font-size:.82rem;text-decoration:none}
+    .drive-strip{background:#f0fdf4;border-bottom:1px solid #bbf7d0;padding:.65rem 2rem;font-size:.85rem;text-align:center;color:#166534}
+    .hero{background:linear-gradient(135deg,#1B4332 0%,#2d5c42 100%);color:#fff;padding:3rem 2rem;text-align:center}
+    .hero h1{font-size:2rem;color:#D4AF37;margin-bottom:.5rem}
+    .hero p{opacity:.85;max-width:600px;margin:0 auto}
+    .main{max-width:1100px;margin:2.5rem auto;padding:0 1.5rem}
+    .section-title{font-size:1.4rem;color:#1B4332;margin-bottom:1.5rem;font-weight:800}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem;margin-bottom:3rem}
+    .lcard{background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+    .lcard img{width:100%;height:190px;object-fit:cover}
+    .lcard-img-ph{width:100%;height:190px;background:#c8d4cc}
+    .lcard-body{padding:1rem}
+    .lcard-price{font-size:1.3rem;font-weight:800;color:#1B4332;margin-bottom:.25rem}
+    .lcard-addr{font-size:.95rem;margin-bottom:.2rem}
+    .lcard-type{font-size:.82rem;color:#666;margin-bottom:.6rem}
+    .lcard-desc{font-size:.82rem;color:#555;line-height:1.5;margin-bottom:.75rem}
+    .lcard-btn{display:inline-block;background:#D4AF37;color:#0a0a0a;padding:.5rem 1.1rem;border-radius:6px;text-decoration:none;font-weight:700;font-size:.85rem}
+    .contact-box{background:#1B4332;color:#fff;border-radius:12px;padding:2rem;margin-bottom:3rem;text-align:center}
+    .contact-box h2{color:#D4AF37;margin-bottom:.75rem}
+    .contact-box p{opacity:.9;margin-bottom:1rem}
+    .contact-box a{color:#D4AF37;font-weight:700}
+    .nearby{margin-bottom:3rem}
+    .nearby h2{font-size:1.1rem;color:#1B4332;margin-bottom:.75rem;font-weight:700}
+    .nearby-links{display:flex;flex-wrap:wrap;gap:.5rem}
+    .nearby-links a{background:#fff;border:1px solid #ddd;border-radius:6px;padding:.4rem .8rem;font-size:.85rem;color:#1B4332;text-decoration:none;font-weight:600}
+    .nearby-links a:hover{background:#1B4332;color:#D4AF37}
+    footer{background:#1B4332;color:rgba(255,255,255,.6);text-align:center;padding:1.5rem;font-size:.82rem}
+    footer a{color:#D4AF37}
+    @media(max-width:600px){.hero h1{font-size:1.4rem}.nav-right .nav-link:not(.nav-cta){display:none}}
+  </style>
+  ${gaSnippet()}
+</head>
+<body>
+<nav class="nav">
+  <a href="/" class="nav-brand">MalickLand</a>
+  <div class="nav-right">
+    <a href="/listings" class="nav-link">← Search</a>
+    <a href="tel:+15402461421" class="nav-cta">📞 Call Phil</a>
+  </div>
+</nav>
+${countyDt ? `<div class="drive-strip">🚗 <strong>${countyDt.dc}</strong> from DC &nbsp;·&nbsp; <strong>${countyDt.balt}</strong> from Baltimore &nbsp;·&nbsp; <strong>${countyDt.pit}</strong> from Pittsburgh</div>` : ''}
+<div class="hero">
+  <h1>Land &amp; Property for Sale in ${esc(county.name)} County, WV</h1>
+  <p>${listings.length ? `${listings.length} active listing${listings.length > 1 ? 's' : ''} · Updated daily · Local agent Phil Malick` : `Be notified when listings come available in ${esc(county.name)} County`}</p>
+</div>
+<div class="main">
+  <h2 class="section-title">Active Listings in ${esc(county.name)} County</h2>
+  <div class="grid">${cardHtml}</div>
+
+  <div class="contact-box">
+    <h2>Work With a Local ${esc(county.name)} County Specialist</h2>
+    <p>Phil Malick knows WV land — from timber and hunting tracts to rural homesites. Call or text for a free property consultation.</p>
+    <p>
+      <a href="tel:+15402461421">(540) 246-1421</a>
+      &nbsp;·&nbsp;
+      <a href="sms:+15402461421">💬 Text Phil</a>
+      &nbsp;·&nbsp;
+      <a href="mailto:phil@malickland.net">phil@malickland.net</a>
+    </p>
+  </div>
+
+  <div class="nearby">
+    <h2>Explore Nearby Counties</h2>
+    <div class="nearby-links">
+      ${['Hampshire','Hardy','Morgan','Grant','Pendleton','Mineral','Tucker','Berkeley','Jefferson'].filter(n=>n!==county.name).map(n=>`<a href="/wv/${encodeURIComponent(n.toLowerCase())}-county">${esc(n)} County</a>`).join('')}
+      <a href="/listings" style="background:#1B4332;color:#D4AF37;border-color:#1B4332">All Counties →</a>
+    </div>
+  </div>
+</div>
+<footer>
+  &copy; ${new Date().getFullYear()} MalickLand Real Estate &middot; Phil Malick, WV Licensed REALTOR&reg;
+  &middot; Broker: Sheila Judy &middot; <a href="/">malickland.net</a>
+</footer>
+</body>
+</html>`);
+});
+
+// ── Individual property SEO page  /properties/:slug ──────
+app.get('/properties/:slug', publicPageRateLimit, (req, res) => {
+  const slug = safePathComponent(req.params.slug);
+  if (!slug) return res.status(400).send('Invalid property slug');
+  const p = db.prepare(`
+    SELECT p.*, c.name AS county
+    FROM properties p
+    JOIN counties c ON c.id = p.county_id
+    WHERE (p.listing_slug = ? OR p.id = ?) AND p.status = 'active'
+  `).get(slug, slug);
+
+  if (!p) return res.status(404).sendFile(path.join(PROJECT_ROOT, 'app', 'index.html'), { dotfiles: 'allow' });
+
+  const SITE = 'https://malickland.net';
+  const pageId = encodeURIComponent(p.listing_slug || p.id);
+  const pageUrl = `${SITE}/properties/${pageId}`;
+  const price = p.price ? `$${Number(p.price).toLocaleString()}` : 'Price Upon Request';
+  const title = `${p.address}${p.city ? ', ' + p.city : ''} – ${p.county} County WV | MalickLand`;
+  const desc  = p.description
+    ? p.description.slice(0, 155)
+    : `${p.property_type} for sale in ${p.county} County, WV. ${price}. Contact Phil Malick, local WV land specialist.`;
+  const imageUrl = publicAssetUrl(p.image_url, `${SITE}/public/brand/og-image.jpg`);
+
+  const addr = encodeURIComponent(`${p.address}${p.city?', '+p.city:''}, WV${p.zip?' '+p.zip:''}`);
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${addr}`;
+  const satUrl  = `https://www.google.com/maps/@?api=1&map_action=map&basemap=satellite&q=${addr}`;
+
+  const jsonLd = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'RealEstateListing',
+    name: `${p.address} – ${p.county} County WV`,
+    description: p.description || desc,
+    url: pageUrl,
+    image: imageUrl,
+    offers: p.price ? {
+      '@type': 'Offer',
+      price: p.price,
+      priceCurrency: 'USD',
+    } : undefined,
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: p.address,
+      addressLocality: p.city || '',
+      addressRegion: 'WV',
+      postalCode: p.zip || '',
+      addressCountry: 'US',
+    },
+  });
+
+  // Drive times for this county
+  const dt = getDriveTimes(p.county);
+  // Feature badges HTML
+  const featBadges = p.features ? p.features.split(',').map(f => f.trim()).filter(Boolean).map(f => {
+    const ICONS = {'Timber':'🌲','Hunting':'🦌','Water':'💧','Creek':'💧','Pond':'💧','Stream':'💧','Road Access':'🛣️','Paved Road':'🛣️','Gravel Road':'🛣️','Electric':'⚡','Power':'⚡','Utilities':'⚡','Broadband':'📶','Internet':'📶','Starlink':'📶','Mountain View':'🏔️','Views':'🏔️','Pasture':'🌾','Fields':'🌾','Well':'💦','Spring':'💦','Cabin':'🏠','Barn':'🏚️'};
+    const icon = Object.entries(ICONS).find(([k]) => f.toLowerCase().includes(k.toLowerCase()));
+    return `<span style="background:#f0fdf4;border:1px solid #bbf7d0;padding:.3rem .7rem;border-radius:20px;font-size:.82rem;color:#166534;white-space:nowrap">${icon?icon[1]+' ':''}${esc(f)}</span>`;
+  }).join('') : '';
+  const ppa = p.acreage && p.price ? ` &nbsp;<span style="font-size:.9rem;color:#6b7280;font-weight:400">· $${Math.round(p.price/p.acreage).toLocaleString()}/acre</span>` : '';
+  const countySlug = encodeURIComponent(String(p.county || '').toLowerCase().replace(/ /g,'-'));
+  const textAddress = `${p.address || ''}${p.city ? ', ' + p.city : ''}, WV${p.zip ? ' ' + p.zip : ''}`;
+  const jsPropertyId = jsLiteral(p.id);
+  const jsAddress = jsLiteral(p.address || '');
+  const schemaJson = jsonLd.replace(/</g, '\\u003c');
+
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${esc(title)}</title>
+  <meta name="description" content="${esc(desc)}">
+  <link rel="canonical" href="${esc(pageUrl)}">
+  <meta property="og:title" content="${esc(title)}">
+  <meta property="og:description" content="${esc(desc)}">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="${esc(pageUrl)}">
+  <meta property="og:image" content="${esc(imageUrl)}">
+  <script type="application/ld+json">${schemaJson}</script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',sans-serif;background:#f9f6f0;color:#1a1a1a}
+    a{color:inherit;text-decoration:none}
+    /* NAV */
+    .nav{background:#1B4332;border-bottom:2px solid #D4AF37;padding:.75rem 2rem;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:50}
+    .nav-brand{color:#D4AF37;font-weight:800;font-size:1.1rem;text-decoration:none}
+    .nav-right{display:flex;gap:1rem;align-items:center}
+    .nav-link{color:rgba(255,255,255,.85);font-size:.85rem;text-decoration:none}
+    .nav-link:hover{color:#D4AF37}
+    .nav-cta{background:#D4AF37;color:#1B4332;padding:.45rem 1rem;border-radius:6px;font-weight:700;font-size:.82rem;text-decoration:none}
+    /* HERO */
+    .hero{background:linear-gradient(135deg,#1B4332 0%,#2d5c42 100%);color:#fff;padding:2.25rem 2rem}
+    .hero-inner{max-width:960px;margin:0 auto}
+    .hero-price{font-size:2rem;font-weight:900;color:#D4AF37;margin-bottom:.3rem}
+    .hero-addr{font-size:1rem;opacity:.85;margin-bottom:.2rem}
+    .hero-county{font-size:.85rem;opacity:.6}
+    /* LAYOUT */
+    .main{max-width:960px;margin:0 auto;padding:1.5rem;display:grid;grid-template-columns:1fr 340px;gap:1.75rem}
+    .col-main{}
+    .col-side{}
+    /* PHOTO */
+    .prop-img{width:100%;max-height:400px;object-fit:cover;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.12);margin-bottom:1.25rem;display:block}
+    .no-photo{width:100%;height:260px;border-radius:12px;background:linear-gradient(135deg,#1B4332,#2d5c42);display:flex;align-items:center;justify-content:center;font-size:3rem;margin-bottom:1.25rem;color:rgba(255,255,255,.3)}
+    /* CHIPS */
+    .chips{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem}
+    .chip{background:#fff;border:1px solid #e0e0e0;padding:.35rem .75rem;border-radius:6px;font-size:.83rem}
+    .chip.type{background:#1B4332;color:#D4AF37;font-weight:700;border-color:#1B4332}
+    /* FEATURES */
+    .feat-row{display:flex;flex-wrap:wrap;gap:.4rem;margin:1rem 0}
+    /* DRIVE TIME */
+    .drive-box{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.75rem 1rem;font-size:.85rem;margin:1rem 0;line-height:1.7}
+    /* LAND GRID */
+    .land-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem .75rem;font-size:.85rem;background:#fff;border-radius:10px;padding:1rem;border:1px solid #e5e7eb;margin:1rem 0}
+    .land-grid .lg-label{color:#888;margin-right:.3rem;font-size:.78rem;text-transform:uppercase;letter-spacing:.3px}
+    .land-grid .lg-val{font-weight:600}
+    /* DESCRIPTION */
+    .desc{line-height:1.7;color:#444;font-size:.93rem;margin:1rem 0}
+    /* MAP */
+    .map-row{display:flex;gap:.6rem;flex-wrap:wrap;margin:1rem 0}
+    .map-btn{display:inline-flex;align-items:center;gap:.35rem;padding:.55rem 1rem;border-radius:8px;font-size:.83rem;font-weight:600;background:#fff;color:#1a1a1a;border:1px solid #e0e0e0;text-decoration:none}
+    .map-btn:hover{background:#f3f4f6}
+    /* SIDEBAR CONTACT */
+    .contact-card{background:#1B4332;color:#fff;border-radius:12px;padding:1.5rem;position:sticky;top:72px}
+    .contact-card h3{color:#D4AF37;font-size:1rem;margin-bottom:.5rem}
+    .contact-card p{font-size:.85rem;opacity:.85;margin-bottom:1rem;line-height:1.5}
+    .contact-card .cta-phone{display:block;background:#D4AF37;color:#1B4332;text-align:center;padding:.85rem;border-radius:8px;font-weight:800;font-size:1.05rem;text-decoration:none;margin-bottom:.6rem}
+    .contact-card .cta-text{display:block;background:rgba(255,255,255,.12);color:#fff;text-align:center;padding:.7rem;border-radius:8px;font-weight:600;font-size:.9rem;text-decoration:none;margin-bottom:.6rem}
+    .contact-card .cta-email{display:block;color:#D4AF37;text-align:center;font-size:.83rem;margin-bottom:1rem}
+    .form-input{width:100%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;padding:.6rem .8rem;border-radius:6px;font-size:.85rem;margin-bottom:.5rem;font-family:inherit}
+    .form-input::placeholder{color:rgba(255,255,255,.5)}
+    .form-input:focus{outline:none;border-color:#D4AF37}
+    .form-textarea{height:80px;resize:vertical}
+    .form-submit{width:100%;background:#D4AF37;color:#1B4332;border:none;padding:.75rem;border-radius:6px;font-weight:800;font-size:.95rem;cursor:pointer;margin-top:.25rem}
+    .tcpa{font-size:.68rem;color:rgba(255,255,255,.4);margin-top:.5rem;line-height:1.4}
+    /* COUNTY LINK */
+    .county-more{display:block;margin-top:1rem;text-align:center;color:rgba(255,255,255,.6);font-size:.8rem;text-decoration:none}
+    .county-more:hover{color:#D4AF37}
+    /* FOOTER */
+    footer{background:#1B4332;color:rgba(255,255,255,.6);text-align:center;padding:1.5rem;font-size:.8rem;margin-top:2rem}
+    footer a{color:#D4AF37}
+    /* RESPONSIVE */
+    @media(max-width:700px){
+      .main{grid-template-columns:1fr}
+      .col-side{order:-1}
+      .contact-card{position:static}
+      .hero-price{font-size:1.6rem}
+    }
+  </style>
+  ${gaSnippet()}
+</head>
+<body>
+<nav class="nav">
+  <a href="/" class="nav-brand">MalickLand</a>
+  <div class="nav-right">
+    <a href="/listings" class="nav-link">← Search</a>
+    <a href="/wv/${countySlug}-county" class="nav-link">${esc(p.county)} County</a>
+    <a href="tel:+15402461421" class="nav-cta">📞 Call Phil</a>
+  </div>
+</nav>
+
+<div class="hero">
+  <div class="hero-inner">
+    <div class="hero-price">${price}${ppa}</div>
+    <div class="hero-addr">${esc(textAddress)}</div>
+    <div class="hero-county">${esc(p.county)} County &nbsp;·&nbsp; ${p.property_type === 'land' ? '🌲 Land / Acreage' : '🏡 ' + esc(p.property_type)}</div>
+  </div>
+</div>
+
+<div class="main">
+  <!-- LEFT COL -->
+  <div class="col-main">
+    ${imageUrl
+      ? `<img src="${esc(imageUrl)}" alt="${esc(p.address)} — ${esc(p.county)} County WV land for sale" class="prop-img">`
+      : `<div class="no-photo">🌲</div>`}
+
+    <!-- CHIPS -->
+    <div class="chips">
+      <span class="chip type">${p.property_type === 'land' ? '🌲 Land' : '🏡 ' + esc(p.property_type)}</span>
+      ${p.acreage   ? `<span class="chip">🌿 ${esc(p.acreage)} acres</span>` : ''}
+      ${p.bedrooms  ? `<span class="chip">🛏 ${esc(p.bedrooms)} bd</span>` : ''}
+      ${p.bathrooms ? `<span class="chip">🚿 ${esc(p.bathrooms)} ba</span>` : ''}
+      ${p.sqft      ? `<span class="chip">📐 ${Number(p.sqft).toLocaleString()} sqft</span>` : ''}
+      ${p.year_built? `<span class="chip">🏗 ${esc(p.year_built)}</span>` : ''}
+      ${p.price_reduced ? `<span class="chip" style="background:#fef2f2;border-color:#fecaca;color:#991b1b">🔻 Price Reduced</span>` : ''}
+    </div>
+
+    <!-- FEATURE BADGES -->
+    ${featBadges ? `<div class="feat-row">${featBadges}</div>` : ''}
+
+    <!-- DRIVE TIMES -->
+    ${dt ? `<div class="drive-box">
+      🚗 <strong>${dt.dc}</strong> from DC &nbsp;·&nbsp;
+      <strong>${dt.balt}</strong> from Baltimore &nbsp;·&nbsp;
+      <strong>${dt.pit}</strong> from Pittsburgh
+      <br><span style="font-size:.78rem;color:#6b7280;margin-top:.2rem;display:block">Perfect weekend escape from the DMV — come see it in an afternoon.</span>
+    </div>` : ''}
+
+    <!-- LAND DETAIL GRID -->
+    ${(p.road_access || p.broadband_type || p.water_features || p.mineral_rights || p.nearest_town || p.annual_tax) ? `
+    <div class="land-grid">
+      ${p.road_access    ? `<div><div class="lg-label">🛣 Road</div><div class="lg-val">${esc(p.road_access)}</div></div>` : ''}
+      ${p.broadband_type ? `<div><div class="lg-label">📶 Broadband</div><div class="lg-val">${esc(p.broadband_type)}</div></div>` : ''}
+      ${p.nearest_town   ? `<div><div class="lg-label">📍 Nearest Town</div><div class="lg-val">${esc(p.nearest_town)}${p.miles_to_town?' ('+esc(p.miles_to_town)+' mi)':''}</div></div>` : ''}
+      ${p.mineral_rights && p.mineral_rights !== 'unknown' ? `<div><div class="lg-label">⛏ Minerals</div><div class="lg-val">${esc(p.mineral_rights)}</div></div>` : ''}
+      ${p.water_features ? `<div style="grid-column:1/-1"><div class="lg-label">💧 Water</div><div class="lg-val">${esc(p.water_features)}</div></div>` : ''}
+      ${p.annual_tax     ? `<div><div class="lg-label">💰 Annual Tax</div><div class="lg-val">$${Number(p.annual_tax).toLocaleString()}/yr</div></div>` : ''}
+    </div>` : ''}
+
+    <!-- DESCRIPTION -->
+    ${p.description ? `<p class="desc">${esc(p.description)}</p>` : ''}
+
+    <!-- MAP LINKS -->
+    <div class="map-row">
+      <a href="${esc(mapsUrl)}" target="_blank" rel="noopener" class="map-btn">🗺 View on Map</a>
+      <a href="${esc(satUrl)}"  target="_blank" rel="noopener" class="map-btn">🛰 Satellite View</a>
+      <a href="/wv/${countySlug}-county" class="map-btn">📍 ${esc(p.county)} County Listings</a>
+    </div>
+  </div>
+
+  <!-- RIGHT COL — CONTACT -->
+  <div class="col-side">
+    <div class="contact-card">
+      <h3>Interested in This Property?</h3>
+      <p>Contact Phil Malick — local WV land specialist. No runaround, fast response.</p>
+      <a href="tel:+15402461421" class="cta-phone">📞 (540) 246-1421</a>
+      <a href="sms:+15402461421&body=Hi Phil, I'm interested in ${encodeURIComponent(p.address + (p.city ? ', ' + p.city : '') + ' WV')}." class="cta-text">💬 Text Phil</a>
+      <a href="mailto:phil@malickland.net?subject=Inquiry: ${encodeURIComponent(p.address)}" class="cta-email">✉️ phil@malickland.net</a>
+      <input class="form-input" id="cName"  type="text"  placeholder="Your Name" />
+      <input class="form-input" id="cEmail" type="email" placeholder="Email Address" />
+      <input class="form-input" id="cPhone" type="tel"   placeholder="Phone (optional)" />
+      <textarea class="form-input form-textarea" id="cMsg">I'm interested in ${esc(p.address)}. Please send more info.</textarea>
+      <button class="form-submit" onclick="submitInquiry(${jsPropertyId}, ${jsAddress})">Send Inquiry →</button>
+      <p class="tcpa">By submitting, you consent to receive calls and texts from MalickLand. Reply STOP to opt out.</p>
+      <a href="/wv/${countySlug}-county" class="county-more">📍 More ${esc(p.county)} County listings</a>
+    </div>
+  </div>
+</div>
+
+<footer>
+  &copy; ${new Date().getFullYear()} MalickLand Real Estate &middot; Phil Malick, WV Licensed REALTOR&reg;
+  &middot; Broker: Sheila Judy &middot; <a href="/">malickland.net</a>
+</footer>
+<script>
+async function submitInquiry(propertyId, address) {
+  const body = {
+    property_id: propertyId,
+    name:    document.getElementById('cName').value,
+    email:   document.getElementById('cEmail').value,
+    phone:   document.getElementById('cPhone').value,
+    message: document.getElementById('cMsg').value,
+    source:  'property_page',
+  };
+  if (!body.name || !body.email) { alert('Please enter your name and email.'); return; }
+  const btn = document.querySelector('.form-submit');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    const r = await fetch('/api/contacts', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    if (r.ok) {
+      btn.textContent = '✅ Sent! Phil will be in touch.';
+      btn.style.background = '#22c55e';
+    } else {
+      btn.disabled = false; btn.textContent = 'Send Inquiry →';
+      alert('Failed to send. Please call Phil directly at (540) 246-1421.');
+    }
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Send Inquiry →';
+    alert('Failed to send. Please call Phil directly at (540) 246-1421.');
+  }
+}
+</script>
+</body>
+</html>`);
+});
+
+// Full listings/search page
+app.get('/listings', publicPageRateLimit, (_req, res) => res.sendFile(path.join(PROJECT_ROOT, 'app', 'listings.html'), { dotfiles: 'allow' }));
 
 app.use(express.static(path.join(PROJECT_ROOT, 'app')));
 app.use((_req,res) => res.status(404).json({ error:'Not found' }));
@@ -1230,10 +2035,11 @@ setTimeout(runDbBackup, 10 * 60 * 1000);
 setInterval(runDbBackup, BACKUP_INTERVAL_MS);
 
 // ── Admin HTML shell ──────────────────────────────────────
-function adminShell(title, body, csrf) {
+function adminShell(req, title, body) {
+  const csrf = csrfToken(req);
   return `<!DOCTYPE html><html lang="en"><head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="csrf-token" content="${esc(csrf||'')}">
+  <meta name="csrf-token" content="${esc(csrf)}">
   <title>${esc(title)} — WVREA Admin</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
@@ -1302,21 +2108,25 @@ function adminShell(title, body, csrf) {
     <span class="logo">🏡 WVREA Admin</span>
     <a href="/admin">📋 Listings</a>
     <a href="/admin/new">➕ New Listing</a>
+    <a href="/admin/leads">📬 Leads</a>
     <a href="/admin/integrations">🔗 Integrations</a>
     <a href="/" target="_blank">🌐 Public Site</a>
-    <a href="/admin/logout" class="logout" style="color:#ffaaaa">🚪 Logout</a>
+    <form method="POST" action="/admin/logout" class="logout" style="margin:0">
+      <input type="hidden" name="_csrf" value="${esc(csrf)}" />
+      <button type="submit" style="background:none;border:0;color:#ffaaaa;cursor:pointer;padding:.6rem .75rem;text-align:left;width:100%;font:inherit">🚪 Logout</button>
+    </form>
   </div>
   <div class="main">${body}</div>
   <script>
-  // Read CSRF token from meta tag for use in all admin fetch/form submissions
-  const _csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
-  // Patch all forms to include CSRF hidden field before submit
   document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(form => {
       if (!form.querySelector('[name=_csrf]')) {
         const field = document.createElement('input');
-        field.type = 'hidden'; field.name = '_csrf'; field.value = _csrf;
+        field.type = 'hidden';
+        field.name = '_csrf';
+        field.value = csrfToken;
         form.appendChild(field);
       }
     });
@@ -1356,13 +2166,14 @@ function listingForm(p, counties) {
   const countyOpts = counties.map(c =>
     `<option value="${esc(c.id)}" ${p && p.county_id==c.id?'selected':''}>${esc(c.name)}</option>`
   ).join('');
+  const action = p ? '/admin/edit/' + encodeURIComponent(p.id) : '/admin/new';
 
   return `
   <div class="dash-header">
     <h1>${p ? 'Edit Listing' : 'New Listing'}</h1>
     <a href="/admin" class="btn-outline">← Cancel</a>
   </div>
-  <form method="POST" action="${p ? '/admin/edit/'+p.id : '/admin/new'}">
+  <form method="POST" action="${action}">
     <div class="form-grid">
 
       <div class="form-section"><h3>📍 Property Details</h3></div>
@@ -1436,6 +2247,28 @@ function listingForm(p, counties) {
       <div><label>Listing Agent</label><input type="text" name="listing_agent" value="${v('listing_agent')||'Phil Malick'}" /></div>
       <div><label>Listing Office</label><input type="text" name="listing_office" value="${v('listing_office')||'WV Real Estate Agency'}" /></div>
 
+      <div class="form-section"><h3>🌲 Land-Specific Details</h3></div>
+
+      <div class="full">
+        <label>Features / Tags <span style="font-weight:400;color:#888">(comma-separated: Hunting, Timber, Water, Road Access, Broadband, Mountain View, Pasture, Cabin, Barn, Spring)</span></label>
+        <input type="text" name="features" value="${v('features')}" placeholder="Hunting, Timber, Mountain View, Water..." />
+      </div>
+      <div><label>Broadband Type</label><input type="text" name="broadband_type" value="${v('broadband_type')}" placeholder="Starlink Available, Fiber, None..." /></div>
+      <div><label>Mineral Rights</label>
+        <select name="mineral_rights">
+          <option value="unknown" ${sel('mineral_rights','unknown')}>Unknown</option>
+          <option value="included" ${sel('mineral_rights','included')}>Included</option>
+          <option value="excluded" ${sel('mineral_rights','excluded')}>Excluded (Severed)</option>
+        </select>
+      </div>
+      <div class="full"><label>Water Features <span style="font-weight:400;color:#888">(streams, ponds, springs)</span></label>
+        <input type="text" name="water_features" value="${v('water_features')}" placeholder="Seasonal creek, 1/4 mile of Mill Run..." />
+      </div>
+      <div><label>Elevation Min (ft)</label><input type="number" name="elevation_min" value="${v('elevation_min')}" /></div>
+      <div><label>Elevation Max (ft)</label><input type="number" name="elevation_max" value="${v('elevation_max')}" /></div>
+      <div><label>Nearest Town</label><input type="text" name="nearest_town" value="${v('nearest_town')}" /></div>
+      <div><label>Miles to Town</label><input type="number" step="0.1" name="miles_to_town" value="${v('miles_to_town')}" /></div>
+
       <div class="form-section"><h3>📍 Location & Environment</h3></div>
 
       <div><label>Latitude</label><input type="number" step="0.000001" name="latitude" value="${v('latitude')}" /></div>
@@ -1464,7 +2297,7 @@ function listingForm(p, counties) {
   </form>`;
 }
 
-app.get('/advent-drive-land-hampshire-county-wv', (req, res) => {
+app.get('/advent-drive-land-hampshire-county-wv', publicPageRateLimit, (req, res) => {
   res.send(`
   <!DOCTYPE html>
   <html>
@@ -1491,4 +2324,3 @@ app.get('/advent-drive-land-hampshire-county-wv', (req, res) => {
   </html>
   `);
 });
-

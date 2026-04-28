@@ -77,6 +77,19 @@ async function uploadPhoto(filePath, fileName, mimeType = 'image/jpeg') {
   return getPhotoUrl(fileId);
 }
 
+async function uploadListingPhotos(files) {
+  const uploaded = [];
+  for (const file of files || []) {
+    const filePath = file.path || file.filePath;
+    const fileName = file.originalname || file.filename || path.basename(filePath || '');
+    const mimeType = file.mimetype || 'image/jpeg';
+    if (!filePath) continue;
+    const url = await uploadPhoto(filePath, fileName, mimeType);
+    if (url) uploaded.push(url);
+  }
+  return uploaded;
+}
+
 // ── Delete ────────────────────────────────────────────────
 async function deletePhoto(fileId) {
   const drive = getDriveClient();
@@ -91,4 +104,4 @@ function getPhotoUrl(fileId) {
   return `https://drive.google.com/uc?export=view&id=${fileId}`;
 }
 
-module.exports = { uploadPhoto, deletePhoto, getPhotoUrl };
+module.exports = { uploadPhoto, uploadListingPhotos, deletePhoto, getPhotoUrl };
