@@ -2,6 +2,7 @@
 
 const path = require('path');
 const fs   = require('fs');
+const escapeHtml = require('escape-html');
 
 const PROJECT_ROOT = path.join(__dirname, '..');
 const LISTINGS_ROOT = path.join(PROJECT_ROOT, 'listings');
@@ -15,12 +16,7 @@ function isSafePathComponent(str) {
 }
 
 function esc(str) {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+  return escapeHtml(String(str ?? ''));
 }
 
 function slugify(str) {

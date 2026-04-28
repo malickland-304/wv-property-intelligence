@@ -7,6 +7,7 @@ const cors     = require('cors');
 const helmet   = require('helmet');
 const morgan   = require('morgan');
 const session  = require('express-session');
+const csrf     = require('csurf');
 const path     = require('path');
 
 const BetterSqlite3Store = require('better-sqlite3-session-store')(session);
@@ -63,10 +64,14 @@ const adminSession = session({
     secure:   process.env.NODE_ENV === 'production',
   },
 });
+const adminCsrf = csrf();
 
 app.use('/images', express.static(path.join(PROJECT_ROOT, 'listings')));
 
-app.use('/admin', adminSession, adminRoutes);
+app.use('/admin', adminSession, (req, res, next) => {
+  if (req.path === '/login') return next();
+  return adminCsrf(req, res, next);
+}, adminRoutes);
 app.use('/api',   apiRoutes);
 app.use('/',      publicRoutes);
 

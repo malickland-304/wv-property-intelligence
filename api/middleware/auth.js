@@ -26,12 +26,14 @@ function requireAuth(req, res, next) {
 }
 
 function csrfToken(req) {
+  if (typeof req.csrfToken === 'function') return req.csrfToken();
   if (!req.session.csrfToken)
     req.session.csrfToken = crypto.randomBytes(16).toString('hex');
   return req.session.csrfToken;
 }
 
 function requireCsrf(req, res, next) {
+  if (typeof req.csrfToken === 'function') return next();
   const token = req.body._csrf || req.headers['x-csrf-token'];
   if (!token || token !== req.session.csrfToken)
     return res.status(403).send('Invalid CSRF token');

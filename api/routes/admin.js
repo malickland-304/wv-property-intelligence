@@ -229,7 +229,7 @@ router.get('/photos/:slug', requireAuth, adminActionRateLimit, (req, res) => {
     <h3 style="margin:1.5rem 0 1rem">Uploaded Photos (${photos.length})</h3>
     <div class="photo-grid" id="photoGrid">${photoGrid}</div>
     <script>
-      const slug = '${esc(slug)}';
+      const slug = ${JSON.stringify(slug)};
       const _csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
       const dropZone = document.getElementById('dropZone');
       const fileInput = document.getElementById('fileInput');
