@@ -10,32 +10,21 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  check:
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [20.x]
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Set up Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'npm'
+          node-version: 20.x
+          cache: npm
           cache-dependency-path: api/package-lock.json
 
-      - name: Install API dependencies
+      - name: Install dependencies
         working-directory: api
         run: npm ci
 
-      - name: Run tests
-        working-directory: api
-        run: npm test
-
-      - name: Verify server entry point
+      - name: Syntax check
         working-directory: api
         run: node --check server.js

@@ -1,7 +1,9 @@
-# Copilot instructions
+# Copilot Instructions
 
-1. Use `CONTEXT.md` for business and system intent.
-2. Before generating any API calls, verify the route exists in `api/server.js` — the code is the final source of truth.
-3. If `CONTEXT.md` disagrees with the code, follow the code and then propose the docs fix.
+1. Read `CONTEXT.md` for business context, stack, and the authoritative route table.
+2. Routes live in `api/routes/admin.js`, `api/routes/api.js`, and `api/routes/public.js` — not inline in `server.js`. Verify routes there, not in `server.js`.
+3. If `CONTEXT.md` disagrees with the code, follow the code and propose a `CONTEXT.md` fix.
 4. There is no `/api/listings` route. Use `/api/properties`.
-5. Admin routes (`/admin/*`) require session authentication — never expose them without `requireAuth`.
+5. Admin routes (`/admin/*`) require `requireAuth`. State-changing routes also require `requireCsrf`.
+6. The database is SQLite (better-sqlite3, synchronous). Never use async/await for DB calls.
+7. The acreage column is `acreage` — never reference `lot_acres` in SQL. It is only an alias in API responses.
