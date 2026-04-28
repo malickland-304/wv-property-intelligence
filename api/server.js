@@ -44,7 +44,7 @@ app.use(cors());
 
 app.use((req, res, next) => {
   if ((req.hostname || '').startsWith('www.'))
-    return res.redirect(301, 'https://malickland.net' + req.originalUrl);
+    return res.redirect(301, 'https://malickland.net/');
   next();
 });
 
@@ -52,7 +52,7 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'tiny' : 'dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use(session({
+const adminSession = session({
   store: new BetterSqlite3Store({ client: db }),
   secret: process.env.SESSION_SECRET || 'wvrea-secret-2026',
   resave: false,
@@ -62,11 +62,11 @@ app.use(session({
     sameSite: 'lax',
     secure:   process.env.NODE_ENV === 'production',
   },
-}));
+});
 
 app.use('/images', express.static(path.join(PROJECT_ROOT, 'listings')));
 
-app.use('/admin', adminRoutes);
+app.use('/admin', adminSession, adminRoutes);
 app.use('/api',   apiRoutes);
 app.use('/',      publicRoutes);
 

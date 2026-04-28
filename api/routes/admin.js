@@ -10,7 +10,7 @@ const { db }                   = require('../db');
 const { requireAuth, requireCsrf, csrfToken } = require('../middleware/auth');
 const { adminLoginRateLimit, uploadRateLimit, adminActionRateLimit } = require('../middleware/rate-limits');
 const { adminShell, listingForm, loginPageHtml, loginErrorHtml } = require('../views/admin');
-const { esc, slugify, initListingFolder, isSafePathComponent, normalizeAcreage, PROJECT_ROOT } = require('../helpers');
+const { esc, slugify, initListingFolder, isSafePathComponent, normalizeAcreage, safeListingPath } = require('../helpers');
 const { uploadPhotoToDrive } = require('../google');
 const { generateListingContent } = require('../ai-generator');
 
@@ -24,7 +24,7 @@ const storage = multer.diskStorage({
   destination: (req, _file, cb) => {
     const rawSlug = req.params.slug || req.body.slug || '';
     const slug = isSafePathComponent(rawSlug) ? rawSlug : 'uploads';
-    const dir  = path.join(PROJECT_ROOT, 'listings', slug, 'photos', 'raw');
+    const dir  = safeListingPath(slug, 'photos', 'raw');
     fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
@@ -56,13 +56,13 @@ router.post('/login', adminLoginRateLimit, (req, res) => {
   }
 });
 
-router.get('/logout', (req, res) => {
+router.get('/logout', adminActionRateLimit, (req, res) => {
   req.session.destroy();
   res.redirect('/admin/login');
 });
 
 // ── Dashboard ─────────────────────────────────────────────
-router.get('/', requireAuth, (req, res) => {
+router.get('/', requireAuth, adminActionRateLimit, (req, res) => {
   const listings = db.prepare(`
     SELECT p.id, p.address, p.city, p.price, p.property_type, p.status,
            p.listing_slug, p.acreage, p.photos_uploaded, p.mls_status,
@@ -105,7 +105,7 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 // ── New listing ───────────────────────────────────────────
-router.get('/new', requireAuth, (req, res) => {
+router.get('/new', requireAuth, adminActionRateLimit, (req, res) => {
   const counties = db.prepare('SELECT id,name FROM counties ORDER BY name').all();
   res.send(adminShell('New Listing', listingForm(null, counties), csrfToken(req)));
 });
@@ -146,14 +146,14 @@ router.post('/new', requireAuth, requireCsrf, adminActionRateLimit, (req, res) =
 
   initListingFolder(uniqueSlug);
   fs.writeFileSync(
-    path.join(PROJECT_ROOT, 'listings', uniqueSlug, 'listing.json'),
+    safeListingPath(uniqueSlug, 'listing.json'),
     JSON.stringify({ id, ...f, listing_slug: uniqueSlug }, null, 2)
   );
   res.redirect(`/admin/photos/${uniqueSlug}`);
 });
 
 // ── Edit listing ──────────────────────────────────────────
-router.get('/edit/:id', requireAuth, (req, res) => {
+router.get('/edit/:id', requireAuth, adminActionRateLimit, (req, res) => {
   const p = db.prepare('SELECT * FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.redirect('/admin');
   const counties = db.prepare('SELECT id,name FROM counties ORDER BY name').all();
@@ -191,11 +191,11 @@ router.post('/edit/:id', requireAuth, requireCsrf, adminActionRateLimit, (req, r
 });
 
 // ── Photos ────────────────────────────────────────────────
-router.get('/photos/:slug', requireAuth, (req, res) => {
+router.get('/photos/:slug', requireAuth, adminActionRateLimit, (req, res) => {
   const { slug } = req.params;
   if (!isSafePathComponent(slug)) return res.status(400).send('Invalid slug');
   const p = db.prepare('SELECT * FROM properties WHERE listing_slug=?').get(slug);
-  const photoDir = path.join(PROJECT_ROOT, 'listings', slug, 'photos', 'compressed');
+  const photoDir = safeListingPath(slug, 'photos', 'compressed');
   let photos = [];
   if (fs.existsSync(photoDir))
     photos = fs.readdirSync(photoDir).filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f));
@@ -204,8 +204,8 @@ router.get('/photos/:slug', requireAuth, (req, res) => {
     <div class="photo-item">
       <img src="/images/${esc(slug)}/photos/compressed/${esc(f)}" alt="Photo ${i+1}" />
       <div class="photo-actions">
-        ${i===0 ? '<span class="primary-badge">Primary</span>' : `<button onclick="setPrimary('${esc(slug)}','${esc(f)}')">Set Primary</button>`}
-        <button onclick="deletePhoto('${esc(slug)}','${esc(f)}')" class="del">Delete</button>
+        ${i===0 ? '<span class="primary-badge">Primary</span>' : `<button type="button" class="set-primary" data-filename="${esc(f)}">Set Primary</button>`}
+        <button type="button" class="del delete-photo" data-filename="${esc(f)}">Delete</button>
       </div>
     </div>`).join('');
 
@@ -255,13 +255,27 @@ router.get('/photos/:slug', requireAuth, (req, res) => {
         text.textContent = 'Done! Refreshing...';
         setTimeout(() => location.reload(), 800);
       }
-      async function setPrimary(slug, filename) {
-        await fetch('/admin/photos/' + slug + '/primary', { method:'POST', headers:{'Content-Type':'application/json','x-csrf-token':_csrf}, body: JSON.stringify({ filename }) });
+      const safePathSegment = /^[a-zA-Z0-9][a-zA-Z0-9_-]*(\\.[a-zA-Z0-9]+)?$/;
+      function safeFileName(value) {
+        return safePathSegment.test(value || '') ? value : null;
+      }
+      document.querySelectorAll('.set-primary').forEach(btn => {
+        btn.addEventListener('click', () => setPrimary(btn.dataset.filename));
+      });
+      document.querySelectorAll('.delete-photo').forEach(btn => {
+        btn.addEventListener('click', () => deletePhoto(btn.dataset.filename));
+      });
+      async function setPrimary(filename) {
+        filename = safeFileName(filename);
+        if (!filename) return;
+        await fetch('/admin/photos/' + encodeURIComponent(slug) + '/primary', { method:'POST', headers:{'Content-Type':'application/json','x-csrf-token':_csrf}, body: JSON.stringify({ filename }) });
         location.reload();
       }
-      async function deletePhoto(slug, filename) {
+      async function deletePhoto(filename) {
+        filename = safeFileName(filename);
+        if (!filename) return;
         if (!confirm('Delete this photo?')) return;
-        await fetch('/admin/photos/' + slug + '/' + filename, { method:'DELETE', headers:{'x-csrf-token':_csrf} });
+        await fetch('/admin/photos/' + encodeURIComponent(slug) + '/' + encodeURIComponent(filename), { method:'DELETE', headers:{'x-csrf-token':_csrf} });
         location.reload();
       }
     </script>
@@ -278,14 +292,14 @@ router.post('/upload/:slug', requireAuth, requireCsrf, uploadRateLimit, upload.s
   if (!isSafePathComponent(filename))
     return res.status(400).json({ error: 'Invalid filename' });
 
-  const rawPath = path.join(PROJECT_ROOT, 'listings', slug, 'photos', 'raw', filename);
-  const compDir = path.join(PROJECT_ROOT, 'listings', slug, 'photos', 'compressed');
-  const mlsDir  = path.join(PROJECT_ROOT, 'listings', slug, 'photos', 'mls');
+  const rawPath = safeListingPath(slug, 'photos', 'raw', filename);
+  const compDir = safeListingPath(slug, 'photos', 'compressed');
+  const mlsDir  = safeListingPath(slug, 'photos', 'mls');
   fs.mkdirSync(compDir, { recursive: true });
   fs.mkdirSync(mlsDir,  { recursive: true });
 
-  const compPath = path.join(compDir, filename);
-  const mlsPath  = path.join(mlsDir, filename);
+  const compPath = safeListingPath(slug, 'photos', 'compressed', filename);
+  const mlsPath  = safeListingPath(slug, 'photos', 'mls', filename);
 
   function afterCompress() {
     const p = db.prepare('SELECT image_url, listing_slug FROM properties WHERE listing_slug=?').get(slug);
@@ -329,19 +343,19 @@ router.post('/photos/:slug/primary', requireAuth, requireCsrf, adminActionRateLi
   res.json({ ok: true });
 });
 
-router.delete('/photos/:slug/:filename', requireAuth, requireCsrf, (req, res) => {
+router.delete('/photos/:slug/:filename', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
   const { slug, filename } = req.params;
   if (!isSafePathComponent(slug) || !isSafePathComponent(filename))
     return res.status(400).json({ error: 'Invalid slug or filename' });
   ['raw','compressed','mls'].forEach(dir => {
-    const fp = path.join(PROJECT_ROOT, 'listings', slug, 'photos', dir, filename);
+    const fp = safeListingPath(slug, 'photos', dir, filename);
     if (fs.existsSync(fp)) fs.unlinkSync(fp);
   });
   res.json({ ok: true });
 });
 
 // ── Report ────────────────────────────────────────────────
-router.get('/report/:id', requireAuth, (req, res) => {
+router.get('/report/:id', requireAuth, adminActionRateLimit, (req, res) => {
   const p = db.prepare(`
     SELECT p.*, c.name AS county FROM properties p
     LEFT JOIN counties c ON c.id=p.county_id
@@ -351,8 +365,8 @@ router.get('/report/:id', requireAuth, (req, res) => {
 
   const slug = p.listing_slug || p.id;
   if (!isSafePathComponent(slug)) return res.status(500).send('Invalid property data');
-  const compsPath = path.join(PROJECT_ROOT, 'listings', slug, 'comps.csv');
-  const ddPath    = path.join(PROJECT_ROOT, 'listings', slug, 'due_diligence.md');
+  const compsPath = safeListingPath(slug, 'comps.csv');
+  const ddPath    = safeListingPath(slug, 'due_diligence.md');
   const comps     = fs.existsSync(compsPath) ? fs.readFileSync(compsPath, 'utf8') : '';
   const dd        = fs.existsSync(ddPath)    ? fs.readFileSync(ddPath, 'utf8')    : '';
 
@@ -410,7 +424,7 @@ router.post('/report/:id/comps', requireAuth, requireCsrf, adminActionRateLimit,
   if (!p) return res.redirect('/admin');
   const slug = p.listing_slug || p.id;
   if (!isSafePathComponent(slug)) return res.status(400).json({ error: 'Invalid slug' });
-  fs.writeFileSync(path.join(PROJECT_ROOT, 'listings', slug, 'comps.csv'), req.body.comps || '');
+  fs.writeFileSync(safeListingPath(slug, 'comps.csv'), req.body.comps || '');
   db.prepare('UPDATE properties SET comps_complete=1 WHERE id=?').run(req.params.id);
   res.redirect(`/admin/report/${req.params.id}`);
 });
@@ -420,13 +434,13 @@ router.post('/report/:id/dd', requireAuth, requireCsrf, adminActionRateLimit, (r
   if (!p) return res.redirect('/admin');
   const slug = p.listing_slug || p.id;
   if (!isSafePathComponent(slug)) return res.status(400).json({ error: 'Invalid slug' });
-  fs.writeFileSync(path.join(PROJECT_ROOT, 'listings', slug, 'due_diligence.md'), req.body.dd || '');
+  fs.writeFileSync(safeListingPath(slug, 'due_diligence.md'), req.body.dd || '');
   db.prepare('UPDATE properties SET due_diligence_complete=1 WHERE id=?').run(req.params.id);
   res.redirect(`/admin/report/${req.params.id}`);
 });
 
 // ── AI Content ────────────────────────────────────────────
-router.get('/ai/:id', requireAuth, (req, res) => {
+router.get('/ai/:id', requireAuth, adminActionRateLimit, (req, res) => {
   const p = db.prepare(`
     SELECT p.*, c.name AS county_name FROM properties p
     LEFT JOIN counties c ON c.id=p.county_id
@@ -537,7 +551,7 @@ router.post('/ai/:id', requireAuth, requireCsrf, adminActionRateLimit, async (re
 });
 
 // ── Integrations ──────────────────────────────────────────
-router.get('/integrations', requireAuth, (req, res) => {
+router.get('/integrations', requireAuth, adminActionRateLimit, (req, res) => {
   const gmailOk  = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_REFRESH_TOKEN);
   const driveOk  = !!(process.env.GOOGLE_DRIVE_FOLDER_ID);
   const driveFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID || '';

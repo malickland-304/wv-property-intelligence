@@ -60,13 +60,13 @@ router.get('/sitemap.xml', publicReadRateLimit, (_req, res) => {
   res.type('application/xml').send(xml);
 });
 
-router.get('/listing/:id', (_req, res) => {
+router.get('/listing/:id', publicReadRateLimit, (_req, res) => {
   const listingHtml = path.join(PROJECT_ROOT, 'app', 'listing.html');
   const indexHtml   = path.join(PROJECT_ROOT, 'app', 'index.html');
   res.sendFile(fs.existsSync(listingHtml) ? listingHtml : indexHtml);
 });
 
-router.get('/advent-drive-land-hampshire-county-wv', (_req, res) => {
+router.get('/advent-drive-land-hampshire-county-wv', publicReadRateLimit, (_req, res) => {
   res.send(`<!DOCTYPE html>
 <html>
 <head>
