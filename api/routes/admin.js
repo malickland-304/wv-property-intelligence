@@ -194,24 +194,10 @@ router.post('/edit/:id', requireAuth, requireCsrf, adminActionRateLimit, (req, r
 router.get('/photos/:slug', requireAuth, adminActionRateLimit, (req, res) => {
   const { slug } = req.params;
   if (!isSafePathComponent(slug)) return res.status(400).send('Invalid slug');
-  const p = db.prepare('SELECT * FROM properties WHERE listing_slug=?').get(slug);
-  const photoDir = safeListingPath(slug, 'photos', 'compressed');
-  let photos = [];
-  if (fs.existsSync(photoDir))
-    photos = fs.readdirSync(photoDir).filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f));
-
-  const photoGrid = photos.map((f,i) => `
-    <div class="photo-item">
-      <img src="/images/${esc(slug)}/photos/compressed/${esc(f)}" alt="Photo ${i+1}" />
-      <div class="photo-actions">
-        ${i===0 ? '<span class="primary-badge">Primary</span>' : `<button type="button" class="set-primary" data-filename="${esc(f)}">Set Primary</button>`}
-        <button type="button" class="del delete-photo" data-filename="${esc(f)}">Delete</button>
-      </div>
-    </div>`).join('');
 
   res.send(adminShell('Upload Photos', `
     <div class="dash-header">
-      <h1>Photos — ${p ? esc(p.address) : esc(slug)}</h1>
+      <h1>Photos — ${esc(slug)}</h1>
       <a href="/admin" class="btn-outline">← Back</a>
     </div>
     <div class="upload-zone" id="dropZone">
@@ -226,13 +212,15 @@ router.get('/photos/:slug', requireAuth, adminActionRateLimit, (req, res) => {
       <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
       <p id="progressText">Uploading...</p>
     </div>
-    <h3 style="margin:1.5rem 0 1rem">Uploaded Photos (${photos.length})</h3>
-    <div class="photo-grid" id="photoGrid">${photoGrid}</div>
+    <h3 id="photoCount" style="margin:1.5rem 0 1rem">Uploaded Photos</h3>
+    <div class="photo-grid" id="photoGrid"></div>
     <script>
       const slug = ${JSON.stringify(slug)};
       const _csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
       const dropZone = document.getElementById('dropZone');
       const fileInput = document.getElementById('fileInput');
+      const photoGrid = document.getElementById('photoGrid');
+      const photoCount = document.getElementById('photoCount');
       dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
       dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
       dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); uploadFiles(e.dataTransfer.files); });
@@ -259,12 +247,42 @@ router.get('/photos/:slug', requireAuth, adminActionRateLimit, (req, res) => {
       function safeFileName(value) {
         return safePathSegment.test(value || '') ? value : null;
       }
-      document.querySelectorAll('.set-primary').forEach(btn => {
-        btn.addEventListener('click', () => setPrimary(btn.dataset.filename));
-      });
-      document.querySelectorAll('.delete-photo').forEach(btn => {
-        btn.addEventListener('click', () => deletePhoto(btn.dataset.filename));
-      });
+      async function loadPhotos() {
+        const res = await fetch('/admin/photos/' + encodeURIComponent(slug) + '/list');
+        const data = await res.json();
+        const photos = Array.isArray(data.photos) ? data.photos.filter(safeFileName) : [];
+        photoCount.textContent = 'Uploaded Photos (' + photos.length + ')';
+        photoGrid.replaceChildren(...photos.map(renderPhoto));
+      }
+      function renderPhoto(filename, index) {
+        const item = document.createElement('div');
+        item.className = 'photo-item';
+        const img = document.createElement('img');
+        img.src = '/images/' + encodeURIComponent(slug) + '/photos/compressed/' + encodeURIComponent(filename);
+        img.alt = 'Photo ' + (index + 1);
+        const actions = document.createElement('div');
+        actions.className = 'photo-actions';
+        if (index === 0) {
+          const badge = document.createElement('span');
+          badge.className = 'primary-badge';
+          badge.textContent = 'Primary';
+          actions.appendChild(badge);
+        } else {
+          const primary = document.createElement('button');
+          primary.type = 'button';
+          primary.textContent = 'Set Primary';
+          primary.addEventListener('click', () => setPrimary(filename));
+          actions.appendChild(primary);
+        }
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'del';
+        del.textContent = 'Delete';
+        del.addEventListener('click', () => deletePhoto(filename));
+        actions.appendChild(del);
+        item.append(img, actions);
+        return item;
+      }
       async function setPrimary(filename) {
         filename = safeFileName(filename);
         if (!filename) return;
@@ -278,8 +296,19 @@ router.get('/photos/:slug', requireAuth, adminActionRateLimit, (req, res) => {
         await fetch('/admin/photos/' + encodeURIComponent(slug) + '/' + encodeURIComponent(filename), { method:'DELETE', headers:{'x-csrf-token':_csrf} });
         location.reload();
       }
+      loadPhotos().catch(() => { photoCount.textContent = 'Uploaded Photos unavailable'; });
     </script>
   `, csrfToken(req)));
+});
+
+router.get('/photos/:slug/list', requireAuth, adminActionRateLimit, (req, res) => {
+  const { slug } = req.params;
+  if (!isSafePathComponent(slug)) return res.status(400).json({ error: 'Invalid slug' });
+  const photoDir = safeListingPath(slug, 'photos', 'compressed');
+  const photos = fs.existsSync(photoDir)
+    ? fs.readdirSync(photoDir).filter(f => isSafePathComponent(f) && /\.(jpg|jpeg|png|webp)$/i.test(f))
+    : [];
+  res.json({ photos });
 });
 
 // ── Upload handler ────────────────────────────────────────
