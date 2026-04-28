@@ -1,0 +1,63 @@
+{
+  "id": "advent-dr-hampshire-wv",
+  "listing_slug": "advent-dr-hampshire-wv",
+  "status": "active",
+  "mls_status": "draft",
+  "mls_number": null,
+  "address": "37 Advent Dr",
+  "city": "Augusta",
+  "area_note": "Augusta / Delray, WV",
+  "state": "WV",
+  "county": "Hampshire",
+  "price": 219900,
+  "acreage": 2.52,
+  "lot_size": "Lots 48, 49, 95, 96",
+  "parcel_id": "14-09-012B-0096-0000",
+  "subdivision": "Elk Horn SD (CC CONS)",
+  "book_page": "574 / 157",
+  "owner_of_record": "Breanna D Rice",
+  "property_type": "land",
+  "condition_positioning": "fixer / camp / value-add",
+  "flood_zone": "Not in flood zone",
+  "elevation_ft": 1592,
+  "county_appraisal_2025": 16300,
+  "list_price_strategy": {
+    "quick_sale": 199900,
+    "balanced": 214900,
+    "high_entry": 229900,
+    "current_list_price": 219900
+  },
+  "structures": {
+    "dwelling": "2004 double wide",
+    "dwelling_sqft": 1568,
+    "other_improvements": [
+      "deck",
+      "foundation/additions",
+      "sheds",
+      "lean-tos",
+      "carport"
+    ],
+    "combined_improvement_footprint_sqft": 3424,
+    "condition_note": "Needs work. County currently shows $0 dwelling value despite assessment detail showing structures; buyer should verify condition and county data."
+  },
+  "features": [
+    "Multi-lot parcel",
+    "Existing structures",
+    "Fixer/value-add",
+    "Hunting camp potential",
+    "Out of flood zone"
+  ],
+  "description": "37 Advent Dr is a 2.52-acre, multi-lot Hampshire County opportunity in the Elk Horn subdivision area with existing structures and clear value-add potential. Assessment records indicate lots 48, 49, 95, and 96, parcel 14-09-012B-0096-0000, and a 2004 double wide with supporting improvements including deck, foundation/additions, sheds, lean-tos, and carport structures. This is best positioned as a fixer, hunting camp, recreational base, or rural value-add project. County data currently shows an improvement-value inconsistency, so buyers should verify structure condition, utility status, and intended use during due diligence. The property is reported outside the flood zone at roughly 1,592 feet elevation, a strong selling point for buyers comparing rural land and camp-style properties.",
+  "marketing_description": "Multi-lot value-add opportunity near Short Mountain context in Hampshire County. 37 Advent Dr offers 2.52 acres across lots 48, 49, 95, and 96 with existing structures already on site. The right buyer can look past the rough edges and see the upside: a fixer setup, hunting camp, weekend base, or rural retreat project with room to improve over time. Not in a flood zone per the current flood-map review. Assessment and condition details should be verified by buyer, but the raw ingredients are here: land, structures, access, and a price point built for a serious rural-property buyer.",
+  "image_url": "/assets/advent-1.jpg",
+  "missing_items": [
+    "MLS sheet / MLS number",
+    "Centralized photo and video folders",
+    "Final formal condition disclosure/narrative"
+  ],
+  "source_notes": [
+    "Use 2.52 acres everywhere; do not use 3.11 acres unless a new official document supports it.",
+    "Do not publish an MLS number until the MLS sheet is attached.",
+    "Keep image_url for API/frontend compatibility; imageUrls may be returned as an alias."
+  ]
+}

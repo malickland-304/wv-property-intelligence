@@ -218,36 +218,70 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
   const hampshire = db.prepare("SELECT id FROM counties WHERE name='Hampshire'").get();
   if (hampshire) {
     const existing = db.prepare(
-      "SELECT id, property_description FROM properties WHERE mls_number='WVHS2007442' OR (address LIKE '%Advent%' AND county_id=?)"
+      "SELECT id, property_description FROM properties WHERE address LIKE '%Advent%' AND county_id=?"
     ).get(hampshire.id);
-    const descSuffix = 'MLS# WVHS2007442 | 37 Advent Dr, Romney, WV 26757 | Hampshire County | Listed at $185,000 | Contact Phil Malick for details.';
+    const adventDescription = [
+      '37 Advent Dr is a 2.52-acre, multi-lot Hampshire County opportunity in the Elk Horn subdivision area with existing structures and clear value-add potential.',
+      'Assessment records indicate lots 48, 49, 95, and 96, parcel 14-09-012B-0096-0000, and a 2004 double wide with supporting improvements including deck, foundation/additions, sheds, lean-tos, and carport structures.',
+      'This is best positioned as a fixer, hunting camp, recreational base, or rural value-add project. County data currently shows an improvement-value inconsistency, so buyers should verify structure condition, utility status, and intended use during due diligence.',
+      'The property is reported outside the flood zone at roughly 1,592 feet elevation, a strong selling point for buyers comparing rural land and camp-style properties.'
+    ].join('\n\n');
+    const adventMarketing = [
+      'Multi-lot value-add opportunity near Short Mountain context in Hampshire County. 37 Advent Dr offers 2.52 acres across lots 48, 49, 95, and 96 with existing structures already on site.',
+      'The right buyer can look past the rough edges and see the upside: a fixer setup, hunting camp, weekend base, or rural retreat project with room to improve over time.',
+      'Not in a flood zone per the current flood-map review. Assessment and condition details should be verified by buyer, but the raw ingredients are here: land, structures, access, and a price point built for a serious rural-property buyer.'
+    ].join('\n\n');
     if (existing) {
-      const cur = existing.property_description || '';
-      const newDesc = cur.includes('WVHS2007442') ? cur : (cur ? cur + '\n\n' + descSuffix : descSuffix);
       db.prepare(`
         UPDATE properties SET
           listing_slug='advent-dr-hampshire-wv',
           property_type='land',
           status='active',
-          mls_number='WVHS2007442',
-          price=185000,
+          mls_status='draft',
+          mls_number=NULL,
+          price=219900,
+          acreage=2.52,
+          lot_size='Lots 48, 49, 95, 96',
+          parcel_id='14-09-012B-0096-0000',
+          subdivision='Elk Horn SD (CC CONS)',
+          flood_zone='Not in flood zone',
+          year_built=2004,
+          sqft=1568,
+          features='Multi-lot parcel, Existing structures, Fixer/value-add, Hunting camp potential, Out of flood zone',
+          road_access='Advent Dr',
+          nearest_town='Augusta / Delray',
+          listing_agent='Phil Malick',
+          listing_office='WV Real Estate Agency',
           property_description=?,
+          marketing_description=?,
+          seller_notes='Seller: Breanna Rice. Listing agreement active as Exclusive Right to Sell dated March 10, 2026. Price agreed: $219,900. Commission noted as 7% with split noted separately.',
+          internal_notes='Master facts: 2.52 acres; lots 48,49,95,96; parcel 14-09-012B-0096-0000; Book/Page 574/157; 2025 county appraisal about $16,300; flood review shows not in flood zone. MLS sheet/number not currently attached. County shows $0 dwelling value despite assessment detail showing structures; verify condition and valuation discrepancy.',
           image_url=COALESCE(NULLIF(image_url,''),'/assets/advent-1.jpg'),
           updated_at=datetime('now')
         WHERE id=?
-      `).run(newDesc, existing.id);
+      `).run(adventDescription, adventMarketing, existing.id);
       console.log('Updated Advent Dr listing →', existing.id);
     } else {
       const newId = crypto.randomBytes(16).toString('hex');
       db.prepare(`
         INSERT INTO properties
-          (id,county_id,address,city,state,zip,property_type,status,price,
-           mls_number,listing_agent,listing_slug,property_description,image_url)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          (id,county_id,address,city,state,zip,parcel_id,subdivision,
+           property_type,status,price,acreage,lot_size,road_access,
+           mls_status,mls_number,listing_agent,listing_office,listing_slug,
+           property_description,marketing_description,seller_notes,internal_notes,
+           flood_zone,year_built,sqft,features,nearest_town,image_url)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `).run(
-        newId, hampshire.id, '37 Advent Dr', 'Romney', 'WV', '26757',
-        'land', 'active', 185000,
-        'WVHS2007442', 'Phil Malick', 'advent-dr-hampshire-wv', descSuffix, '/assets/advent-1.jpg'
+        newId, hampshire.id, '37 Advent Dr', 'Augusta', 'WV', null,
+        '14-09-012B-0096-0000', 'Elk Horn SD (CC CONS)',
+        'land', 'active', 219900, 2.52, 'Lots 48, 49, 95, 96', 'Advent Dr',
+        'draft', null, 'Phil Malick', 'WV Real Estate Agency', 'advent-dr-hampshire-wv',
+        adventDescription, adventMarketing,
+        'Seller: Breanna Rice. Listing agreement active as Exclusive Right to Sell dated March 10, 2026. Price agreed: $219,900. Commission noted as 7% with split noted separately.',
+        'Master facts: 2.52 acres; lots 48,49,95,96; parcel 14-09-012B-0096-0000; Book/Page 574/157; 2025 county appraisal about $16,300; flood review shows not in flood zone. MLS sheet/number not currently attached. County shows $0 dwelling value despite assessment detail showing structures; verify condition and valuation discrepancy.',
+        'Not in flood zone', 2004, 1568,
+        'Multi-lot parcel, Existing structures, Fixer/value-add, Hunting camp potential, Out of flood zone',
+        'Augusta / Delray', '/assets/advent-1.jpg'
       );
       console.log('Inserted Advent Dr listing →', newId);
     }
