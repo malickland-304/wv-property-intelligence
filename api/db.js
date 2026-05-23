@@ -168,34 +168,86 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
   add('price',                'REAL');
 }
 
-// Advent Dr listing seed/migration
+// ── Listing seed/migration: 37 Advent Dr ─────────────────
 {
   const hampshire = db.prepare("SELECT id FROM counties WHERE name='Hampshire'").get();
   if (hampshire) {
     const existing = db.prepare(
-      "SELECT id, property_description FROM properties WHERE mls_number='WVHS2007442' OR (address LIKE '%Advent%' AND county_id=?)"
-    ).get(hampshire.id);
-    const descSuffix = 'MLS# WVHS2007442 | 37 Advent Dr, Romney, WV 26757 | Hampshire County | Listed at $219,900 | Contact Phil Malick for details.';
+      "SELECT id FROM properties WHERE listing_slug='advent-dr-hampshire-wv' OR mls_number='WVHS2007468'"
+    ).get();
+    const desc = '37 Advent Dr is a 2.52-acre, multi-lot Hampshire County opportunity in the Elk Horn subdivision with existing structures and clear value-add potential. Includes lots 48, 49, 95, and 96 (parcel 14-09-012B-0096-0000) with a 2004 double wide, deck, foundation/additions, sheds, lean-tos, and carport. Best positioned as a fixer, hunting camp, recreational base, or rural value-add project. Out of flood zone at ~1,592 ft elevation. MLS# WVHS2007468 | Listed at $219,900 | Contact Phil Malick (540) 246-1421.';
+    const mktg = 'Multi-lot value-add opportunity in Hampshire County. 37 Advent Dr offers 2.52 acres across four lots with existing structures already on site. The right buyer can look past the rough edges and see the upside: a fixer setup, hunting camp, weekend base, or rural retreat project with room to improve. Not in a flood zone. A price point built for a serious rural-property buyer.';
     if (existing) {
-      const cur = existing.property_description || '';
-      const newDesc = cur.includes('WVHS2007442') ? cur : (cur ? cur + '\n\n' + descSuffix : descSuffix);
       db.prepare(`
         UPDATE properties SET
-          listing_slug='advent-dr-hampshire-wv', property_type='land', status='active',
-          mls_number='WVHS2007442', price=219900, property_description=?, updated_at=datetime('now')
+          address='37 Advent Dr', city='Augusta', state='WV', zip='26704',
+          county_id=?, listing_slug='advent-dr-hampshire-wv',
+          property_type='land', status='active', price=219900,
+          acreage=2.52, sqft=1568, bedrooms=3, bathrooms=2,
+          mls_number='WVHS2007468', listing_agent='Phil Malick',
+          listing_office='WV Real Estate Agency LLC',
+          flood_zone='Not in flood zone',
+          image_url='/assets/advent-1.jpg',
+          property_description=?, marketing_description=?,
+          updated_at=datetime('now')
         WHERE id=?
-      `).run(newDesc, existing.id);
+      `).run(hampshire.id, desc, mktg, existing.id);
     } else {
       const newId = crypto.randomBytes(16).toString('hex');
       db.prepare(`
         INSERT INTO properties
           (id,county_id,address,city,state,zip,property_type,status,price,
-           mls_number,listing_agent,listing_slug,property_description)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+           acreage,sqft,bedrooms,bathrooms,mls_number,listing_agent,listing_office,
+           flood_zone,image_url,listing_slug,property_description,marketing_description)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `).run(
-        newId, hampshire.id, '37 Advent Dr', 'Romney', 'WV', '26757',
+        newId, hampshire.id, '37 Advent Dr', 'Augusta', 'WV', '26704',
         'land', 'active', 219900,
-        'WVHS2007442', 'Phil Malick', 'advent-dr-hampshire-wv', descSuffix
+        2.52, 1568, 3, 2, 'WVHS2007468', 'Phil Malick', 'WV Real Estate Agency LLC',
+        'Not in flood zone', '/assets/advent-1.jpg',
+        'advent-dr-hampshire-wv', desc, mktg
+      );
+    }
+  }
+}
+
+// ── Listing seed/migration: Advent Dr Lot ─────────────────
+{
+  const hampshire = db.prepare("SELECT id FROM counties WHERE name='Hampshire'").get();
+  if (hampshire) {
+    const existing = db.prepare(
+      "SELECT id FROM properties WHERE listing_slug='advent-dr-lot-hampshire-wv' OR mls_number='WVHS2007442'"
+    ).get();
+    const desc = 'Advent Dr Lot is a raw land parcel in Hampshire County, WV — ideal for a buyer looking for a quiet rural build site, hunting land, or long-term land hold. Located near the Advent Dr corridor in Augusta/Delray, WV. Out of flood zone. MLS# WVHS2007442 | Contact Phil Malick (540) 246-1421.';
+    const mktg = 'Raw Hampshire County land with clean title and rural appeal. The Advent Dr lot is a straightforward opportunity — no structures, no complications. Great for a builder, hunter, or land investor looking for a foothold in the WV market at a price that makes sense.';
+    if (existing) {
+      db.prepare(`
+        UPDATE properties SET
+          address='Advent Dr Lot', city='Augusta', state='WV', zip='26704',
+          county_id=?, listing_slug='advent-dr-lot-hampshire-wv',
+          property_type='land', status='active',
+          mls_number='WVHS2007442', listing_agent='Phil Malick',
+          listing_office='WV Real Estate Agency LLC',
+          flood_zone='Not in flood zone',
+          image_url='/assets/advent-1.jpg',
+          property_description=?, marketing_description=?,
+          updated_at=datetime('now')
+        WHERE id=?
+      `).run(hampshire.id, desc, mktg, existing.id);
+    } else {
+      const newId = crypto.randomBytes(16).toString('hex');
+      db.prepare(`
+        INSERT INTO properties
+          (id,county_id,address,city,state,zip,property_type,status,
+           mls_number,listing_agent,listing_office,flood_zone,image_url,
+           listing_slug,property_description,marketing_description)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      `).run(
+        newId, hampshire.id, 'Advent Dr Lot', 'Augusta', 'WV', '26704',
+        'land', 'active',
+        'WVHS2007442', 'Phil Malick', 'WV Real Estate Agency LLC',
+        'Not in flood zone', '/assets/advent-1.jpg',
+        'advent-dr-lot-hampshire-wv', desc, mktg
       );
     }
   }

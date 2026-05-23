@@ -14,6 +14,14 @@ const router = express.Router();
 // ── Health ────────────────────────────────────────────────
 router.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date() }));
 
+// ── Client config (analytics IDs — safe to expose) ───────
+router.get('/config', (_req, res) => {
+  res.json({
+    gaId:    process.env.GA_MEASUREMENT_ID  || null,
+    pixelId: process.env.META_PIXEL_ID      || null,
+  });
+});
+
 // ── Counties ──────────────────────────────────────────────
 router.get('/counties', publicReadRateLimit, (_req, res) => {
   res.json(db.prepare('SELECT id,name FROM counties ORDER BY name').all());
