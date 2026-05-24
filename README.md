@@ -93,7 +93,7 @@ Required to run:
 Optional integrations:
 - **Gmail notifications:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `GOOGLE_GMAIL_USER`, `NOTIFICATION_EMAIL`
 - **Drive photo backup:** `GOOGLE_DRIVE_FOLDER_ID`
-- **AI content generation:** `OPENAI_API_KEY`
+- **AI content generation:** `OPENAI_API_KEY` (optional `OPENAI_MODEL`)
 - **REST API auth:** `API_KEY`
 
 ---
@@ -140,7 +140,7 @@ All require session auth (`/admin/login`).
 
 ## AI Listing Machine
 
-With `OPENAI_API_KEY` set, every listing gets a full marketing package via GPT-4o:
+With `OPENAI_API_KEY` set, every listing gets a full marketing package via OpenAI (default model `gpt-4o`, optional override via `OPENAI_MODEL` and automatic fallback to `gpt-4o-mini` when account access is limited):
 MLS description, investor pitch, Facebook ad, Instagram caption, video script, email blast, SMS, landing page copy.
 
 Cost: ~$0.01–0.03 per listing. Access via **Admin → AI** button on any listing.
