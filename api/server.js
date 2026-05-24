@@ -226,7 +226,7 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
           property_type='land',
           status='active',
           mls_number='WVHS2007442',
-          price=219900,
+          price=185000,
           property_description=?,
           updated_at=datetime('now')
         WHERE id=?
@@ -241,7 +241,7 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
       `).run(
         newId, hampshire.id, '37 Advent Dr', 'Romney', 'WV', '26757',
-        'land', 'active', 219900,
+        'land', 'active', 185000,
         'WVHS2007442', 'Phil Malick', 'advent-dr-hampshire-wv', descSuffix
       );
       console.log('Inserted Advent Dr listing →', newId);
@@ -758,6 +758,14 @@ app.post('/admin/upload/:slug', requireAuth, requireCsrf, uploadRateLimit, uploa
     } else {
       db.prepare('UPDATE properties SET photos_uploaded=1 WHERE listing_slug=?').run(slug);
     }
+    // Persist to /data volume so photos survive redeployments
+    const VOLUME_ROOT = process.env.RAILWAY_VOLUME_MOUNT_PATH || '/data';
+    const volDest = path.join(VOLUME_ROOT, 'listings', slug, 'photos', 'compressed', filename);
+    try {
+      fs.mkdirSync(path.dirname(volDest), { recursive: true });
+      if (fs.existsSync(compPath)) fs.copyFileSync(compPath, volDest);
+      else if (fs.existsSync(rawPath)) fs.copyFileSync(rawPath, volDest);
+    } catch (e) { console.error('[volume] persist failed:', e.message); }
     const driveSource = fs.existsSync(compPath) ? compPath : rawPath;
     uploadPhotoToDrive(driveSource, filename, slug).catch(() => {});
     res.json({ ok:true, filename });
@@ -1233,6 +1241,27 @@ app.get('/sitemap.xml', (_req, res) => {
 app.use(express.static(path.join(PROJECT_ROOT, 'app')));
 app.use((_req,res) => res.status(404).json({ error:'Not found' }));
 app.use((err,_req,res,_next) => { console.error(err); res.status(500).json({ error:'Server error' }); });
+
+// Restore photos from persistent volume on every startup so they survive redeploys
+function restorePhotosFromVolume() {
+  const VOLUME_ROOT = process.env.RAILWAY_VOLUME_MOUNT_PATH || '/data';
+  const volBase = path.join(VOLUME_ROOT, 'listings');
+  if (!fs.existsSync(volBase)) return;
+  let count = 0;
+  for (const slug of fs.readdirSync(volBase)) {
+    const srcDir = path.join(volBase, slug, 'photos', 'compressed');
+    const dstDir = path.join(PROJECT_ROOT, 'listings', slug, 'photos', 'compressed');
+    if (!fs.existsSync(srcDir)) continue;
+    fs.mkdirSync(dstDir, { recursive: true });
+    for (const f of fs.readdirSync(srcDir)) {
+      const src = path.join(srcDir, f);
+      const dst = path.join(dstDir, f);
+      if (!fs.existsSync(dst)) { fs.copyFileSync(src, dst); count++; }
+    }
+  }
+  if (count > 0) console.log(`[volume] restored ${count} photo(s) from persistent volume`);
+}
+restorePhotosFromVolume();
 
 app.listen(PORT, () => console.log(`✅ WV Property API → http://localhost:${PORT}\n   Admin Panel  → http://localhost:${PORT}/admin`));
 module.exports = app;
