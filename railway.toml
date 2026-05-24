@@ -7,7 +7,7 @@ builder = "DOCKERFILE"
 dockerfilePath = "api/Dockerfile"
 
 [deploy]
-startCommand = "cd api && node server.js"
+startCommand = "node server.js"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 healthcheckPath = "/api/health"
