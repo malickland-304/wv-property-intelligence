@@ -1,1 +1,27 @@
+node_modules/
+api/node_modules/
 
+.git/
+.github/
+
+.env
+api/.env
+secrets/
+
+*.db
+*.db-shm
+*.db-wal
+*.db.bak
+*.db.bak.*
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+database/
+uploads/
+reports/
+listings/*
+!listings/_template/
+
+.DS_Store
+npm-debug.log*
