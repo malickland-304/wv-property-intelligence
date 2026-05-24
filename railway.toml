@@ -3,7 +3,8 @@
 # must be set in the Railway dashboard under Variables.
 
 [build]
-builder = "nixpacks"
+builder = "DOCKERFILE"
+dockerfilePath = "api/Dockerfile"
 
 [deploy]
 startCommand = "cd api && node server.js"
