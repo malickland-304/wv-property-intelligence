@@ -62,6 +62,7 @@ function requestOpenAI(messages, model, apiKey) {
               const err = new Error(`OpenAI API error (${res.statusCode}): ${message}`);
               err.statusCode = res.statusCode;
               err.openaiCode = parsed?.error?.code || null;
+              err.openaiType = parsed?.error?.type || null;
               return reject(err);
             }
             const content = parsed.choices?.[0]?.message?.content;
@@ -81,16 +82,15 @@ function requestOpenAI(messages, model, apiKey) {
 }
 
 function isModelAccessError(err) {
-  const msg = String(err?.message || '').toLowerCase();
   return err?.openaiCode === 'model_not_found' ||
-    (msg.includes('model') && (msg.includes('not found') || msg.includes('access')));
+    ((err?.statusCode === 403 || err?.statusCode === 404) && err?.openaiType === 'invalid_request_error');
 }
 
-async function callOpenAI(messages, model = 'gpt-4o') {
+async function callOpenAI(messages, model) {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) throw new Error('OPENAI_API_KEY is not set');
 
-  const configuredModel = process.env.OPENAI_MODEL?.trim() || model;
+  const configuredModel = process.env.OPENAI_MODEL?.trim() || model || 'gpt-4o';
 
   try {
     return await requestOpenAI(messages, configuredModel, apiKey);

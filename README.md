@@ -140,7 +140,8 @@ All require session auth (`/admin/login`).
 
 ## AI Listing Machine
 
-With `OPENAI_API_KEY` set, every listing gets a full marketing package via OpenAI (default model `gpt-4o`, optional override via `OPENAI_MODEL` and automatic fallback to `gpt-4o-mini` when account access is limited):
+With `OPENAI_API_KEY` set, every listing gets a full marketing package via OpenAI.
+Default model is `gpt-4o` (override with `OPENAI_MODEL`), with automatic fallback to `gpt-4o-mini` when account access is limited:
 MLS description, investor pitch, Facebook ad, Instagram caption, video script, email blast, SMS, landing page copy.
 
 Cost: ~$0.01–0.03 per listing. Access via **Admin → AI** button on any listing.
