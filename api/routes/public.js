@@ -60,7 +60,7 @@ router.get('/sitemap.xml', publicReadRateLimit, (_req, res) => {
   res.type('application/xml').send(xml);
 });
 
-router.get('/listing/:id', publicReadRateLimit, (_req, res) => {
+router.get(['/listing/:id', '/properties/:id'], publicReadRateLimit, (_req, res) => {
   const listingHtml = path.join(PROJECT_ROOT, 'app', 'listing.html');
   const indexHtml   = path.join(PROJECT_ROOT, 'app', 'index.html');
   res.sendFile(fs.existsSync(listingHtml) ? listingHtml : indexHtml);
