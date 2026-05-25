@@ -21,15 +21,14 @@ COPY --from=builder --chown=65532:65532 /workspace/api/node_modules ./api/node_m
 # Copy application source
 COPY --chown=65532:65532 api ./api
 COPY --chown=65532:65532 app ./app
+COPY --chmod=755 api/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-# Create runtime directories and drop to non-root user.
-# /data is included so a volume mounted at DATABASE_PATH=/data/... is writable.
+# Create runtime directories. Railway mounts /data at runtime, so the entrypoint
+# fixes volume ownership before dropping to appuser.
 RUN mkdir -p /data data database listings uploads reports \
     && groupadd --system --gid 1001 appgroup \
     && useradd --system --uid 1001 --gid appgroup --no-create-home appuser \
     && chown -R appuser:appgroup /workspace /data
-
-USER appuser
 
 ENV NODE_ENV=production \
     PORT=3000
@@ -37,4 +36,5 @@ ENV NODE_ENV=production \
 EXPOSE 3000
 
 WORKDIR /workspace/api
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "server.js"]
