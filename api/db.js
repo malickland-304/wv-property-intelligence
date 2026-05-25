@@ -124,6 +124,7 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
     }
   };
   add('property_description', 'TEXT');
+  add('description',          'TEXT');
   add('marketing_description','TEXT');
   add('seller_notes',         'TEXT');
   add('internal_notes',       'TEXT');
