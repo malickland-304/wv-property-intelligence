@@ -196,7 +196,7 @@
 <!-- NAVBAR -->
 <nav class="navbar">
   <a href="/" class="logo">
-    <img src="/public/brand/icon-mark.png" alt="MalickLand" onerror="this.style.display='none'" />
+    <img src="/public/brand/logo-primary.png" alt="MalickLand" onerror="this.style.display='none'" />
     MalickLand
   </a>
   <ul class="nav-links">
@@ -322,11 +322,6 @@
     currentPage = 1;
     loadListings();
   });
-
-  // Update results count after listings render
-  const _origRender = window.renderListings;
-  // Hook into pagination rendering to update results count
-  const _origPagination = window.renderPagination;
 </script>
 </body>
 </html>

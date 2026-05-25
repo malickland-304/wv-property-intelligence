@@ -30,10 +30,7 @@ const PROJECT_ROOT = path.join(__dirname, '..');
 
 // ── OpenAI call (no SDK — keeps dependencies minimal) ────────────────────────
 
-async function callOpenAI(messages, model = 'gpt-4o') {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('OPENAI_API_KEY is not set');
-
+function requestOpenAI(messages, model, apiKey) {
   const body = JSON.stringify({
     model,
     messages,
@@ -50,7 +47,7 @@ async function callOpenAI(messages, model = 'gpt-4o') {
         method: 'POST',
         headers: {
           'Content-Type':  'application/json',
-          'Authorization': `Bearer ${apiKey}`,
+          'Authorization': 'Bearer ' + apiKey,
           'Content-Length': Buffer.byteLength(body)
         }
       },
@@ -59,8 +56,15 @@ async function callOpenAI(messages, model = 'gpt-4o') {
         res.on('data', chunk => data += chunk);
         res.on('end', () => {
           try {
-            const parsed = JSON.parse(data);
-            if (parsed.error) return reject(new Error(parsed.error.message));
+            const parsed = data ? JSON.parse(data) : {};
+            if (res.statusCode >= 400 || parsed.error) {
+              const message = parsed?.error?.message || `HTTP ${res.statusCode}`;
+              const err = new Error(`OpenAI API error (${res.statusCode}): ${message}`);
+              err.statusCode = res.statusCode;
+              err.openaiCode = parsed?.error?.code || null;
+              err.openaiType = parsed?.error?.type || null;
+              return reject(err);
+            }
             const content = parsed.choices?.[0]?.message?.content;
             if (!content) return reject(new Error('Empty response from OpenAI'));
             resolve(JSON.parse(content));
@@ -70,10 +74,33 @@ async function callOpenAI(messages, model = 'gpt-4o') {
         });
       }
     );
+    req.setTimeout(30000, () => req.destroy(new Error('OpenAI request timed out')));
     req.on('error', reject);
     req.write(body);
     req.end();
   });
+}
+
+function isModelAccessError(err) {
+  return err?.openaiCode === 'model_not_found' ||
+    ((err?.statusCode === 403 || err?.statusCode === 404) && err?.openaiType === 'invalid_request_error');
+}
+
+async function callOpenAI(messages, model) {
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) throw new Error('OPENAI_API_KEY is not set');
+
+  const configuredModel = process.env.OPENAI_MODEL?.trim() || model || 'gpt-4o';
+
+  try {
+    return await requestOpenAI(messages, configuredModel, apiKey);
+  } catch (err) {
+    if (configuredModel === 'gpt-4o' && isModelAccessError(err)) {
+      console.warn('[AI] Falling back to gpt-4o-mini due to model access error');
+      return requestOpenAI(messages, 'gpt-4o-mini', apiKey);
+    }
+    throw err;
+  }
 }
 
 // ── Build structured prompt from property data ────────────────────────────────

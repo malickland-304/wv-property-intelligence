@@ -15,6 +15,7 @@
 const https = require('https');
 const fs    = require('fs');
 const path  = require('path');
+const { isSafePathComponent, safeListingPath } = require('./helpers');
 
 const folderCache = {};
 
@@ -176,21 +177,18 @@ async function getOrCreatePropertyFolder(token, slug) {
   return folderCache[slug];
 }
 
-async function uploadPhotoToDrive(filePath, fileName, slug) {
+async function uploadPhotoToDrive(_filePath, fileName, slug) {
   if (!process.env.GOOGLE_DRIVE_FOLDER_ID) return null;
 
   const safeFileName = path.basename(fileName || '');
-  if (!safeFileName) {
+  if (!safeFileName || !isSafePathComponent(safeFileName) || !isSafePathComponent(slug || '')) {
     console.error('[Drive] Rejected upload: empty filename');
     return null;
   }
 
-  const LISTINGS_ROOT = path.resolve(path.join(__dirname, '..', 'listings'));
-  const safeFilePath  = path.resolve(filePath);
-  if (!safeFilePath.startsWith(LISTINGS_ROOT + path.sep) && safeFilePath !== LISTINGS_ROOT) {
-    console.error(`[Drive] Rejected upload: path outside listings dir`);
-    return null;
-  }
+  const compressedPath = safeListingPath(slug, 'photos', 'compressed', safeFileName);
+  const rawPath = safeListingPath(slug, 'photos', 'raw', safeFileName);
+  const safeFilePath = fs.existsSync(compressedPath) ? compressedPath : rawPath;
 
   const token = await getAccessToken().catch(() => null);
   if (!token) return null;

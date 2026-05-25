@@ -60,7 +60,7 @@ async function loadProperty() {
   document.title = `${p.address || 'Property'} | Malickland`;
 
   content.innerHTML = `
-    <a href="/#listings" class="back-link">← All listings</a>
+    <a href="/listings" class="back-link">← All listings</a>
     <div class="detail-hero">
       <div class="detail-image-wrap">
         <img src="${escapeHtml(img)}" alt="" class="detail-image" />

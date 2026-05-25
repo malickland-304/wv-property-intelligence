@@ -52,6 +52,7 @@ function applyFilters() {
     type:     document.getElementById('typeFilter').value,
     minPrice: document.getElementById('minPrice').value,
     maxPrice: document.getElementById('maxPrice').value,
+    minAcres: document.getElementById('minAcres')?.value || '',
   };
   currentPage = 1;
   loadListings();
@@ -81,6 +82,11 @@ async function loadListings() {
 
 function renderListings({ properties, total, page }) {
   const grid = document.getElementById('listingsGrid');
+  const resultsCount = document.getElementById('resultsCount');
+  if (resultsCount) {
+    const count = Number(total || 0);
+    resultsCount.textContent = `${count.toLocaleString()} ${count === 1 ? 'property' : 'properties'} found`;
+  }
   if (!properties.length) {
     grid.innerHTML = '<p class="empty">No listings found.</p>';
     document.getElementById('pagination').innerHTML = '';
@@ -88,7 +94,7 @@ function renderListings({ properties, total, page }) {
   }
 
   grid.innerHTML = properties.map(p => `
-    <div class="property-card" onclick="openPropertyPage(${JSON.stringify(p.listing_slug || p.id)})">
+    <div class="property-card" data-slug="${escapeHtml(p.listing_slug || p.id)}">
       <div class="card-img" style="background-image:url('${escapeHtml(p.image_url || 'https://placehold.co/400x240/1a3a2a/gold?text=No+Photo')}')">
         ${p.price_reduced ? '<span class="badge reduced">Price Reduced</span>' : ''}
         <span class="badge type">${escapeHtml(p.property_type)}</span>
@@ -104,10 +110,20 @@ function renderListings({ properties, total, page }) {
           ${p.lot_acres ? `<span>🌿 ${escapeHtml(p.lot_acres)} ac</span>` : ''}
         </div>
         <div class="card-listed">Listed ${timeAgo(p.listed_at)}</div>
-        <button class="request-info-btn" onclick="event.stopPropagation();openPropertyPage(${JSON.stringify(p.listing_slug || p.id)})">View Details</button>
+        <button class="request-info-btn" type="button" data-slug="${escapeHtml(p.listing_slug || p.id)}">View Details</button>
       </div>
     </div>
   `).join('');
+
+  grid.querySelectorAll('.property-card[data-slug]').forEach(card => {
+    card.addEventListener('click', () => openPropertyPage(card.dataset.slug));
+  });
+  grid.querySelectorAll('.request-info-btn[data-slug]').forEach(button => {
+    button.addEventListener('click', event => {
+      event.stopPropagation();
+      openPropertyPage(button.dataset.slug);
+    });
+  });
 
   renderPagination(total, page);
 }
@@ -127,7 +143,7 @@ function renderPagination(total, page) {
 function goPage(p) { currentPage = p; loadListings(); window.scrollTo(0,0); }
 
 function openPropertyPage(slug) {
-  window.location.href = `/properties/${encodeURIComponent(slug)}`;
+  window.location.href = `/listing/${encodeURIComponent(slug)}`;
 }
 
 // ── Analytics ────────────────────────────────────────────

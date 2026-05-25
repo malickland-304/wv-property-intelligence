@@ -2,6 +2,7 @@
 
 const express = require('express');
 const crypto  = require('crypto');
+const https   = require('https');
 
 const { db }              = require('../db');
 const { requireApiKey }   = require('../middleware/auth');
@@ -11,8 +12,80 @@ const { isValidEmail, normalizeAcreage, slugify, VALID_PROP_TYPES, VALID_PROP_ST
 
 const router = express.Router();
 
+const CHAT_FALLBACK = 'I can help with West Virginia land, homes, acreage, and selling questions. For the fastest answer, call or text Phil at (540) 246-1421.';
+
+function compactMessage(value, max = 1200) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+function requestChatCompletion(messages) {
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) return Promise.resolve(null);
+
+  const body = JSON.stringify({
+    model: process.env.OPENAI_CHAT_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini',
+    temperature: 0.3,
+    max_tokens: 220,
+    messages: [
+      {
+        role: 'system',
+        content: 'You are the MalickLand website assistant for Phil Malick, a West Virginia real estate agent. Answer briefly, focus on WV land, homes, acreage, listings, counties, pricing, and next steps. Encourage callers to contact Phil at (540) 246-1421 when appropriate. Do not invent listing facts.',
+      },
+      ...messages.slice(-8),
+    ],
+  });
+
+  return new Promise((resolve) => {
+    const req = https.request({
+      hostname: 'api.openai.com',
+      path:     '/v1/chat/completions',
+      method:   'POST',
+      headers:  {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type':  'application/json',
+        'Content-Length': Buffer.byteLength(body),
+      },
+    }, (res) => {
+      let raw = '';
+      res.on('data', chunk => raw += chunk);
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(raw || '{}');
+          resolve(parsed.choices?.[0]?.message?.content || null);
+        } catch {
+          resolve(null);
+        }
+      });
+    });
+    req.setTimeout(10000, () => req.destroy(new Error('chat request timed out')));
+    req.on('error', () => resolve(null));
+    req.write(body);
+    req.end();
+  });
+}
+
 // ── Health ────────────────────────────────────────────────
 router.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date() }));
+
+// ── Client config (analytics IDs — safe to expose) ───────
+router.get('/config', (_req, res) => {
+  res.json({
+    gaId:    process.env.GA_MEASUREMENT_ID  || null,
+    pixelId: process.env.META_PIXEL_ID      || null,
+  });
+});
+
+router.post('/chat', contactsRateLimit, async (req, res) => {
+  const input = Array.isArray(req.body?.messages) ? req.body.messages : [];
+  const messages = input
+    .filter(m => ['user', 'assistant'].includes(m?.role) && compactMessage(m?.content))
+    .map(m => ({ role: m.role, content: compactMessage(m.content) }));
+
+  if (!messages.length) return res.status(400).json({ error: 'messages are required' });
+
+  const reply = await requestChatCompletion(messages);
+  res.json({ reply: reply || CHAT_FALLBACK });
+});
 
 // ── Counties ──────────────────────────────────────────────
 router.get('/counties', publicReadRateLimit, (_req, res) => {
@@ -22,7 +95,7 @@ router.get('/counties', publicReadRateLimit, (_req, res) => {
 // ── Properties ────────────────────────────────────────────
 function sendPropertyList(req, res) {
   try {
-    const { q='', county='', type='', minPrice='', maxPrice='', page=1, limit=12 } = req.query;
+    const { q='', county='', type='', minPrice='', maxPrice='', minAcres='', page=1, limit=12 } = req.query;
     const conditions = ["p.status = 'active'"];
     const values = [];
     if (q)        { conditions.push(`(p.address LIKE ? OR p.zip LIKE ?)`); values.push(`%${q}%`, `%${q}%`); }
@@ -30,6 +103,7 @@ function sendPropertyList(req, res) {
     if (type)     { conditions.push(`p.property_type = ?`); values.push(type); }
     if (minPrice) { conditions.push(`p.price >= ?`);        values.push(Number(minPrice)); }
     if (maxPrice) { conditions.push(`p.price <= ?`);        values.push(Number(maxPrice)); }
+    if (minAcres) { conditions.push(`p.acreage >= ?`);      values.push(Number(minAcres)); }
     const where  = 'WHERE ' + conditions.join(' AND ');
     const offset = (Number(page)-1) * Number(limit);
     const total  = db.prepare(`SELECT COUNT(*) as c FROM properties p ${where}`).get(...values).c;
@@ -99,6 +173,53 @@ router.post('/contacts', contactsRateLimit, (req, res) => {
   sendContactEmail({ name, email, phone, message }, property).catch(() => {});
 
   res.status(201).json({ id: result.lastInsertRowid });
+});
+
+router.post('/leads/37-advent', contactsRateLimit, (req, res) => {
+  const payload = req.body || {};
+  const name = compactMessage(payload.name, 200);
+  const email = compactMessage(payload.email, 300);
+  const phone = compactMessage(payload.phone, 80);
+
+  if (!name || !email) return res.status(400).json({ error: 'Name and email required' });
+  if (!isValidEmail(email)) return res.status(400).json({ error: 'Invalid email address' });
+
+  const property = db.prepare(`
+    SELECT p.id, p.address, p.city, c.name AS county
+    FROM properties p
+    LEFT JOIN counties c ON c.id = p.county_id
+    WHERE (p.listing_slug = ? OR p.address = ?) AND p.status = 'active'
+    LIMIT 1
+  `).get('advent-dr-hampshire-wv', '37 Advent Dr') || {
+    id: null,
+    address: '37 Advent Dr',
+    city: 'Romney',
+    county: 'Hampshire',
+  };
+
+  const details = [
+    compactMessage(payload.message, 1000),
+    payload.buyerType ? `Buyer type: ${compactMessage(payload.buyerType, 120)}` : '',
+    payload.cashOrFinancing ? `Cash/financing: ${compactMessage(payload.cashOrFinancing, 120)}` : '',
+    payload.timeline ? `Timeline: ${compactMessage(payload.timeline, 120)}` : '',
+    payload.smsConsent ? 'SMS consent: yes' : 'SMS consent: no',
+    payload.utm_source ? `UTM source: ${compactMessage(payload.utm_source, 120)}` : '',
+    payload.utm_medium ? `UTM medium: ${compactMessage(payload.utm_medium, 120)}` : '',
+    payload.utm_campaign ? `UTM campaign: ${compactMessage(payload.utm_campaign, 120)}` : '',
+  ].filter(Boolean).join('\n');
+
+  const result = db.prepare(`
+    INSERT INTO contacts (property_id, name, email, phone, message, source)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(property.id, name, email, phone, details, '37-advent');
+
+  sendContactEmail({ name, email, phone, message: details }, property).catch(() => {});
+
+  res.status(201).json({
+    ok: true,
+    id: result.lastInsertRowid,
+    message: 'Got it. Phil will follow up with the packet and next steps shortly.',
+  });
 });
 
 router.get('/contacts', apiWriteRateLimit, requireApiKey, (_req, res) => {

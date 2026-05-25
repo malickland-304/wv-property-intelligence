@@ -22,6 +22,10 @@ secrets/
 # Build output
 dist/
 
+# Local agent/worktree state
+.claude/worktrees/
+.claire/
+
 # Per-property listing assets (runtime-generated, not source code)
 # _template is the exception — it is tracked as a folder structure reference
 listings/*

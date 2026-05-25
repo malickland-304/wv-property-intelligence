@@ -17,9 +17,13 @@
  */
 
 'use strict';
-require('dotenv').config({ path: require('path').join(__dirname, '../api/.env') });
+const path = require('path');
+const { createRequire } = require('module');
 
-const { google } = require('googleapis');
+require('dotenv').config({ path: path.join(__dirname, '../api/.env') });
+
+const apiRequire = createRequire(path.join(__dirname, '../api/package.json'));
+const { google } = apiRequire('googleapis');
 
 const {
   GOOGLE_CLIENT_ID,
