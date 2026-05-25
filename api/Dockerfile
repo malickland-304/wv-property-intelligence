@@ -10,6 +10,7 @@ FROM node:20-bookworm-slim AS runtime
 
 RUN apt-get update \
     && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends util-linux \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
