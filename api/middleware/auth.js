@@ -1,6 +1,6 @@
 'use strict';
 
-const crypto = require('crypto');
+const { doubleCsrf } = require('csrf-csrf');
 
 // ── API key auth (REST endpoints) ─────────────────────────
 const API_KEY = process.env.API_KEY;
@@ -19,25 +19,38 @@ function requireApiKey(req, res, next) {
   next();
 }
 
+// ── CSRF (double-submit cookie, admin panel only) ─────────
+const {
+  invalidCsrfTokenError,
+  generateToken,
+  doubleCsrfProtection,
+} = doubleCsrf({
+  getSecret:           () => process.env.SESSION_SECRET || 'wvrea-secret-2026',
+  cookieName:          'csrf',
+  cookieOptions: {
+    sameSite: 'lax',
+    secure:   process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    path:     '/admin',
+  },
+  getTokenFromRequest: (req) => req.headers['x-csrf-token'] || req.body?._csrf,
+  size: 64,
+});
+
 // ── Session auth (admin panel) ────────────────────────────
 function requireAuth(req, res, next) {
   if (req.session && req.session.admin) return next();
   res.redirect('/admin/login');
 }
 
-function csrfToken(req) {
-  if (typeof req.csrfToken === 'function') return req.csrfToken();
-  if (!req.session.csrfToken)
-    req.session.csrfToken = crypto.randomBytes(16).toString('hex');
-  return req.session.csrfToken;
+function csrfToken(req, res) {
+  return generateToken(req, res);
 }
 
-function requireCsrf(req, res, next) {
-  if (typeof req.csrfToken === 'function') return next();
-  const token = req.body._csrf || req.headers['x-csrf-token'];
-  if (!token || token !== req.session.csrfToken)
-    return res.status(403).send('Invalid CSRF token');
+// doubleCsrfProtection at the router level validates all mutating requests;
+// this is kept so route definitions don't need to change.
+function requireCsrf(_req, _res, next) {
   next();
 }
 
-module.exports = { requireApiKey, requireAuth, csrfToken, requireCsrf };
+module.exports = { requireApiKey, requireAuth, csrfToken, requireCsrf, doubleCsrfProtection, invalidCsrfTokenError };

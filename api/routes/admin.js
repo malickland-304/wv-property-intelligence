@@ -112,13 +112,13 @@ router.get('/', requireAuth, adminActionRateLimit, (req, res) => {
       </tr></thead>
       <tbody>${rows || '<tr><td colspan="8" style="text-align:center;padding:2rem;color:#999">No listings yet. <a href="/admin/new">Add your first listing →</a></td></tr>'}</tbody>
     </table>
-  `, csrfToken(req)));
+  `, csrfToken(req, res)));
 });
 
 // ── New listing ───────────────────────────────────────────
 router.get('/new', requireAuth, adminActionRateLimit, (req, res) => {
   const counties = db.prepare('SELECT id,name FROM counties ORDER BY name').all();
-  res.send(adminShell('New Listing', listingForm(null, counties), csrfToken(req)));
+  res.send(adminShell('New Listing', listingForm(null, counties), csrfToken(req, res)));
 });
 
 router.post('/new', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
@@ -168,7 +168,7 @@ router.get('/edit/:id', requireAuth, adminActionRateLimit, (req, res) => {
   const p = db.prepare('SELECT * FROM properties WHERE id=?').get(req.params.id);
   if (!p) return res.redirect('/admin');
   const counties = db.prepare('SELECT id,name FROM counties ORDER BY name').all();
-  res.send(adminShell('Edit Listing', listingForm(p, counties), csrfToken(req)));
+  res.send(adminShell('Edit Listing', listingForm(p, counties), csrfToken(req, res)));
 });
 
 router.post('/edit/:id', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
@@ -309,7 +309,7 @@ router.get('/photos/:slug', requireAuth, adminActionRateLimit, (req, res) => {
       }
       loadPhotos().catch(() => { photoCount.textContent = 'Uploaded Photos unavailable'; });
     </script>
-  `, csrfToken(req)));
+  `, csrfToken(req, res)));
 });
 
 router.get('/photos/:slug/list', requireAuth, adminActionRateLimit, (req, res) => {
@@ -457,7 +457,7 @@ router.get('/report/:id', requireAuth, adminActionRateLimit, (req, res) => {
         </form>
       </div>
     </div>
-  `, csrfToken(req)));
+  `, csrfToken(req, res)));
 });
 
 router.post('/report/:id/comps', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
@@ -541,7 +541,7 @@ router.get('/ai/:id', requireAuth, adminActionRateLimit, (req, res) => {
     </div>` : ''}
     <div style="display:flex;gap:1rem;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap">
       <form method="POST" action="/admin/ai/${esc(p.id)}" style="margin:0">
-        <input type="hidden" name="_csrf" value="${esc(csrfToken(req))}" />
+        <input type="hidden" name="_csrf" value="${esc(csrfToken(req, res))}" />
         <button type="submit" class="btn" ${!aiOk ? 'disabled title="Set OPENAI_API_KEY first"' : ''}>
           ${content ? '🔄 Regenerate' : '✨ Generate Now'}
         </button>
@@ -569,7 +569,7 @@ router.get('/ai/:id', requireAuth, adminActionRateLimit, (req, res) => {
         });
       }
     </script>
-  `, csrfToken(req)));
+  `, csrfToken(req, res)));
 });
 
 router.post('/ai/:id', requireAuth, requireCsrf, adminActionRateLimit, async (req, res) => {
@@ -630,7 +630,7 @@ router.get('/integrations', requireAuth, adminActionRateLimit, (req, res) => {
         </ol>
       </div>
     </div>
-  `, csrfToken(req)));
+  `, csrfToken(req, res)));
 });
 
 module.exports = router;
