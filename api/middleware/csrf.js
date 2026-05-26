@@ -3,7 +3,14 @@
 const { doubleCsrf } = require('csrf-csrf');
 
 const { generateToken, doubleCsrfProtection } = doubleCsrf({
-  getSecret: () => process.env.SESSION_SECRET || 'wvrea-secret-2026',
+  getSecret: () => {
+    if (!process.env.SESSION_SECRET) {
+      if (process.env.NODE_ENV === 'production')
+        throw new Error('[csrf] SESSION_SECRET must be set in production');
+      return 'wvrea-secret-2026';
+    }
+    return process.env.SESSION_SECRET;
+  },
   cookieName: 'csrf_token',
   cookieOptions: {
     sameSite: 'lax',
@@ -12,7 +19,8 @@ const { generateToken, doubleCsrfProtection } = doubleCsrf({
     path: '/admin',
   },
   size: 64,
-  getTokenFromRequest: (req) => req.body._csrf || req.headers['x-csrf-token'],
+  getSessionIdentifier: (req) => req.sessionID,
+  getTokenFromRequest: (req) => (req.body && req.body._csrf) || req.headers['x-csrf-token'],
 });
 
 module.exports = { generateToken, doubleCsrfProtection };

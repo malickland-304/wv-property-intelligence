@@ -53,7 +53,6 @@ app.use((req, res, next) => {
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'tiny' : 'dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
 
 const adminSession = session({
   store: new BetterSqlite3Store({ client: db }),
@@ -68,7 +67,7 @@ const adminSession = session({
 });
 app.use('/images', express.static(path.join(PROJECT_ROOT, 'listings')));
 
-app.use('/admin', adminSession, (req, res, next) => {
+app.use('/admin', cookieParser(), adminSession, (req, res, next) => {
   req.csrfToken = () => generateToken(req, res);
   next();
 }, (req, res, next) => {
