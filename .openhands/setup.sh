@@ -15,10 +15,12 @@ git status --short --branch --untracked-files
 echo ""
 
 # ── 2. Install API dependencies ────────────────────────────────────────
-echo "[ 2/5 ] Install dependencies"
+# POLICY: npm ci only — respects lockfile, reproducible, no arbitrary installs.
+# Never use npm install in agent context. Never add packages without approval.
+echo "[ 2/5 ] Install dependencies (npm ci — lockfile-enforced)"
 cd "$ROOT/api"
-npm install --silent
-echo "✓ npm install complete"
+npm ci --silent
+echo "✓ npm ci complete"
 echo ""
 
 # ── 3. Dependency audit ────────────────────────────────────────────────

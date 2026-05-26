@@ -100,12 +100,24 @@ Conflicts are adjudicated by ChatGPT (human orchestrator). Agents do not self-ad
 
 ---
 
+## Dependency Hygiene Policy (Non-Negotiable)
+
+- **Always use `npm ci`**, never `npm install` in agent context
+  - `npm ci` is deterministic: installs exactly what's in `package-lock.json`
+  - `npm install` can silently update or resolve packages differently across environments
+- **Never add top-level dependencies** without explicit human approval
+- **Never run `npm install <package>`** without approval — propose it in a PR comment instead
+- **Lockfile is canonical** — never delete or modify `package-lock.json` directly
+- Rationale: arbitrary dependency additions are a supply-chain attack vector; lockfile enforcement is the first defense
+
+---
+
 ## Required Validation Before Any PR
 
 Run in order. All must pass.
 
 ```bash
-cd api && npm install
+cd api && npm ci
 node --check server.js
 node --check middleware/auth.js
 node --check routes/admin.js

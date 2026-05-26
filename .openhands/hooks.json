@@ -15,7 +15,9 @@
       "cat.*\\.env",
       "npm run deploy",
       "git merge.*main",
-      "git rebase.*main"
+      "git rebase.*main",
+      "npm install [^ ]",
+      "npm i [^ ]"
     ]
   },
   "post_action": {
@@ -41,6 +43,12 @@
     "read_production_secrets",
     "mutate_production_database"
   ],
+  "dependency_policy": {
+    "install_command": "npm ci",
+    "forbidden_install_command": "npm install",
+    "rationale": "npm ci is deterministic and lockfile-enforced; npm install can drift",
+    "adding_packages_requires": "explicit_human_approval"
+  },
   "allowed_actions": [
     "create_branch",
     "edit_files",
@@ -48,7 +56,7 @@
     "open_pull_request",
     "read_repository",
     "run_preflight",
-    "run_npm_install",
+    "run_npm_ci",
     "run_node_check",
     "run_npm_audit"
   ]
