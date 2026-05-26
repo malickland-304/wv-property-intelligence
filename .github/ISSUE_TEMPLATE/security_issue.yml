@@ -1,0 +1,64 @@
+name: "Security Issue"
+description: "Vulnerability, credential exposure, or security concern (non-public)"
+title: "[Security] "
+labels: ["security"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do NOT use this template for actively exploitable vulnerabilities in production.**
+        For critical findings, contact the maintainer directly. This template is for
+        tracked security work that does not require immediate confidentiality.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Dependency vulnerability (CVE)
+        - Authentication / session
+        - CSRF / XSS / injection
+        - Secret / credential exposure
+        - Access control
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Critical — actively exploitable in production
+        - High — exploitable with some preconditions
+        - Medium — limited impact or requires auth
+        - Low / informational
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What is the vulnerability? Where does it exist? How could it be exploited?
+      placeholder: |
+        Do NOT include actual secrets, passwords, or session tokens here.
+        Use placeholders like <REDACTED> if needed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence / references
+      description: CVE ID, npm audit output, scanner finding, or reproduction steps. Redact sensitive values.
+    validations:
+      required: false
+
+  - type: textarea
+    id: fix
+    attributes:
+      label: Proposed fix
+      description: What should be changed to resolve this?
+    validations:
+      required: false

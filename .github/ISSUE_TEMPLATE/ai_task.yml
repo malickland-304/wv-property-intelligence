@@ -1,0 +1,68 @@
+name: "AI Implementation Task"
+description: "A scoped task for an AI agent to implement"
+title: "[AI] "
+labels: ["ai-implement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Agent bootstrap:** Read `docs/agent-handoff.md` before acting.
+        All changes via feature branch + PR. No direct push to `main`. No deploy without approval.
+
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: What should be implemented? Be specific and scoped.
+      placeholder: "Replace X with Y in file Z. Preserve behavior A. Do not touch B."
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: Exact conditions that must be true for this task to be complete.
+      placeholder: |
+        - [ ] X is removed
+        - [ ] Y is added
+        - [ ] preflight passes
+        - [ ] npm audit shows 0 vulnerabilities
+        - [ ] PR opened (no merge)
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: What must NOT change. What is out of scope.
+      placeholder: |
+        - Do not modify auth.js
+        - Do not touch routes unrelated to X
+        - Preserve smoke-admin.sh compatibility
+    validations:
+      required: false
+
+  - type: textarea
+    id: files
+    attributes:
+      label: Expected Files Changed
+      description: Which files should the agent touch? Helps bound scope.
+      placeholder: |
+        - api/server.js
+        - api/package.json
+    validations:
+      required: false
+
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Assigned Agent
+      options:
+        - Claude Code (implementation)
+        - Codex (validation/ops)
+        - Gemini (architecture review)
+        - Unassigned
+    validations:
+      required: true
