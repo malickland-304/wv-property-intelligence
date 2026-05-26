@@ -20,7 +20,7 @@ trap cleanup EXIT
 cd "$API_DIR"
 
 echo "== Dependency checks =="
-npm ls express better-sqlite3 csurf >/dev/null
+npm ls express better-sqlite3 csrf-csrf >/dev/null
 echo "✓ Runtime dependency tree OK"
 echo
 
