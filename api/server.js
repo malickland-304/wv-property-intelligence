@@ -2,16 +2,17 @@
 
 require('dotenv').config();
 
-const express  = require('express');
-const cors     = require('cors');
-const helmet   = require('helmet');
-const morgan   = require('morgan');
-const session  = require('express-session');
-const csrf     = require('csurf');
-const path     = require('path');
+const express       = require('express');
+const cors          = require('cors');
+const cookieParser  = require('cookie-parser');
+const helmet        = require('helmet');
+const morgan        = require('morgan');
+const session       = require('express-session');
+const path          = require('path');
 
 const BetterSqlite3Store = require('better-sqlite3-session-store')(session);
 const { db }             = require('./db');
+const { doubleCsrfProtection } = require('./middleware/auth');
 const adminRoutes  = require('./routes/admin');
 const apiRoutes    = require('./routes/api');
 const publicRoutes = require('./routes/public');
@@ -50,6 +51,7 @@ app.use((req, res, next) => {
 });
 
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'tiny' : 'dev'));
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -64,13 +66,11 @@ const adminSession = session({
     secure:   process.env.NODE_ENV === 'production',
   },
 });
-const adminCsrf = csrf();
-
 app.use('/images', express.static(path.join(PROJECT_ROOT, 'listings')));
 
 app.use('/admin', adminSession, (req, res, next) => {
   if (req.path === '/login') return next();
-  return adminCsrf(req, res, next);
+  return doubleCsrfProtection(req, res, next);
 }, adminRoutes);
 app.use('/api',   apiRoutes);
 app.use('/',      publicRoutes);
