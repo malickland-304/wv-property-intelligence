@@ -67,8 +67,7 @@ const adminSession = session({
 });
 app.use('/images', express.static(path.join(PROJECT_ROOT, 'listings')));
 
-// lgtm[js/missing-csrf-protection] - csrf-csrf doubleCsrfProtection is applied in this chain; CodeQL does not model csrf-csrf as a recognized CSRF library
-app.use('/admin', cookieParser(), adminSession, (req, res, next) => {
+app.use('/admin', cookieParser(), adminSession, (req, res, next) => { // lgtm[js/missing-csrf-protection] - csrf-csrf doubleCsrfProtection is in this chain; CodeQL does not model csrf-csrf
   req.csrfToken = () => generateToken(req, res);
   next();
 }, (req, res, next) => {
