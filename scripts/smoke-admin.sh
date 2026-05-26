@@ -25,6 +25,7 @@ set -uo pipefail
 BASE_URL="${BASE_URL:-https://malickland.net}"
 VERBOSE="${VERBOSE:-0}"
 COOKIE_JAR=$(mktemp)
+BODY_FILE=$(mktemp)
 PASS=0
 FAIL=0
 
@@ -35,7 +36,7 @@ if [ -z "${ADMIN_PASSWORD:-}" ]; then
   exit 1
 fi
 
-cleanup() { rm -f "$COOKIE_JAR"; }
+cleanup() { rm -f "$COOKIE_JAR" "$BODY_FILE"; }
 trap cleanup EXIT
 
 # ── Helpers ───────────────────────────────────────────────────────────
@@ -52,44 +53,40 @@ check_status() {
 }
 
 # curl wrapper: follow redirects, store/send cookies, return HTTP status code
-# Usage: http_get <url>  → prints status code, writes body to $BODY
-BODY=""
+# Usage: http_get <url>  → prints status code, writes body to $BODY_FILE
 http_get() {
   local url="$1"
-  BODY=$(curl -sS -L \
+  curl -sS -L \
     -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
-    -w '\n__STATUS__%{http_code}' \
-    "$url" 2>&1) || true
-  echo "${BODY##*__STATUS__}"
-  BODY="${BODY%$'\n'__STATUS__*}"
+    -w '%{http_code}' \
+    -o "$BODY_FILE" \
+    "$url" || true
 }
 
 # POST form data, do NOT follow redirects (we want the raw redirect status)
 http_post_form() {
   local url="$1" data="$2"
-  BODY=$(curl -sS \
+  curl -sS \
     -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
     -X POST \
     -H 'Content-Type: application/x-www-form-urlencoded' \
     --data "$data" \
-    -w '\n__STATUS__%{http_code}' \
-    "$url" 2>&1) || true
-  echo "${BODY##*__STATUS__}"
-  BODY="${BODY%$'\n'__STATUS__*}"
+    -w '%{http_code}' \
+    -o "$BODY_FILE" \
+    "$url" || true
 }
 
 # POST form data with CSRF token in body
 http_post_with_csrf() {
   local url="$1" data="$2" token="$3"
-  BODY=$(curl -sS \
+  curl -sS \
     -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
     -X POST \
     -H 'Content-Type: application/x-www-form-urlencoded' \
     --data "${data}&_csrf=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=''))" "$token" 2>/dev/null || printf '%s' "$token" | sed 's/+/%2B/g;s/=/%3D/g')" \
-    -w '\n__STATUS__%{http_code}' \
-    "$url" 2>&1) || true
-  echo "${BODY##*__STATUS__}"
-  BODY="${BODY%$'\n'__STATUS__*}"
+    -w '%{http_code}' \
+    -o "$BODY_FILE" \
+    "$url" || true
 }
 
 # Extract content of <meta name="csrf-token" content="...">
@@ -153,7 +150,7 @@ fi
 echo "[ 3/6 ] Authenticated admin dashboard"
 STATUS=$(http_get "$BASE_URL/admin")
 check_status "GET /admin (authenticated)" "200" "$STATUS"
-ADMIN_BODY="$BODY"
+ADMIN_BODY=$(cat "$BODY_FILE")
 
 if echo "$ADMIN_BODY" | grep -q "csrf-token"; then
   pass "CSRF meta tag present on /admin"
@@ -165,7 +162,7 @@ fi
 echo "[ 4/6 ] CSRF token presence"
 # Get a fresh page with CSRF token (use /admin/new which always has a form)
 STATUS=$(http_get "$BASE_URL/admin/new")
-NEW_BODY="$BODY"
+NEW_BODY=$(cat "$BODY_FILE")
 CSRF_TOKEN=$(extract_csrf "$NEW_BODY")
 
 if [ -n "$CSRF_TOKEN" ]; then
@@ -185,37 +182,31 @@ STATUS=$(curl -sS \
   -H 'Content-Type: application/x-www-form-urlencoded' \
   --data 'address=smoke-test-no-csrf&city=TestCity&state=WV' \
   -w '%{http_code}' -o /dev/null \
-  "$BASE_URL/admin/new" 2>&1) || true
+  "$BASE_URL/admin/edit/smoke-test-nonexistent" 2>&1) || true
 
 if [ "$STATUS" = "403" ]; then
-  pass "POST /admin/new (no CSRF token) → 403 Forbidden — CSRF enforcement confirmed"
+  pass "POST /admin/edit/:id (no CSRF token) → 403 Forbidden — CSRF enforcement confirmed"
 elif [ "$STATUS" = "400" ]; then
-  pass "POST /admin/new (no CSRF token) → 400 — CSRF rejected (alternate code)"
+  pass "POST /admin/edit/:id (no CSRF token) → 400 — CSRF rejected (alternate code)"
 else
-  fail "POST /admin/new (no CSRF token) → $STATUS (expected 403 — CSRF not enforced?)"
+  fail "POST /admin/edit/:id (no CSRF token) → $STATUS (expected 403 — CSRF not enforced?)"
 fi
 
 # ── 6. POST WITH CSRF token → must NOT be 403 ───────────────────────
 echo "[ 6/6 ] CSRF round-trip (POST with valid token should pass CSRF check)"
-# We POST invalid/incomplete listing data intentionally — we want to pass
-# the CSRF check (not get 403) and get a validation error or redirect instead.
-# A 302 or 400 here means CSRF passed; 403 means CSRF failed despite valid token.
+# We POST to a non-existent edit target intentionally. The route redirects after
+# an UPDATE that matches no rows, so CSRF is exercised without creating data.
 STATUS=$(http_post_with_csrf \
-  "$BASE_URL/admin/new" \
+  "$BASE_URL/admin/edit/smoke-test-nonexistent" \
   "address=SMOKE-TEST-DELETE-ME&city=SmokeCity&state=WV&price=1" \
   "$CSRF_TOKEN")
 
 if [ "$STATUS" = "403" ]; then
-  fail "POST /admin/new (with CSRF token) → 403 — CSRF token not accepted (token mismatch?)"
+  fail "POST /admin/edit/:id (with CSRF token) → 403 — CSRF token not accepted (token mismatch?)"
 elif [ "$STATUS" = "302" ] || [ "$STATUS" = "200" ] || [ "$STATUS" = "400" ]; then
-  pass "POST /admin/new (with valid CSRF token) → $STATUS — CSRF round-trip works"
-
-  # Warn if a listing was actually created (302 typically means success insert)
-  if [ "$STATUS" = "302" ]; then
-    echo "  ⚠  302 may indicate a test record was inserted — check admin dashboard and delete if so"
-  fi
+  pass "POST /admin/edit/:id (with valid CSRF token) → $STATUS — CSRF round-trip works"
 else
-  fail "POST /admin/new (with CSRF token) → $STATUS (unexpected)"
+  fail "POST /admin/edit/:id (with CSRF token) → $STATUS (unexpected)"
 fi
 
 # ── Summary ───────────────────────────────────────────────────────────

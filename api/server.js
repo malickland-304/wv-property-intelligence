@@ -87,6 +87,9 @@ app.use((req, res) => {
 });
 
 app.use((err, _req, res, _next) => {
+  if (err && err.code === 'EBADCSRFTOKEN') {
+    return res.status(403).type('text').send('Invalid CSRF token');
+  }
   console.error(err);
   res.status(500).json({ error: 'Server error' });
 });
