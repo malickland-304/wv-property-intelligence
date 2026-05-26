@@ -1,0 +1,78 @@
+name: "Deploy / Ops"
+description: "Planned deployment, infrastructure change, or operational task"
+title: "[Ops] "
+labels: ["deploy"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Human approval required before any production action.**
+        No AI agent may deploy, merge, or modify Railway without explicit sign-off.
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Operation type
+      options:
+        - Production deploy (merge → Railway)
+        - Railway environment variable change
+        - Branch protection / GitHub settings change
+        - Dependency upgrade
+        - Database migration
+        - Other infrastructure change
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What is being changed?
+      description: Exact scope. What files, services, or configs are affected?
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why now?
+      description: What triggers this? What breaks if it's delayed?
+    validations:
+      required: true
+
+  - type: textarea
+    id: rollback
+    attributes:
+      label: Rollback plan
+      description: How do we undo this if it goes wrong? What is the prior stable state?
+      placeholder: |
+        Prior Railway deployment ID: ...
+        To rollback: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation steps
+      description: How do we confirm success after the operation?
+      placeholder: |
+        - [ ] preflight passes
+        - [ ] smoke-admin.sh passes
+        - [ ] health endpoint responds 200
+        - [ ] no new Railway error logs
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Pre-operation checklist
+      options:
+        - label: All required CI checks are green
+          required: true
+        - label: Rollback plan is documented above
+          required: true
+        - label: No hardcoded secrets in the changeset
+          required: true
+        - label: Human explicitly approved this operation
+          required: true
