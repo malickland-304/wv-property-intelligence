@@ -71,7 +71,6 @@ http_post_form() {
     -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
     -X POST \
     -H 'Content-Type: application/x-www-form-urlencoded' \
-    --data-urlencode "" \
     --data "$data" \
     -w '\n__STATUS__%{http_code}' \
     "$url" 2>&1) || true
@@ -94,10 +93,14 @@ http_post_with_csrf() {
 }
 
 # Extract content of <meta name="csrf-token" content="...">
+# Uses python3 for portability (BSD grep on macOS lacks -P / PCRE)
 extract_csrf() {
-  echo "$1" | grep -oP '(?<=<meta name="csrf-token" content=")[^"]*' || \
-  echo "$1" | grep -oP "(?<=<meta name='csrf-token' content=')[^']*" || \
-  echo ""
+  python3 - "$1" <<'EOF'
+import re, sys
+html = sys.argv[1]
+m = re.search(r'<meta\s+name=["\']csrf-token["\']\s+content=["\']([^"\']*)["\']', html)
+print(m.group(1) if m else "")
+EOF
 }
 
 # ── Test run ──────────────────────────────────────────────────────────
