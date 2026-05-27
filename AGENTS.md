@@ -145,6 +145,44 @@ bash scripts/preflight.sh
 
 ---
 
+## Required Manual GitHub Settings
+
+These must be configured by the repo owner. No agent can set branch protection or environments.
+
+**Branch protection → `main`** (Settings → Branches → Add rule → `main`):
+
+| Setting | Required value |
+|---------|---------------|
+| Require a pull request before merging | ✅ Enabled |
+| Required approvals | 1 minimum |
+| Dismiss stale reviews on new push | ✅ Enabled |
+| Require status checks to pass | ✅ Enabled |
+| Required checks | `CodeQL`, `Analyze (javascript-typescript)`, `verify`, `check`, `CodeScan` |
+| Require conversation resolution before merging | ✅ Enabled |
+| Do not allow bypassing the above settings | ✅ Enabled (removes admin bypass) |
+| Restrict pushes that create matching branches | ✅ No direct pushes to `main` |
+
+**Production environment** (Settings → Environments → New → `production`):
+- Required reviewers: repo owner
+- Deployment branches: `main` only
+- Purpose: gates Railway auto-deploy behind explicit approval
+
+**OpenHands GitHub token** (when configuring the runner):
+
+| Permission | Value |
+|-----------|-------|
+| `contents` | `write` |
+| `pull-requests` | `write` |
+| `issues` | `write` |
+| `secrets` | ❌ none |
+| `environments` | ❌ none |
+| `admin:repo` | ❌ none |
+| `deployments` | ❌ none |
+
+Minimum token: fine-grained PAT scoped to this repo only, with the above permissions.
+
+---
+
 ## Git Safety Rules
 
 ```bash

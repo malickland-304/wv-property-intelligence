@@ -58,9 +58,8 @@ AGENTS.md, hooks.json, issue templates, PR template, npm ci policy. Review befor
 
 ## Guardrails
 
-- **This file reflects canonical production state, not necessarily any agent's local checkout. Verify local repo state (`git status`, `git branch`, `git rev-parse HEAD`) before acting.**
+- **This file reflects canonical production state, not any agent's local checkout.** Verify: `git fetch origin && git status && git rev-parse HEAD`
 - Read this file before acting
-- **This file reflects canonical production state, not any agent's local checkout.** Verify branch and commit: `git fetch origin && git status && git rev-parse HEAD`
 - **Do not commit directly to `main`** unless explicitly approved by the user
 - **Do not mutate production data** during smoke tests
 - **Do not print or echo Railway secrets**
@@ -99,7 +98,7 @@ See `AGENTS.md` for full operating rules, forbidden actions, and workflow.
 
 ## Key Architecture Notes
 
-- **CSRF:** Migration from `csurf@1.11.0` → `csrf-csrf@^3.2.2` in progress (PR #63). Double-submit cookie pattern, `req.csrfToken()` polyfill preserves auth.js/admin.js compatibility.
+- **CSRF:** `csrf-csrf@^3.2.2` active (PR #63 merged 2026-05-27). Double-submit cookie pattern, `req.csrfToken()` polyfill, session-bound. `csurf` fully removed.
 - **Google APIs:** `api/google.js` uses Node `https` directly — the `googleapis` npm package is NOT a dependency.
 - **Routes:** `/api/properties` and `/api/listings` are alias routes for the same handler. `/properties/:slug` and `/listing/:slug` are both active.
 - **Deploy:** Railway via Dockerfile, branch `main` auto-deploys.

@@ -24,8 +24,19 @@ echo "✓ npm ci complete"
 echo ""
 
 # ── 3. Dependency audit ────────────────────────────────────────────────
+# POLICY: fail closed on high/critical severity. Moderate/low = block + require human review.
 echo "[ 3/5 ] Security audit"
-npm audit || echo "⚠ Audit found issues — review before proceeding"
+AUDIT_EXIT=0
+npm audit --audit-level=high 2>&1 || AUDIT_EXIT=$?
+if [[ $AUDIT_EXIT -ne 0 ]]; then
+  echo ""
+  echo "❌ FATAL: npm audit found HIGH or CRITICAL vulnerabilities."
+  echo "   Do NOT proceed. Report to human orchestrator before any PR."
+  exit 1
+fi
+# Run full audit for informational output (moderate/low won't exit-fail here)
+npm audit 2>&1 || echo "⚠  Moderate/low audit warnings present — human review required before merge."
+echo "✓ Audit passed (no high/critical)"
 echo ""
 
 # ── 4. Syntax check ───────────────────────────────────────────────────

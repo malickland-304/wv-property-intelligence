@@ -18,7 +18,7 @@ Closes #
 ## How to validate
 
 ```bash
-cd api && npm install
+cd api && npm ci
 node --check server.js
 cd ..
 bash scripts/preflight.sh

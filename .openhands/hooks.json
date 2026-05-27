@@ -1,63 +1,10 @@
 {
-  "_comment": "OpenHands agent completion checks. Enforces supervised-only constraints.",
-  "pre_action": {
-    "require": [
-      "git status --short --branch --untracked-files",
-      "git rev-parse HEAD"
-    ],
-    "forbidden_patterns": [
-      "git push.*main",
-      "git push.*--force",
-      "railway.*deploy",
-      "echo.*SESSION_SECRET",
-      "echo.*ADMIN_PASSWORD",
-      "echo.*API_KEY",
-      "cat.*\\.env",
-      "npm run deploy",
-      "git merge.*main",
-      "git rebase.*main",
-      "npm install [^ ]",
-      "npm i [^ ]"
-    ]
+  "_doc": "OpenHands hooks configuration. See https://docs.all-hands.dev/usage/how-to/custom-sandbox-guide and hooks docs.",
+  "_format": "pre_tool_use runs before each tool call. stop runs when the agent stops or hits a limit.",
+  "pre_tool_use": {
+    "command": "bash .openhands/hooks/pre-tool-use.sh \"$TOOL_NAME\" \"$TOOL_ARGS\""
   },
-  "post_action": {
-    "require_report": true,
-    "report_fields": [
-      "files_changed",
-      "branch",
-      "validation_commands_run",
-      "validation_results",
-      "remaining_blockers"
-    ]
-  },
-  "hard_limits": {
-    "max_iterations": 10,
-    "max_runtime_minutes": 30,
-    "failure_mode": "fail_closed"
-  },
-  "forbidden_actions": [
-    "merge_pull_request",
-    "deploy_to_production",
-    "modify_railway_env",
-    "push_to_main",
-    "read_production_secrets",
-    "mutate_production_database"
-  ],
-  "dependency_policy": {
-    "install_command": "npm ci",
-    "forbidden_install_command": "npm install",
-    "rationale": "npm ci is deterministic and lockfile-enforced; npm install can drift",
-    "adding_packages_requires": "explicit_human_approval"
-  },
-  "allowed_actions": [
-    "create_branch",
-    "edit_files",
-    "run_local_tests",
-    "open_pull_request",
-    "read_repository",
-    "run_preflight",
-    "run_npm_ci",
-    "run_node_check",
-    "run_npm_audit"
-  ]
+  "stop": {
+    "command": "bash .openhands/hooks/on-stop.sh"
+  }
 }

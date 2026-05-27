@@ -42,7 +42,7 @@ cat docs/agent-handoff.md
 ### Validation Before PR
 Run in order:
 ```bash
-cd api && npm install
+cd api && npm ci
 node --check server.js
 node --check middleware/auth.js
 node --check routes/admin.js
