@@ -51,6 +51,10 @@ FORBIDDEN=(
   "npm install$"
   "npm i[[:space:]][^-]"
   "npm i$"
+  "npm install[[:space:]].*--save"
+  "npm install[[:space:]].*-S[[:space:]]"
+  "npm i[[:space:]].*--save"
+  "npm i[[:space:]].*-S[[:space:]]"
   # Secret exposure — never log or echo production credentials
   "printenv"
   "echo[[:space:]].*SESSION_SECRET"
