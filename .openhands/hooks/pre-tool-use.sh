@@ -48,8 +48,12 @@ FORBIDDEN=(
   "railway[[:space:]]"
   # Dependency hygiene: npm install in any form is forbidden (use npm ci)
   "npm install[[:space:]][^-]"
+  "npm install[[:space:]].*--save"
+  "npm install[[:space:]].*-S[[:space:]]"
   "npm install$"
   "npm i[[:space:]][^-]"
+  "npm i[[:space:]].*--save"
+  "npm i[[:space:]].*-S[[:space:]]"
   "npm i$"
   # Secret exposure — never log or echo production credentials
   "printenv"
