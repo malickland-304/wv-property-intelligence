@@ -58,6 +58,7 @@
 
 ## Guardrails
 
+- **This file reflects canonical production state, not necessarily any agent's local checkout. Verify local repo state (`git status`, `git branch`, `git rev-parse HEAD`) before acting.**
 - Read this file before acting
 - **Do not commit directly to `main`** unless explicitly approved by the user
 - **Do not mutate production data** during smoke tests

@@ -6,9 +6,10 @@ const express  = require('express');
 const cors     = require('cors');
 const helmet   = require('helmet');
 const morgan   = require('morgan');
-const session  = require('express-session');
-const csrf     = require('csurf');
-const path     = require('path');
+const session      = require('express-session');
+const cookieParser = require('cookie-parser');
+const path         = require('path');
+const { generateToken, doubleCsrfProtection } = require('./middleware/csrf');
 
 const BetterSqlite3Store = require('better-sqlite3-session-store')(session);
 const { db }             = require('./db');
@@ -64,13 +65,16 @@ const adminSession = session({
     secure:   process.env.NODE_ENV === 'production',
   },
 });
-const adminCsrf = csrf();
-
 app.use('/images', express.static(path.join(PROJECT_ROOT, 'listings')));
 
-app.use('/admin', adminSession, (req, res, next) => {
+// CSRF: doubleCsrfProtection (csrf-csrf) guards all non-login admin routes.
+// cookieParser scoped here only — not applied globally.
+app.use('/admin', cookieParser(), adminSession, (req, res, next) => {
+  req.csrfToken = () => generateToken(req, res);
+  next();
+}, (req, res, next) => {
   if (req.path === '/login') return next();
-  return adminCsrf(req, res, next);
+  return doubleCsrfProtection(req, res, next);
 }, adminRoutes);
 app.use('/api',   apiRoutes);
 app.use('/',      publicRoutes);
