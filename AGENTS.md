@@ -2,20 +2,81 @@
 # MalickLand / wv-property-intelligence
 
 > **All AI agents must read this file before acting on this repository.**
-> Canonical source-of-truth order: `docs/agent-handoff.md` > this file > all other docs.
+> Repository documents are the authoritative source of truth. Agent assumptions and conversational context do not override them.
 
 ---
 
-## Source-of-Truth Hierarchy
+## Repository Authority Rule
+
+All agents treat repository coordination documents as authoritative. In conflict, higher-ranked files win.
 
 ```
-1. docs/agent-handoff.md   — current production state, open work, recent changes
-2. AGENTS.md               — agent roles, rules, workflow
-3. .openhands/instructions.md — OpenHands-specific behavioral rules
-4. GitHub Issues / PRs     — task-level context (temporary)
+1. AGENTS.md              — agent behavior rules (this file)
+2. SECURITY.md            — security requirements, threat model
+3. ARCHITECTURE.md        — system design, constraints, stability rules
+4. DECISIONS.md           — recorded technical decisions
+5. TASKS.md               — prioritized backlog
+6. PROJECT_STATE.md       — current product completeness
+7. Existing repository conventions — patterns already in the codebase
+8. Agent assumptions       — lowest priority; must be documented when used
 ```
 
-When sources conflict, higher numbers lose.
+**When sources conflict:**
+- Prefer the safer, more conservative implementation.
+- Document the conflict and resolution in `DECISIONS.md`.
+- Do not take destructive or irreversible action until the conflict is resolved and documented.
+- Do not rely on conversational context, session memory, or prior agent output that is not committed to the repository.
+
+`docs/agent-handoff.md` is a deployment-state reference only. It does not override AGENTS.md or other governance documents.
+
+---
+
+## Architectural Stability Rule
+
+Agents **must not** substantially alter architecture, frameworks, database strategy, authentication model, deployment topology, or multi-agent governance unless:
+
+1. The current implementation demonstrably fails a documented requirement, AND
+2. The change is documented in `DECISIONS.md` with: problem, decision, reasoning, alternatives considered, migration impact, rollback strategy, and files affected, AND
+3. The change has been committed to a branch and passed CI before any production action.
+
+Agents that cannot satisfy all three conditions must stop, document the blocker in `WORK_LOG.md`, and select a different task.
+
+Stable foundations (do not redesign without the above):
+- Node.js 20 / Express 5 runtime
+- SQLite via `better-sqlite3` (no PostgreSQL migration unless Phase 1 spec requires it)
+- `csrf-csrf` v3 double-submit CSRF protection
+- `express-session` + Bearer API key auth model
+- Railway + Docker deployment topology
+- Vanilla HTML/JS/CSS frontend (no build step)
+
+---
+
+## Autonomous Safety Stop Rule
+
+Any agent **must stop immediately** and append a blocker entry to `WORK_LOG.md` when:
+
+- Requirements are contradictory or undocumented for the proposed action.
+- Security implications of a change are unclear.
+- A destructive or irreversible action is required (database migrations, dropping tables, schema changes, file deletion, production deploys).
+- Production data could be affected.
+- Credentials or infrastructure access are missing or ambiguous.
+- A task requires touching more than 5 files beyond the stated scope (flag for scope review).
+- The OpenHands iteration limit (10) is reached before task completion.
+
+Do not improvise solutions to blockers. Document them and stop.
+
+---
+
+## Verification Truthfulness Rule
+
+Agents may only report:
+- Checks **actually run** in the current session.
+- Tests **actually executed** with their real output.
+- Builds **actually completed** with their real result.
+
+Simulated, assumed, inferred, or estimated verification **must be explicitly labeled as unverified**.
+
+Never report: "tests pass", "build succeeds", "no vulnerabilities" unless the command was run and the output confirms it in this session.
 
 ---
 
@@ -23,11 +84,16 @@ When sources conflict, higher numbers lose.
 
 | Agent | Role | Allowed | Forbidden |
 |-------|------|---------|-----------|
-| **ChatGPT** | Orchestrator / PM | Task definition, routing, QC adjudication, architecture decisions | — |
-| **Claude Code** | Implementation | Branch work, code changes, PRs, repo bootstrap | Direct main push, deploy, printing secrets |
+| **Claude Code** | Implementation | Branch work, code changes, PRs, documentation | Direct main push, deploy, printing secrets, self-authorized architecture changes |
 | **Codex** | QA / Security Audit | Code review, security skepticism, CI forensics, readiness verdicts | Any repo mutation, commits, deploys |
 | **Gemini** | Architecture Challenger | Architecture critique, threat modeling, vendor analysis | Touching code in active PRs |
+| **ChatGPT** | Spec / Orchestration | Task definition, phase specs, API contracts | Architecture decisions without DECISIONS.md entry |
 | **OpenHands** | Supervised Worker | Sandboxed implementation, branch edits, opening PRs | See restrictions below |
+
+**Conflict resolution:** Conflicts between agent outputs are resolved by the repository documents, not by agent adjudication. When agents disagree:
+1. Both positions are documented in `DECISIONS.md`.
+2. The safer, more conservative implementation is chosen by default.
+3. Human confirms only for irreversible or production-affecting decisions.
 
 ---
 
@@ -55,25 +121,26 @@ OpenHands operates in **supervised sandboxed mode only**. These are permanent co
 ### Hard Limits
 - Max iterations per run: **10**
 - Max runtime per run: **30 minutes**
-- Failure mode: **fail closed** (stop and report, do not continue)
+- Failure mode: **fail closed** (stop and append to WORK_LOG.md, do not continue)
 - Sandbox must contain NO production credentials — GitHub repo access only
 
 ---
 
-## Workflow (Standard Feature)
+## Standard Feature Workflow
 
 ```
-1. ChatGPT defines task → GitHub Issue (AI Task template)
-2. OpenHands or Claude implements → feature branch
-3. Codex audits PR → findings returned to ChatGPT
-4. Gemini challenges (if architecture/security significant)
-5. ChatGPT adjudicates any conflicts
-6. Human approves → merge
-7. Human approves → Railway deploy
-8. Claude or Codex verifies smoke
+1. Task defined → TASKS.md entry created (with acceptance criteria)
+2. ChatGPT delivers spec for complex features (schema, contracts, state machine)
+3. OpenHands or Claude Code implements → feature branch
+4. Codex audits PR → findings appended to WORK_LOG.md
+5. Gemini challenges if architecture/security significant → appended to WORK_LOG.md
+6. Conflict resolution: repository docs decide; safer path wins
+7. All CI checks pass → human approves PR merge
+8. Human approves → Railway deploy
+9. Claude or Codex verifies smoke → result appended to WORK_LOG.md
 ```
 
-No step may be skipped. No agent may self-authorize a step above their role.
+No step may be skipped. No agent may self-authorize a step beyond their role.
 
 ---
 
@@ -88,40 +155,28 @@ No step may be skipped. No agent may self-authorize a step above their role.
 
 ---
 
-## Merge Decision Policy
-
-**No merge if:**
-- Claude says "works" but Codex says "unsafe"
-- Gemini flags an architectural flaw
-- Any required CI check is failing
-- A security alert is unresolved (not dismissed with documented rationale)
-
-Conflicts are adjudicated by ChatGPT (human orchestrator). Agents do not self-adjudicate.
-
----
-
 ## Dependency Hygiene Policy (Non-Negotiable)
 
-- **Always use `npm ci`**, never `npm install` in agent context
-  - `npm ci` is deterministic: installs exactly what's in `package-lock.json`
-  - `npm install` can silently update or resolve packages differently across environments
+- **Always use `npm ci`** — deterministic; never `npm install` in agent context
 - **Never add top-level dependencies** without explicit human approval
-- **Never run `npm install <package>`** without approval — propose it in a PR comment instead
+- **Never run `npm install <package>`** — propose in PR comment instead
 - **Lockfile is canonical** — never delete or modify `package-lock.json` directly
-- Rationale: arbitrary dependency additions are a supply-chain attack vector; lockfile enforcement is the first defense
 
 ---
 
 ## Required Validation Before Any PR
 
-Run in order. All must pass.
+Run in order. All must pass. Per Verification Truthfulness Rule: only report passing if these were actually run.
 
 ```bash
 cd api && npm ci
 node --check server.js
 node --check middleware/auth.js
 node --check routes/admin.js
+node --check routes/api.js
+node --check routes/public.js
 cd ..
+node tests/verify-security-fixes.test.js
 bash scripts/preflight.sh
 ```
 
@@ -131,125 +186,95 @@ bash scripts/preflight.sh
 
 | Gate | Tool | Owner |
 |------|------|-------|
-| Preflight (start server, hit endpoints) | `scripts/preflight.sh` | Claude + Codex |
+| Preflight (start server, hit endpoints, CSRF check) | `scripts/preflight.sh` | Claude + Codex |
 | Syntax check | `node --check` | Claude |
+| Test suite | `node tests/verify-security-fixes.test.js` | All |
 | Dependency audit | `npm audit` | Codex |
 | CodeQL security scan | GitHub Actions | Automated |
 | Secret scanning | GitHub Advanced Security | Automated |
 | Semgrep | Semgrep cloud | Automated |
-
-### Recommended Additions (not yet active)
-- Trufflehog for git-history secret scanning
-- Dependency review on every PR
-- Required reviewer (human or Codex) before merge
-
----
-
-## Required Manual GitHub Settings
-
-These must be configured by the repo owner. No agent can set branch protection or environments.
-
-**Branch protection → `main`** (Settings → Branches → Add rule → `main`):
-
-| Setting | Required value |
-|---------|---------------|
-| Require a pull request before merging | ✅ Enabled |
-| Required approvals | 1 minimum |
-| Dismiss stale reviews on new push | ✅ Enabled |
-| Require status checks to pass | ✅ Enabled |
-| Required checks | `CodeQL`, `Analyze (javascript-typescript)`, `verify`, `check`, `CodeScan` |
-| Require conversation resolution before merging | ✅ Enabled |
-| Do not allow bypassing the above settings | ✅ Enabled (removes admin bypass) |
-| Restrict pushes that create matching branches | ✅ No direct pushes to `main` |
-
-**Production environment** (Settings → Environments → New → `production`):
-- Required reviewers: repo owner
-- Deployment branches: `main` only
-- Purpose: gates any GitHub Actions deployment jobs behind explicit approval.
-  **Note:** Railway auto-deploys directly from `main` via webhook — this environment does **not** gate Railway.
-  To require approval before Railway deploys, configure deployment protection in Railway project settings directly.
-
-**OpenHands GitHub token** (when configuring the runner):
-
-| Permission | Value |
-|-----------|-------|
-| `contents` | `write` |
-| `pull-requests` | `write` |
-| `issues` | `write` |
-| `secrets` | ❌ none |
-| `environments` | ❌ none |
-| `admin:repo` | ❌ none |
-| `deployments` | ❌ none |
-
-Minimum token: fine-grained PAT scoped to this repo only, with the above permissions.
-
----
-
-## Git Safety Rules
-
-```bash
-# Always check before staging
-git status --short --untracked-files
-
-# Stage only specific files — never git add -A or git add .
-git add <specific-file> [<specific-file>...]
-
-# Verify staged diff before committing
-git diff --cached
-```
-
----
-
-## Production Safety Gates (Pre-Deploy)
-
-Before any production deployment:
-- [ ] All required CI checks green
-- [ ] Smoke test passed locally or in staging
-- [ ] Rollback plan exists (prior Railway deployment ID noted)
-- [ ] No new secrets introduced in code
-- [ ] Human explicitly approved deploy
 
 ---
 
 ## Environment Variables (Never Touch in Code)
 
 Set in Railway. Do not hardcode, echo, print, or modify:
+
+**Core (required):**
 - `SESSION_SECRET`
 - `ADMIN_PASSWORD`
 - `API_KEY`
 - `DATABASE_PATH`
+
+**OpenAI:**
 - `OPENAI_API_KEY`
-- `GOOGLE_*` variables
+
+**Google (Drive + Gmail):**
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_REFRESH_TOKEN`
+- `GOOGLE_DRIVE_FOLDER_ID`
+
+**Email (Resend — primary path):**
+- `RESEND_API_KEY`
+- `FROM_EMAIL`
+- `NOTIFICATION_EMAIL`
+
+**SMS (Twilio — optional, feature-flagged):**
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_AUTH_TOKEN`
+- `TWILIO_FROM_NUMBER`
+- `LEAD_ALERT_TO_NUMBER`
+
+**Analytics (optional):**
+- `GA_MEASUREMENT_ID`
+- `META_PIXEL_ID`
 
 ---
 
-## When to Stop and Report
+## Git Safety Rules
 
-Any agent must stop immediately and report to ChatGPT if:
-- Test failure cannot be explained
-- Security issue found outside task scope
-- About to touch production secrets
-- Action is irreversible and uncertain
-- Task requires more than 5 files changed (flag for scope review)
-- OpenHands iteration limit (10) is reached before task completion
+```bash
+git status --short --untracked-files
+git add <specific-file> [<specific-file>...]   # never git add -A or git add .
+git diff --cached                              # verify before commit
+```
 
 ---
 
-## GitHub Task Memory (Temporary)
+## WORK_LOG.md — Coordination Ledger
 
-GitHub Issues are the current task memory system. This is temporary.
+Every agent session that makes changes must append an entry to `WORK_LOG.md`. This is the memory layer between agents. Format:
 
-**Linear** is planned as canonical task memory. Until then:
-- Use GitHub Issues with the provided templates
-- Keep issues scoped (one task = one issue)
-- Do not use GitHub comments as long-term architectural decisions — promote to `docs/agent-handoff.md` if a decision is permanent
+```markdown
+## YYYY-MM-DD — Agent Name
+
+### Objective
+...
+
+### Changes Made
+- file/path — what changed and why
+
+### Verification (Truthfulness Rule applies)
+- Command: `...` → Result: PASSED / FAILED / NOT RUN
+
+### Security Notes
+...
+
+### Remaining Risks
+...
+
+### Recommended Next Task
+...
+```
 
 ---
 
-## Stale Documentation
+## Stale Documentation Notice
 
-The following files are **historical only** and should not be used to infer current system state:
+The following files are historical reference only:
 
-- `PROJECT.md` — superseded by `docs/agent-handoff.md`
-- `SECURITY_VERIFICATION.md` — historical audit report from 2026-04-05; does not reflect current state
-- `CONTEXT.md` — may contain outdated architectural assumptions; verify against current code before relying on it
+- `PROJECT.md` — superseded by `PROJECT_STATE.md`
+- `CONTEXT.md` — may contain outdated architectural assumptions; verify against code
+- `SECURITY_VERIFICATION.md` — historical audit from 2026-04-05; does not reflect current state
+- `docs/agent-handoff.md` — deployment state notes only; does not override AGENTS.md
