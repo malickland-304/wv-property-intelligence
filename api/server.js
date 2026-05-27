@@ -31,7 +31,7 @@ app.set('trust proxy', 1);
 if (!SESSION_SECRET) {
   throw new Error('SESSION_SECRET must be set');
 }
-if (process.env.NODE_ENV === 'production' && !process.env.ADMIN_PASSWORD) {
+if (!process.env.ADMIN_PASSWORD) {
   throw new Error('ADMIN_PASSWORD must be set');
 }
 
@@ -52,11 +52,10 @@ app.use(helmet({
 app.use(cors((req, cb) => {
   const origin = req.headers.origin;
   if (!origin) {
-    return cb(null, { origin: false });
+    return cb(null, { origin: true });
   }
-  const sameOrigin = `${req.protocol}://${req.get('host')}` === origin;
   const allowlisted = corsAllowlist.includes(origin);
-  return cb(null, { origin: sameOrigin || allowlisted });
+  return cb(null, { origin: allowlisted });
 }));
 
 app.use((req, res, next) => {
