@@ -165,7 +165,9 @@ These must be configured by the repo owner. No agent can set branch protection o
 **Production environment** (Settings → Environments → New → `production`):
 - Required reviewers: repo owner
 - Deployment branches: `main` only
-- Purpose: gates Railway auto-deploy behind explicit approval
+- Purpose: gates any GitHub Actions deployment jobs behind explicit approval.
+  **Note:** Railway auto-deploys directly from `main` via webhook — this environment does **not** gate Railway.
+  To require approval before Railway deploys, configure deployment protection in Railway project settings directly.
 
 **OpenHands GitHub token** (when configuring the runner):
 

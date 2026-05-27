@@ -1,10 +1,18 @@
 {
-  "_doc": "OpenHands hooks configuration. See https://docs.all-hands.dev/usage/how-to/custom-sandbox-guide and hooks docs.",
-  "_format": "pre_tool_use runs before each tool call. stop runs when the agent stops or hits a limit.",
-  "pre_tool_use": {
-    "command": "bash .openhands/hooks/pre-tool-use.sh \"$TOOL_NAME\" \"$TOOL_ARGS\""
-  },
-  "stop": {
-    "command": "bash .openhands/hooks/on-stop.sh"
-  }
+  "pre_tool_use": [
+    {
+      "matcher": "terminal",
+      "hooks": [
+        { "command": "bash .openhands/hooks/pre-tool-use.sh", "timeout": 10 }
+      ]
+    }
+  ],
+  "stop": [
+    {
+      "matcher": "*",
+      "hooks": [
+        { "command": "bash .openhands/hooks/on-stop.sh", "timeout": 60 }
+      ]
+    }
+  ]
 }
