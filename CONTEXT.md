@@ -87,14 +87,17 @@ listings/            — per-property folder tree (gitignored)
 | Method | Path | Auth | Notes |
 |--------|------|------|-------|
 | GET | `/api/health` | Public | |
+| GET | `/api/config` | Public | Client-safe analytics IDs |
+| POST | `/api/chat` | Public (rate-limited) | Website assistant response endpoint |
 | GET | `/api/counties` | Public | All 55 WV counties |
-| GET | `/api/properties` | Public | Filterable: `q`, `county`, `type`, `minPrice`, `maxPrice`, `page`, `limit` |
+| GET | `/api/properties` | Public | Filterable: `q`, `county`, `type`, `minPrice`, `maxPrice`, `minAcres`, `page`, `limit` |
 | GET | `/api/properties/:id` | Public | Also matches by `listing_slug` |
 | POST | `/api/properties` | API Key | |
 | PUT | `/api/properties/:id` | API Key | |
 | DELETE | `/api/properties/:id` | API Key | |
 | GET | `/api/analytics` | Public | |
 | POST | `/api/contacts` | Public | Rate-limited |
+| POST | `/api/leads/37-advent` | Public (rate-limited) | Dedicated lead intake for the 37 Advent listing |
 | GET | `/api/contacts` | API Key | |
 | POST | `/api/properties/generate-description` | Public (rate-limited) | Simple template response, no OpenAI |
 

@@ -103,6 +103,8 @@ Optional integrations:
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/health` | Public | Health check |
+| GET | `/api/config` | Public | Client-safe analytics config |
+| POST | `/api/chat` | Public (rate-limited) | Website assistant chat completion |
 | GET | `/api/counties` | Public | All 55 WV counties |
 | GET | `/api/properties` | Public | Active listings (paginated, filterable) |
 | GET | `/api/properties/:id` | Public | Single property detail |
@@ -111,10 +113,11 @@ Optional integrations:
 | DELETE | `/api/properties/:id` | API Key | Delete property |
 | GET | `/api/analytics` | Public | Aggregate stats |
 | POST | `/api/contacts` | Public | Submit lead inquiry |
+| POST | `/api/leads/37-advent` | Public (rate-limited) | Capture lead form submissions for 37 Advent Dr |
 | GET | `/api/contacts` | API Key | List all leads |
 | POST | `/api/properties/generate-description` | Public (rate-limited) | Quick AI description |
 
-`GET /api/properties` query params: `q`, `county`, `type`, `minPrice`, `maxPrice`, `page`, `limit`
+`GET /api/properties` query params: `q`, `county`, `type`, `minPrice`, `maxPrice`, `minAcres`, `page`, `limit`
 
 ---
 
