@@ -13,20 +13,25 @@ const { generateToken, doubleCsrfProtection } = require('./middleware/csrf');
 
 const BetterSqlite3Store = require('better-sqlite3-session-store')(session);
 const { db }             = require('./db');
-const adminRoutes  = require('./routes/admin');
-const apiRoutes    = require('./routes/api');
-const publicRoutes = require('./routes/public');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
 const PROJECT_ROOT = path.join(__dirname, '..');
+const SESSION_SECRET = process.env.SESSION_SECRET;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const allowedOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+if (!SESSION_SECRET) throw new Error('SESSION_SECRET is required');
+if (!ADMIN_PASSWORD) throw new Error('ADMIN_PASSWORD is required');
+
+const adminRoutes  = require('./routes/admin');
+const apiRoutes    = require('./routes/api');
+const publicRoutes = require('./routes/public');
 
 app.set('trust proxy', 1);
-
-if (process.env.NODE_ENV === 'production') {
-  if (!process.env.ADMIN_PASSWORD) console.warn('[WARN] ADMIN_PASSWORD not set — using insecure default');
-  if (!process.env.SESSION_SECRET)  console.warn('[WARN] SESSION_SECRET not set — using insecure default');
-}
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -42,7 +47,14 @@ app.use(helmet({
     },
   },
 }));
-app.use(cors());
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('CORS origin not allowed'));
+  },
+  credentials: true,
+}));
 
 app.use((req, res, next) => {
   if ((req.hostname || '').startsWith('www.'))
@@ -56,7 +68,7 @@ app.use(express.urlencoded({ extended: true }));
 
 const adminSession = session({
   store: new BetterSqlite3Store({ client: db }),
-  secret: process.env.SESSION_SECRET || 'wvrea-secret-2026',
+  secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -93,6 +105,9 @@ app.use((req, res) => {
 app.use((err, _req, res, _next) => {
   if (err && err.code === 'EBADCSRFTOKEN') {
     return res.status(403).type('text').send('Invalid CSRF token');
+  }
+  if (err && err.message === 'CORS origin not allowed') {
+    return res.status(403).json({ error: 'CORS origin denied' });
   }
   console.error(err);
   res.status(500).json({ error: 'Server error' });
