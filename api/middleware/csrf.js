@@ -1,9 +1,12 @@
 'use strict';
 
 const { doubleCsrf } = require('csrf-csrf');
+const SESSION_SECRET = process.env.SESSION_SECRET;
+
+if (!SESSION_SECRET) throw new Error('SESSION_SECRET is required');
 
 const { generateToken, doubleCsrfProtection } = doubleCsrf({
-  getSecret: () => process.env.SESSION_SECRET,
+  getSecret: () => SESSION_SECRET,
   cookieName: 'csrf_token',
   cookieOptions: {
     sameSite: 'lax',

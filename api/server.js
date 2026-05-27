@@ -9,7 +9,6 @@ const morgan   = require('morgan');
 const session      = require('express-session');
 const cookieParser = require('cookie-parser');
 const path         = require('path');
-const { generateToken, doubleCsrfProtection } = require('./middleware/csrf');
 
 const BetterSqlite3Store = require('better-sqlite3-session-store')(session);
 const { db }             = require('./db');
@@ -26,7 +25,9 @@ const allowedOrigins = (process.env.CORS_ORIGIN || '')
 
 if (!SESSION_SECRET) throw new Error('SESSION_SECRET is required');
 if (!ADMIN_PASSWORD) throw new Error('ADMIN_PASSWORD is required');
+if (allowedOrigins.length === 0) console.warn('[WARN] CORS_ORIGIN is empty; only same-origin and no-origin requests are allowed');
 
+const { generateToken, doubleCsrfProtection } = require('./middleware/csrf');
 const adminRoutes  = require('./routes/admin');
 const apiRoutes    = require('./routes/api');
 const publicRoutes = require('./routes/public');
@@ -47,13 +48,15 @@ app.use(helmet({
     },
   },
 }));
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error('CORS origin not allowed'));
-  },
-  credentials: true,
+app.use(cors((req, callback) => {
+  const origin = req.get('origin');
+  if (!origin) return callback(null, { origin: false, credentials: true });
+
+  const sameOrigin = `${req.protocol}://${req.get('host')}` === origin;
+  if (sameOrigin || allowedOrigins.includes(origin)) {
+    return callback(null, { origin: true, credentials: true });
+  }
+  return callback(new Error('CORS origin not allowed'));
 }));
 
 app.use((req, res, next) => {
