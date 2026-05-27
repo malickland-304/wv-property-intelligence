@@ -49,8 +49,12 @@ FORBIDDEN=(
   # Dependency hygiene: npm install in any form is forbidden (use npm ci)
   "npm install[[:space:]][^-]"
   "npm install$"
+  "npm install([[:space:]]+.*)?[[:space:]]--save([[:space:]]|$)"
+  "npm install([[:space:]]+.*)?[[:space:]]-S([[:space:]]|$)"
   "npm i[[:space:]][^-]"
   "npm i$"
+  "npm i([[:space:]]+.*)?[[:space:]]--save([[:space:]]|$)"
+  "npm i([[:space:]]+.*)?[[:space:]]-S([[:space:]]|$)"
   # Secret exposure — never log or echo production credentials
   "printenv"
   "echo[[:space:]].*SESSION_SECRET"
