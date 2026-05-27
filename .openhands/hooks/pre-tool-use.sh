@@ -46,11 +46,8 @@ FORBIDDEN=(
   # Merge / deploy — supervised only
   "gh pr merge"
   "railway[[:space:]]"
-  # Dependency hygiene: npm install in any form is forbidden (use npm ci)
-  "npm install[[:space:]][^-]"
-  "npm install$"
-  "npm i[[:space:]][^-]"
-  "npm i$"
+  # Dependency hygiene: block any npm install/i invocation (use npm ci)
+  "npm[[:space:]]+(install|i)([[:space:]]|$)"
   "npm install[[:space:]].*--save"
   "npm install[[:space:]].*-S[[:space:]]"
   "npm i[[:space:]].*--save"
