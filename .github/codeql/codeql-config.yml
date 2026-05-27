@@ -1,10 +1,3 @@
-# CodeQL configuration for wv-property-intelligence
-#
-# js/missing-token-validation is excluded because csrf-csrf (doubleCsrfProtection)
-# provides real CSRF protection on all non-login admin routes. CodeQL does not model
-# csrf-csrf as a recognized CSRF middleware library, causing a persistent false positive.
-# Dismissed alerts: #125, #126 (false positive — verified 2026-05-26).
-# If CSRF implementation changes, re-evaluate this exclusion.
-query-filters:
-  - exclude:
-      id: js/missing-token-validation
+# CodeQL configuration for wv-property-intelligence.
+# Note: js/missing-token-validation is suppressed inline in api/server.js at the
+# csrf-csrf middleware callsite to avoid a broad global exclusion.

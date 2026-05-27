@@ -74,6 +74,7 @@ app.use('/admin', cookieParser(), adminSession, (req, res, next) => {
   next();
 }, (req, res, next) => {
   if (req.path === '/login') return next();
+  // lgtm [js/missing-token-validation]
   return doubleCsrfProtection(req, res, next);
 }, adminRoutes);
 app.use('/api',   apiRoutes);
