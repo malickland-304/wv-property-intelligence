@@ -12,7 +12,7 @@
 | Item | Status |
 |------|--------|
 | HEAD (main) | `2d4fffc` (merge of PR #64 — AI control plane bootstrap) |
-| Railway deployment | ✅ confirmed live — smoke PASSED 2026-05-27 |
+| Railway deployment | ✅ confirmed live (`2d4fffc`) — verify in Railway Dashboard → Deployments; smoke PASSED 2026-05-27 |
 | Authenticated smoke | ✅ PASSED (7/7) — 2026-05-27 |
 | npm audit | 0 vulnerabilities (main) |
 | Dependabot | clean |
@@ -63,7 +63,7 @@ Governance layer is live on `main`. Includes:
 2. ✅ Production smoke — PASSED (7/7)
 3. ✅ GitHub branch protection hardened
 4. ✅ `production` GitHub environment locked (reviewer gate, main-only)
-5. ⏳ OpenHands fine-grained GitHub token — provisioned with contents/PR/issues write; no secrets/deploy/admin
+5. ⏳ OpenHands fine-grained GitHub token — `contents: write`, `pull-requests: write`, `issues: write`; all other permissions set to `none`
 6. ⏳ OpenHands executor started (`docker run ...` or `openhands start`)
 7. ⏳ First supervised run — Issue #66 as dry-run task
 
