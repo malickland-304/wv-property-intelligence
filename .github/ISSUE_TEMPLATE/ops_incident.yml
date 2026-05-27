@@ -1,0 +1,58 @@
+name: "Ops Incident"
+description: "Production incident or service degradation"
+title: "[Incident] "
+labels: ["incident"]
+body:
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - P0 — site down or data loss
+        - P1 — major feature broken
+        - P2 — degraded performance
+    validations:
+      required: true
+
+  - type: textarea
+    id: symptom
+    attributes:
+      label: What is broken?
+      description: Exact error, URL, or behavior. Include timestamps if known.
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: User / business impact
+      description: Who is affected? How many? What can't they do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: timeline
+    attributes:
+      label: Timeline
+      placeholder: |
+        HH:MM — first alert / symptom noticed
+        HH:MM — investigation started
+        HH:MM — ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: mitigations
+    attributes:
+      label: Mitigations tried
+      description: What have you already attempted? What did/didn't help?
+    validations:
+      required: false
+
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: Suspected cause
+      description: Recent deploys, dependency changes, traffic spikes, Railway issues.
+    validations:
+      required: false

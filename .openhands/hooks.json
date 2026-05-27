@@ -1,0 +1,18 @@
+{
+  "pre_tool_use": [
+    {
+      "matcher": "terminal",
+      "hooks": [
+        { "command": "bash .openhands/hooks/pre-tool-use.sh", "timeout": 10 }
+      ]
+    }
+  ],
+  "stop": [
+    {
+      "matcher": "*",
+      "hooks": [
+        { "command": "bash .openhands/hooks/on-stop.sh", "timeout": 60 }
+      ]
+    }
+  ]
+}

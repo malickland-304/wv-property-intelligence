@@ -1,0 +1,39 @@
+name: "Feature Request"
+description: "New capability or enhancement"
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Why is this needed? Who benefits?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed solution
+      description: What should be built? Keep it specific.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0 — production broken
+        - P1 — important, next sprint
+        - P2 — nice to have
+        - P3 — someday
+    validations:
+      required: true

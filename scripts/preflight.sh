@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+API_DIR="$ROOT/api"
+PORT_TO_USE="${PREFLIGHT_PORT:-3000}"
+TMP_DIR="$(mktemp -d)"
+APP_LOG="$TMP_DIR/app.log"
+PID=""
+
+cleanup() {
+  if [[ -n "$PID" ]] && kill -0 "$PID" 2>/dev/null; then
+    kill "$PID" 2>/dev/null || true
+    wait "$PID" 2>/dev/null || true
+  fi
+  rm -rf "$TMP_DIR"
+}
+trap cleanup EXIT
+
+cd "$API_DIR"
+
+echo "== Dependency checks =="
+npm ls express better-sqlite3 csrf-csrf >/dev/null
+echo "✓ Runtime dependency tree OK"
+echo
+
+echo "== Syntax checks =="
+node --check server.js
+node --check db.js
+node --check middleware/auth.js
+node --check routes/api.js
+node --check routes/public.js
+node --check routes/admin.js
+echo "✓ Syntax OK"
+echo
+
+echo "== Startup smoke =="
+PORT="$PORT_TO_USE" DATABASE_PATH="$TMP_DIR/preflight.db" NODE_ENV=test API_KEY=preflight-api-key SESSION_SECRET=preflight-session-secret ADMIN_PASSWORD=preflight-admin-password node server.js > "$APP_LOG" 2>&1 &
+PID=$!
+
+for _ in {1..30}; do
+  if ! kill -0 "$PID" 2>/dev/null; then
+    echo "✗ Server failed to start"
+    cat "$APP_LOG"
+    exit 1
+  fi
+  if curl -fsS "http://127.0.0.1:$PORT_TO_USE/api/health" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+
+if ! curl -fsS "http://127.0.0.1:$PORT_TO_USE/api/health" >/dev/null; then
+  echo "✗ Health endpoint did not become ready"
+  cat "$APP_LOG"
+  exit 1
+fi
+echo "✓ Server started"
+echo
+
+echo "== Health endpoint =="
+curl -fsS "http://127.0.0.1:$PORT_TO_USE/api/health" >/dev/null
+echo "✓ Health OK"
+echo
+
+echo "== Property detail API =="
+curl -fsS "http://127.0.0.1:$PORT_TO_USE/api/properties/advent-dr-hampshire-wv" >/dev/null
+echo "✓ Property endpoint OK"
+echo
+
+echo "== Public property page =="
+curl -fsS "http://127.0.0.1:$PORT_TO_USE/properties/advent-dr-hampshire-wv" >/dev/null
+echo "✓ Public property page OK"
+echo
+
+echo "== Shutdown =="
+cleanup
+trap - EXIT
+echo
+echo "PRE-FLIGHT PASSED"
