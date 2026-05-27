@@ -89,6 +89,8 @@ All env vars live in `api/.env`. See [`api/.env.example`](api/.env.example) for 
 Required to run:
 - `SESSION_SECRET` — any long random string
 - `ADMIN_PASSWORD` — admin panel password
+
+Optional security settings:
 - `CORS_ORIGIN` — comma-separated allowlist of trusted cross-origin callers (same-origin requests are always allowed; leave empty to block browser cross-origin requests from other domains)
 
 Optional integrations:
