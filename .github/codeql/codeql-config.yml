@@ -1,3 +1,4 @@
 # CodeQL configuration for wv-property-intelligence.
 # Note: js/missing-token-validation is suppressed inline in api/server.js at the
 # csrf-csrf middleware callsite to avoid a broad global exclusion.
+# Traceability: false-positive alerts #125 and #126 were dismissed on 2026-05-27.
