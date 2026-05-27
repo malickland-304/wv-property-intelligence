@@ -1,0 +1,82 @@
+name: "Security Hardening"
+description: "Vulnerability, security improvement, or hardening task (non-emergency)"
+title: "[Security] "
+labels: ["security"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **For actively exploitable production vulnerabilities:** contact the maintainer
+        directly. This template is for tracked security work that does not require
+        immediate out-of-band response.
+
+        Agents may audit and propose fixes. **No agent may push secrets, modify
+        Railway environment variables, or deploy fixes without human approval.**
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Dependency vulnerability (CVE / npm audit)
+        - Authentication / session
+        - CSRF / XSS / injection
+        - Secret / credential exposure
+        - Access control / authorization
+        - CodeQL / SAST finding
+        - Infrastructure hardening
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Critical — actively exploitable in production now
+        - High — exploitable with some preconditions
+        - Medium — limited impact or requires authenticated access
+        - Low / informational
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: >
+        What is the vulnerability or gap? Where does it exist?
+        Do NOT include actual secrets, passwords, or session tokens here.
+        Use placeholders like <REDACTED>.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence / references
+      description: CVE ID, npm audit output, scanner finding ID, or reproduction steps. Redact sensitive values.
+    validations:
+      required: false
+
+  - type: textarea
+    id: fix
+    attributes:
+      label: Proposed fix
+      description: What should be changed? What is out of scope for this issue?
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] Vulnerability is patched or mitigated
+        - [ ] npm audit shows 0 critical/high vulnerabilities
+        - [ ] No new secrets introduced in code
+        - [ ] preflight passes
+        - [ ] PR opened (no merge without approval)
+    validations:
+      required: false

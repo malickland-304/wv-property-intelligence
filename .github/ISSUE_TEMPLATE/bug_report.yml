@@ -1,0 +1,49 @@
+name: "Bug Report"
+description: "Something is broken in production or locally"
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - Production (malickland.net)
+        - Local development
+        - CI / preflight
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened?
+      description: Describe the bug. Include exact error messages if available.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to /admin/...
+        2. Click...
+        3. See error
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Relevant context
+      description: Logs, error codes, recent deploys, recent PRs merged.
+    validations:
+      required: false

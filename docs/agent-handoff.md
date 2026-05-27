@@ -4,15 +4,17 @@
 
 ---
 
+> **This file reflects canonical production state, not necessarily any agent's local checkout.**
+> Always verify local repo state with `git fetch origin && git status` before acting.
+
 ## Current Production State
 
 | Item | Status |
 |------|--------|
-| HEAD | `18cc6bd4eb833c861e5bc227e9e65bc42e4e1613` |
-| Branch | `main` |
-| Railway deployment | SUCCESS (`d25f759b-4549-4b01-8275-f89d6f09f03a`) |
-| Authenticated smoke | PASS (7/7) |
-| npm audit | 0 vulnerabilities |
+| HEAD (main) | `ed2b977` (`feat(security): replace deprecated csurf with csrf-csrf`) |
+| Railway deployment | DEPLOYING — auto-triggered by merge of `ed2b977`; run smoke after deploy |
+| Authenticated smoke | PENDING — must run `ADMIN_PASSWORD=<pw> ./scripts/smoke-admin.sh` after deploy |
+| npm audit | 0 vulnerabilities (main) |
 | Dependabot | clean |
 | Production test artifacts | none |
 | `API_KEY` in Railway | confirmed present |
@@ -21,33 +23,31 @@
 
 ## Recent Completed Work
 
+- **csurf → csrf-csrf migration** (PR #63, merged 2026-05-27): double-submit cookie CSRF, session-bound, req.csrfToken() polyfill, 0 vulnerabilities
+- AI agent control plane bootstrap (PR #64, open): AGENTS.md, .openhands/hooks.json, issue templates, PR template, npm ci policy
 - Authenticated admin smoke test added (`scripts/smoke-admin.sh`)
-- macOS smoke portability fix
-- Smoke body-handling subshell fix
-- Smoke converted to non-mutating protected POST
-- `EBADCSRFTOKEN` now returns 403
-- `brace-expansion` patched via npm audit fix
-- `cookie` transitive vulnerability contained via `overrides` in `package.json`
+- macOS smoke portability fix; smoke body-handling subshell fix
+- Smoke converted to non-mutating protected POST; `EBADCSRFTOKEN` → 403
+- `brace-expansion` patched via npm audit fix; `cookie` transitive vuln contained
 
 ---
 
 ## Open Work
 
-### Issue #62 — Replace `csurf` with `csrf-csrf`
+### Issue #62 — CLOSED (merged 2026-05-27, PR #63)
 
-**Priority:** P1
+csurf removed. csrf-csrf@^3.2.2 in production. See Recent Completed Work.
 
-**Acceptance criteria:**
-- Remove `csurf` dependency
-- Add `csrf-csrf@^3.2.2` + `cookie-parser` (pin to `^3.2.2` — v4 has breaking API changes)
-- Preserve existing admin auth behavior
-- Preserve `smoke-admin.sh` compatibility (CSRF round-trip must still pass)
-- Update `scripts/preflight.sh` dependency assertion (`npm ls csurf` → `npm ls csrf-csrf`)
-- Remove `overrides.cookie` from `package.json` (no longer needed once `csurf` is gone)
-- Update `server.js` and `middleware/auth.js`
-- Validate with `ADMIN_PASSWORD=<pw> ./scripts/smoke-admin.sh`
-- Deploy to Railway and confirm prod smoke passes
-- **No direct push to `main`** — open a PR
+**Pending owner action:** run `ADMIN_PASSWORD=<pw> ./scripts/smoke-admin.sh` against prod after Railway deploy completes. Must see `PASSED (7/7)`.
+
+### Tech Debt — CodeQL query exclusion (open, low priority)
+
+`.github/codeql/codeql-config.yml` globally excludes `js/missing-token-validation` as a false-positive workaround (csrf-csrf is not in CodeQL's recognized CSRF library list). This is safe while csrf-csrf is in use but broader than ideal. Future work: replace with a narrower per-file suppression or contribute csrf-csrf recognition upstream.
+
+### AI Control Plane Bootstrap (PR #64 — open, awaiting merge)
+
+Branch: `chore/ai-control-plane-bootstrap`
+AGENTS.md, hooks.json, issue templates, PR template, npm ci policy. Review before merging.
 
 **Other deferred:**
 - `leads.js` — not mounted in `server.js`; decide: mount or delete
@@ -58,7 +58,7 @@
 
 ## Guardrails
 
-- **This file reflects canonical production state, not necessarily any agent's local checkout. Verify local repo state (`git status`, `git branch`, `git rev-parse HEAD`) before acting.**
+- **This file reflects canonical production state, not any agent's local checkout.** Verify: `git fetch origin && git status && git rev-parse HEAD`
 - Read this file before acting
 - **Do not commit directly to `main`** unless explicitly approved by the user
 - **Do not mutate production data** during smoke tests
@@ -69,21 +69,36 @@
 - **Do not commit unrelated untracked files.** Always inspect `git status` before staging
 - `git fetch` via SSH may hang in some environments — if it does, verify remote state via the GitHub web UI or switch to HTTPS remote
 
+### OpenHands (Supervised-Only — Permanent)
+
+OpenHands operates in supervised sandboxed mode. Non-negotiable:
+- ❌ No autonomous deploys
+- ❌ No merge authority
+- ❌ No Railway production access
+- ❌ No production secrets in sandbox
+- ❌ No direct `main` push
+- Hard limits: 10 iterations max, 30 minutes max, fail closed
+- Sandbox contains only GitHub repo access — no Railway token, no prod DB, no prod API keys
+
 ---
 
 ## Agent Roles
 
+See `AGENTS.md` for full operating rules, forbidden actions, and workflow.
+
 | Agent | Best for |
 |-------|----------|
+| **ChatGPT** | Orchestration, task routing, QC adjudication |
 | **Claude Code** | Implementation, refactoring, PRs |
-| **Codex** | Validation, ops automation, script hardening |
-| **Gemini** | Architecture review, security analysis |
+| **Codex** | Audit, security review, CI forensics — no mutations |
+| **Gemini** | Architecture critique, threat modeling — no code in active PRs |
+| **OpenHands** | Supervised sandboxed implementation — supervised-only |
 
 ---
 
 ## Key Architecture Notes
 
-- **CSRF:** Currently `csurf@1.11.0` (session-based). Migration to `csrf-csrf` tracked in Issue #62.
+- **CSRF:** `csrf-csrf@^3.2.2` active (PR #63 merged 2026-05-27). Double-submit cookie pattern, `req.csrfToken()` polyfill, session-bound. `csurf` fully removed.
 - **Google APIs:** `api/google.js` uses Node `https` directly — the `googleapis` npm package is NOT a dependency.
 - **Routes:** `/api/properties` and `/api/listings` are alias routes for the same handler. `/properties/:slug` and `/listing/:slug` are both active.
 - **Deploy:** Railway via Dockerfile, branch `main` auto-deploys.

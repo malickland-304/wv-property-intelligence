@@ -1,4 +1,8 @@
-# Security and Correctness Verification Report
+> ⚠️ **HISTORICAL RECORD — 2026-04-05**
+> This report covers PR #25 only and does not reflect current security state.
+> For current security posture, see `docs/agent-handoff.md` and run `cd api && npm audit`.
+
+# Security and Correctness Verification Report (HISTORICAL)
 
 **Date:** 2026-04-05
 **Branch:** claude/fix-api-server-correctness-issues
