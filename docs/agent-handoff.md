@@ -12,11 +12,13 @@
 | Item | Status |
 |------|--------|
 | HEAD (main) | `2d4fffc` (merge of PR #64 — AI control plane bootstrap) |
-| Railway deployment | verify status — two merges since last confirmed deploy (`ed2b977`, `2d4fffc`) |
-| Authenticated smoke | PENDING — owner must run `ADMIN_PASSWORD=<pw> ./scripts/smoke-admin.sh` against prod |
+| Railway deployment | ✅ confirmed live — smoke PASSED 2026-05-27 |
+| Authenticated smoke | ✅ PASSED (7/7) — 2026-05-27 |
 | npm audit | 0 vulnerabilities (main) |
 | Dependabot | clean |
-| Production test artifacts | none |
+| GitHub branch protection | ✅ hardened — required checks, review approval, stale dismissal, conversation resolution, admin enforcement |
+| GitHub `production` environment | ✅ locked — reviewer gate, admin bypass disabled, `main`-only deploys |
+| OpenHands executor | ⏳ NOT LIVE — awaiting token provisioning and runtime start |
 | `API_KEY` in Railway | confirmed present |
 
 ---
@@ -38,7 +40,7 @@
 
 csurf removed. csrf-csrf@^3.2.2 in production. See Recent Completed Work.
 
-**Pending owner action:** run `ADMIN_PASSWORD=<pw> ./scripts/smoke-admin.sh` against prod after Railway deploy completes. Must see `PASSED (7/7)`.
+**Smoke result:** ✅ PASSED (7/7) — 2026-05-27. Production is clean.
 
 ### Tech Debt — CodeQL query exclusion (open, low priority)
 
@@ -56,12 +58,16 @@ Governance layer is live on `main`. Includes:
 - `.github/pull_request_template.md` — QC checklist
 - `.github/ISSUE_TEMPLATE/` — AI task templates
 
-**OpenHands is still NOT LIVE.** Owner must complete before first supervised run:
+**OpenHands is NOT YET LIVE.** Pre-flight checklist status (2026-05-27):
 1. ✅ PR #64 merged
-2. ⏳ Production smoke — `ADMIN_PASSWORD=<pw> ./scripts/smoke-admin.sh` → must see `PASSED (7/7)`
-3. ⏳ GitHub branch protection on `main` (see AGENTS.md Required Manual GitHub Settings)
-4. ⏳ Create `production` GitHub environment (required reviewer: owner)
-5. ⏳ Lock OpenHands token: contents/PR/issues write only; no secrets/deploy/admin
+2. ✅ Production smoke — PASSED (7/7)
+3. ✅ GitHub branch protection hardened
+4. ✅ `production` GitHub environment locked (reviewer gate, main-only)
+5. ⏳ OpenHands fine-grained GitHub token — provisioned with contents/PR/issues write; no secrets/deploy/admin
+6. ⏳ OpenHands executor started (`docker run ...` or `openhands start`)
+7. ⏳ First supervised run — Issue #66 as dry-run task
+
+**Runtime activation** is the only remaining blocker. All governance controls are in place.
 
 ### Issue #66 — npm install --save not yet blocked (low priority, safe to defer)
 
