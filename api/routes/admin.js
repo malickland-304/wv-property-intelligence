@@ -17,7 +17,10 @@ const { generateListingContent } = require('../ai-generator');
 let sharp;
 try { sharp = require('sharp'); } catch (_) { sharp = null; }
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'wvrea2026';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+if (!ADMIN_PASSWORD) {
+  throw new Error('ADMIN_PASSWORD must be set');
+}
 
 // ── Multer ────────────────────────────────────────────────
 const storage = multer.diskStorage({
