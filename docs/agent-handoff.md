@@ -11,53 +11,43 @@
 
 | Item | Status |
 |------|--------|
-| HEAD (main) | `9330fe5` (`docs: add agent handoff source of truth`) |
-| Railway deployment | SUCCESS — running `18cc6bd` + smoke patches |
-| Authenticated smoke | PASS (7/7) on deployed revision |
+| HEAD (main) | `ed2b977` (`feat(security): replace deprecated csurf with csrf-csrf`) |
+| Railway deployment | DEPLOYING — auto-triggered by merge of `ed2b977`; run smoke after deploy |
+| Authenticated smoke | PENDING — must run `ADMIN_PASSWORD=<pw> ./scripts/smoke-admin.sh` after deploy |
 | npm audit | 0 vulnerabilities (main) |
 | Dependabot | clean |
 | Production test artifacts | none |
 | `API_KEY` in Railway | confirmed present |
-| Active PR | #63 `feature/replace-csurf` — csurf → csrf-csrf migration (awaiting CodeQL gate) |
 
 ---
 
 ## Recent Completed Work
 
+- **csurf → csrf-csrf migration** (PR #63, merged 2026-05-27): double-submit cookie CSRF, session-bound, req.csrfToken() polyfill, 0 vulnerabilities
+- AI agent control plane bootstrap (PR #64, open): AGENTS.md, .openhands/hooks.json, issue templates, PR template, npm ci policy
 - Authenticated admin smoke test added (`scripts/smoke-admin.sh`)
-- macOS smoke portability fix
-- Smoke body-handling subshell fix
-- Smoke converted to non-mutating protected POST
-- `EBADCSRFTOKEN` now returns 403
-- `brace-expansion` patched via npm audit fix
-- `cookie` transitive vulnerability contained via `overrides` in `package.json`
+- macOS smoke portability fix; smoke body-handling subshell fix
+- Smoke converted to non-mutating protected POST; `EBADCSRFTOKEN` → 403
+- `brace-expansion` patched via npm audit fix; `cookie` transitive vuln contained
 
 ---
 
 ## Open Work
 
-### Issue #62 — Replace `csurf` with `csrf-csrf` — IN PROGRESS (PR #63)
+### Issue #62 — CLOSED (merged 2026-05-27, PR #63)
 
-**Priority:** P1 | **Branch:** `feature/replace-csurf` | **PR:** #63
+csurf removed. csrf-csrf@^3.2.2 in production. See Recent Completed Work.
 
-**Status:** Implementation complete. CodeQL false-positive dismissed (alert #126, `js/missing-token-validation`). Awaiting CodeQL check to pass after dismissal + retrigger commit.
+**Pending owner action:** run `ADMIN_PASSWORD=<pw> ./scripts/smoke-admin.sh` against prod after Railway deploy completes. Must see `PASSED (7/7)`.
 
-**What was done:**
-- Removed `csurf` → added `csrf-csrf@^3.2.2` + `cookie-parser`
-- Double-submit cookie pattern via `doubleCsrfProtection`
-- `req.csrfToken()` polyfill preserves `auth.js` and `admin.js` compatibility without modifying them
-- `getSessionIdentifier: (req) => req.sessionID` binds tokens to session
-- Production guard: throws if `SESSION_SECRET` unset in production
-- `cookieParser` scoped to `/admin` chain only
-- Multipart body guard: `(req.body && req.body._csrf) || req.headers['x-csrf-token']`
-- `preflight.sh` updated: `npm ls csrf-csrf`
-- `overrides.cookie` removed from `package.json`
+### Tech Debt — CodeQL query exclusion (open, low priority)
 
-**Acceptance criteria remaining:**
-- [ ] CodeQL required check passes
-- [ ] Human merge approval
-- [ ] Railway deploy
-- [ ] `ADMIN_PASSWORD=<pw> ./scripts/smoke-admin.sh` passes on production
+`.github/codeql/codeql-config.yml` globally excludes `js/missing-token-validation` as a false-positive workaround (csrf-csrf is not in CodeQL's recognized CSRF library list). This is safe while csrf-csrf is in use but broader than ideal. Future work: replace with a narrower per-file suppression or contribute csrf-csrf recognition upstream.
+
+### AI Control Plane Bootstrap (PR #64 — open, awaiting merge)
+
+Branch: `chore/ai-control-plane-bootstrap`
+AGENTS.md, hooks.json, issue templates, PR template, npm ci policy. Review before merging.
 
 **Other deferred:**
 - `leads.js` — not mounted in `server.js`; decide: mount or delete
