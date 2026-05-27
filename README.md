@@ -89,7 +89,7 @@ All env vars live in `api/.env`. See [`api/.env.example`](api/.env.example) for 
 Required to run:
 - `SESSION_SECRET` — any long random string
 - `ADMIN_PASSWORD` — admin panel password
-- `CORS_ORIGIN` — comma-separated allowlist of trusted cross-origin callers (same-origin requests are always allowed; leave empty to block browser cross-origin access)
+- `CORS_ORIGIN` — comma-separated allowlist of trusted cross-origin callers (same-origin requests are always allowed; leave empty to block browser cross-origin requests from other domains)
 
 Optional integrations:
 - **Gmail notifications:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `GOOGLE_GMAIL_USER`, `NOTIFICATION_EMAIL`

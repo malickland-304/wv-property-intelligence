@@ -21,7 +21,18 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const allowedOrigins = (process.env.CORS_ORIGIN || '')
   .split(',')
   .map((origin) => origin.trim())
-  .filter(Boolean);
+  .filter(Boolean)
+  .map((origin) => {
+    try {
+      const parsed = new URL(origin);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw new Error('unsupported protocol');
+      }
+      return parsed.origin;
+    } catch (_err) {
+      throw new Error(`Invalid CORS_ORIGIN entry: ${origin}`);
+    }
+  });
 
 if (!SESSION_SECRET) throw new Error('SESSION_SECRET is required');
 if (!ADMIN_PASSWORD) throw new Error('ADMIN_PASSWORD is required');
@@ -52,6 +63,7 @@ app.use(cors((req, callback) => {
   const origin = req.get('origin');
   if (!origin) return callback(null, { origin: false, credentials: true });
 
+  // trust proxy is enabled, so req.protocol/host reflect trusted upstream headers in deployment.
   const sameOrigin = `${req.protocol}://${req.get('host')}` === origin;
   if (sameOrigin || allowedOrigins.includes(origin)) {
     return callback(null, { origin: true, credentials: true });
