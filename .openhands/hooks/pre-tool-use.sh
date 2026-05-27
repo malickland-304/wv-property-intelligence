@@ -46,15 +46,8 @@ FORBIDDEN=(
   # Merge / deploy — supervised only
   "gh pr merge"
   "railway[[:space:]]"
-  # Dependency hygiene: npm install in any form is forbidden (use npm ci)
-  "npm install[[:space:]][^-]"
-  "npm install$"
-  "npm install([[:space:]]+.*)?[[:space:]]--save([[:space:]]|$)"
-  "npm install([[:space:]]+.*)?[[:space:]]-S([[:space:]]|$)"
-  "npm i([[:space:]]+[^-]|$)"
-  "npm i([[:space:]]|$)"
-  "npm i([[:space:]]|$)([[:space:]]+.*)?[[:space:]]--save([[:space:]]|$)"
-  "npm i([[:space:]]|$)([[:space:]]+.*)?[[:space:]]-S([[:space:]]|$)"
+  # Dependency hygiene: block any npm install/i invocation (use npm ci)
+  "npm[[:space:]]+(install|i)([[:space:]]|$)"
   # Secret exposure — never log or echo production credentials
   "printenv"
   "echo[[:space:]].*SESSION_SECRET"
