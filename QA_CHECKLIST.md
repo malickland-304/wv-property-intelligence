@@ -18,7 +18,7 @@
 - [ ] `node tests/verify-security-fixes.test.js` — exits 0 (all tests pass)
 
 ### Preflight (Required)
-- [ ] `bash scripts/preflight.sh` — all checks pass (starts server, hits endpoints, validates CSRF, auth redirect)
+- [ ] `bash scripts/preflight.sh` — all checks pass (dependency check, syntax check, server startup, public endpoint smoke)
 
 ### Code Review (Self-Review)
 - [ ] No hardcoded secrets, tokens, or credentials anywhere in the diff

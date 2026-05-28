@@ -221,3 +221,31 @@ Single targeted fix: replace four fragile exact-string .includes() checks in the
 
 ### Recommended Next Task
 All substantive findings now addressed. Phil: verify this commit, resolve review threads, obtain approving review, merge PR #73.
+
+---
+
+## 2026-05-28 (session 8 — documentation truth) — Claude Code (Sonnet 4.6)
+
+### Objective
+Two final documentation-truth corrections on PR #73. Authorized: QA_CHECKLIST.md, AGENTS.md, WORK_LOG.md. No test files, no runtime files, no scripts.
+
+### Changes Made
+- `QA_CHECKLIST.md` — removed false claim that `scripts/preflight.sh` "validates CSRF, auth redirect"; replaced with accurate description: "dependency check, syntax check, server startup, public endpoint smoke" — consistent with corrected AGENTS.md wording from session 5
+- `AGENTS.md` — added `GOOGLE_GMAIL_USER` to the Google (Drive + Gmail) environment-variable list; confirmed by reading `api/google.js` which documents and consumes this variable: `sendContactEmail()` returns without sending when `GOOGLE_GMAIL_USER` is absent
+
+### Verification (Truthfulness Rule)
+- Command: `git diff --name-only` → Result: AGENTS.md, QA_CHECKLIST.md only
+- Command: `git status --short --branch` → Result: on chore/governance-overhaul-2026-05-27, 2 modified files
+- Tests not re-run (no test files changed; last run was 48/48 at HEAD 58db14f)
+
+### Security Notes
+- No functional code, test, script, or deployment files changed
+- GOOGLE_GMAIL_USER addition is documentation only; does not change how the variable is used in runtime
+
+### Remaining Risks
+1. **BLOCKER (merge) — 0 human approvals**: requires separate authorized reviewer
+2. **BLOCKER (merge) — unresolved review threads**: Phil must resolve in GitHub UI
+3. **ADMIN — PR description stale**: still reads 42/42; Phil should update to 48/48 before requesting approving review
+
+### Recommended Next Task
+Phil: update PR description (42/42 → 48/48), resolve review threads, obtain approving review, merge PR #73.

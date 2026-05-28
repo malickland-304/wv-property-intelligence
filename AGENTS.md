@@ -214,6 +214,7 @@ Set in Railway. Do not hardcode, echo, print, or modify:
 - `GOOGLE_CLIENT_SECRET`
 - `GOOGLE_REFRESH_TOKEN`
 - `GOOGLE_DRIVE_FOLDER_ID`
+- `GOOGLE_GMAIL_USER`
 
 **Email (Resend — primary path):**
 - `RESEND_API_KEY`
