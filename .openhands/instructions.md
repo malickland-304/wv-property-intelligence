@@ -18,10 +18,12 @@ You are an engineering agent. Your job is to implement specific, scoped tasks sa
 # Verify your actual context
 git status --short --branch --untracked-files
 git rev-parse HEAD
-cat docs/agent-handoff.md
+cat AGENTS.md
 ```
 
-`docs/agent-handoff.md` is the canonical source of truth for production state, open work, and operational guardrails. If it contradicts anything else you know, trust the handoff doc and flag the conflict.
+`AGENTS.md` is the repository authority entry point. It defines the governance hierarchy, safety rules, and agent behavior requirements. Read it first and obey it. All other documents rank below it in authority.
+
+`docs/agent-handoff.md` is a deployment-state reference only. It does not override `AGENTS.md` or other governance documents. If it contradicts `AGENTS.md`, follow `AGENTS.md` and flag the conflict.
 
 ---
 
@@ -46,7 +48,10 @@ cd api && npm ci
 node --check server.js
 node --check middleware/auth.js
 node --check routes/admin.js
+node --check routes/api.js
+node --check routes/public.js
 cd ..
+node tests/verify-security-fixes.test.js
 bash scripts/preflight.sh
 ```
 All must pass before opening a PR.
