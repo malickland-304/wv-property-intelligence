@@ -279,3 +279,39 @@ Three final documentation consistency corrections on PR #73 branch. Authorized: 
 
 ### Recommended Next Task
 Phil: update PR description (42/42 → 48/48), resolve all addressed review threads in GitHub UI, obtain approving review from separate authorized account, merge PR #73.
+
+---
+
+## 2026-05-28 — Claude Code (Sonnet 4.6) — fix/notification-observability
+
+### Objective
+Add structured observability to notification provider paths — startup readiness logging and per-call skip warnings — so silent notification failures produce visible log output. No runtime behavior changes, no schema changes, no new dependencies.
+
+### Changes Made
+- `api/server.js` — added startup readiness check (Phil's exact design): logs `[Startup] Gmail configured: <bool>` and `[Startup] Resend configured: <bool>` on every startup; emits `[WARN] No outbound notification provider configured` when both are absent
+- `api/google.js` — replaced two silent `return` statements in `sendContactEmail()` with structured `console.warn()` calls: one for missing `GOOGLE_GMAIL_USER` / `NOTIFICATION_EMAIL`, one for OAuth token unavailability
+- `api/services/email.js` — added `console.warn()` when `NOTIFICATION_EMAIL` absent; added `console.warn()` when `RESEND_API_KEY` absent and falling through to Gmail OAuth
+- `api/services/twilioService.js` — no change; existing `console.error` on package-unavailable and send-failure is appropriate for an intentionally feature-flagged service
+- `SECURITY.md` — added operational security section documenting that `railway variables` CLI exposes all secret values verbatim; directs all operators to use Railway dashboard instead
+
+### Verification (Truthfulness Rule)
+- Command: `cd api && npm ci` → Result: PASSED (0 vulnerabilities)
+- Command: `node --check api/server.js api/middleware/auth.js api/routes/admin.js api/routes/api.js api/routes/public.js api/google.js api/services/email.js api/services/twilioService.js` → Result: PASSED (ALL SYNTAX OK)
+- Command: `node tests/verify-security-fixes.test.js` → Result: PASSED (48/48)
+- Command: `bash scripts/preflight.sh` → Result: PASSED (PRE-FLIGHT PASSED)
+- Command: `cd api && npm audit` → Result: PASSED (0 vulnerabilities)
+
+### Security Notes
+- No secrets referenced or printed; no auth, CSRF, or session logic changed
+- All changes are additive log statements only
+- `console.warn` on missing credentials is safe — outputs config state, not secret values
+
+### Remaining Risks
+1. **Contact form uses `google.js/sendContactEmail` directly** (`api/routes/api.js` line 107) — Resend is NOT in this call path. Adding `RESEND_API_KEY` to Railway will make `[Startup] Resend configured: true` log, but the contact form notification will still fail silently because it bypasses `services/email.js` entirely. A follow-on PR is needed to route `POST /api/contacts` through `services/email.js/sendLeadNotification` so Resend is tried first. This is a behavior change and requires separate authorization.
+2. **Gmail OAuth remains unconfigured** — 5 variables required; deferred per Phil's decision 2026-05-28
+3. **`leads.js` unmounted** — `GOOGLE_GMAIL_USER` absence warn in `google.js` will fire if `leads.js` is ever mounted without Gmail credentials
+
+### Recommended Next Task
+1. (Phil) Add `RESEND_API_KEY` to Railway → redeploy → verify `[Startup] Resend configured: true` in Railway logs
+2. (Phil) Verify live contact form submission delivers notification email
+3. (Phil, separate authorization required) Route `POST /api/contacts` through `services/email.js` so Resend is the active path for contact form notifications

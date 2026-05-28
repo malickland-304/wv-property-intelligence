@@ -87,7 +87,10 @@ function buildLeadHtml(contact, property) {
 // ── Main export ───────────────────────────────────────────
 async function sendLeadNotification(contact, property) {
   const to = process.env.NOTIFICATION_EMAIL;
-  if (!to) return;
+  if (!to) {
+    console.warn('[email] sendLeadNotification skipped: NOTIFICATION_EMAIL not configured');
+    return;
+  }
 
   const propLabel = property ? ` — ${property.address || property.id}` : '';
   const subject   = `🏡 New Lead: ${contact.name}${propLabel}`;
@@ -105,7 +108,10 @@ async function sendLeadNotification(contact, property) {
     }
   }
 
-  // Path 2: Gmail OAuth (existing google.js flow)
+  // Path 2: Gmail OAuth fallback
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('[email] RESEND_API_KEY not configured — attempting Gmail OAuth fallback');
+  }
   try {
     const { sendContactEmail } = require('../google');
     await sendContactEmail(contact, property);

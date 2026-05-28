@@ -28,6 +28,18 @@ if (process.env.NODE_ENV === 'production') {
   if (!process.env.SESSION_SECRET)  console.warn('[WARN] SESSION_SECRET not set — using insecure default');
 }
 
+const gmailConfigured =
+  Boolean(process.env.GOOGLE_GMAIL_USER) &&
+  Boolean(process.env.GOOGLE_CLIENT_ID) &&
+  Boolean(process.env.GOOGLE_CLIENT_SECRET) &&
+  Boolean(process.env.GOOGLE_REFRESH_TOKEN);
+const resendConfigured = Boolean(process.env.RESEND_API_KEY);
+console.log(`[Startup] Gmail configured: ${gmailConfigured}`);
+console.log(`[Startup] Resend configured: ${resendConfigured}`);
+if (!gmailConfigured && !resendConfigured) {
+  console.warn("[WARN] No outbound notification provider configured");
+}
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
