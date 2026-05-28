@@ -320,11 +320,13 @@ test('api/google.js does not import the googleapis SDK', () => {
 });
 
 test('api/google.js uses raw HTTPS for Gmail API calls', () => {
+  // lgtm[js/incomplete-url-scheme-check] -- checks source code text, not a user URL
   assert(googleJsCode.includes('gmail.googleapis.com'),
     'api/google.js should call gmail.googleapis.com directly via HTTPS');
 });
 
 test('api/google.js uses raw HTTPS for Google Drive calls', () => {
+  // lgtm[js/incomplete-url-scheme-check] -- checks source code text, not a user URL
   assert(googleJsCode.includes('www.googleapis.com'),
     'api/google.js should call www.googleapis.com directly via HTTPS for Drive');
 });
