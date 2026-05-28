@@ -1,6 +1,6 @@
 # PROJECT_STATE.md — Malickland 2.0
 > Last verified: 2026-05-27 | Verified by: Claude Code audit
-> Canonical source: `docs/agent-handoff.md` (production state) — this file covers product completeness
+> This file covers current product completeness and known gaps. For production deployment state, see `docs/agent-handoff.md` (deployment-state reference only — not authoritative per AGENTS.md).
 
 ---
 

@@ -114,18 +114,28 @@ test('Property detail route is registered in routes/api.js', () => {
 });
 
 test('Property detail endpoint has status=active guard', () => {
+  const fnStart = apiRoutesCode.indexOf('function sendPropertyDetail(');
+  assert(fnStart !== -1, 'sendPropertyDetail function not found in routes/api.js');
+  const fnEnd = apiRoutesCode.indexOf('\nrouter.get(', fnStart);
+  const fnBody = fnEnd !== -1 ? apiRoutesCode.slice(fnStart, fnEnd) : apiRoutesCode.slice(fnStart, fnStart + 600);
   const hasStatusGuard =
-    apiRoutesCode.includes("p.status='active'") ||
-    apiRoutesCode.includes('p.status="active"') ||
-    apiRoutesCode.includes("status = 'active'") ||
-    apiRoutesCode.includes('status="active"');
+    fnBody.includes("p.status='active'") ||
+    fnBody.includes('p.status="active"') ||
+    fnBody.includes("status='active'") ||
+    fnBody.includes('status="active"');
   assert(hasStatusGuard,
-    "Missing status='active' filter in routes/api.js");
+    "Missing status='active' filter in sendPropertyDetail in routes/api.js");
 });
 
 test('Status guard is in SQL WHERE clause', () => {
-  const whereMatch = apiRoutesCode.match(/WHERE[\s\S]{0,200}status[='"]/i);
-  assert(whereMatch, 'status filter should appear in a SQL WHERE clause in routes/api.js');
+  const fnStart = apiRoutesCode.indexOf('function sendPropertyDetail(');
+  assert(fnStart !== -1, 'sendPropertyDetail function not found in routes/api.js');
+  const fnEnd = apiRoutesCode.indexOf('\nrouter.get(', fnStart);
+  const fnBody = fnEnd !== -1 ? apiRoutesCode.slice(fnStart, fnEnd) : apiRoutesCode.slice(fnStart, fnStart + 600);
+  assert(
+    /WHERE[\s\S]{0,300}status\s*=\s*'active'/i.test(fnBody),
+    "status='active' filter should appear in sendPropertyDetail's SQL WHERE clause"
+  );
 });
 
 // ============================================================

@@ -12,7 +12,7 @@ All agents treat repository coordination documents as authoritative. In conflict
 
 ```
 1. AGENTS.md              — agent behavior rules (this file)
-2. SECURITY.md            — security requirements, threat model
+2. SECURITY.md            — security policy, vulnerability reporting, scope
 3. ARCHITECTURE.md        — system design, constraints, stability rules
 4. DECISIONS.md           — recorded technical decisions
 5. TASKS.md               — prioritized backlog
