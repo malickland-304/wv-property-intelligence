@@ -249,3 +249,33 @@ Two final documentation-truth corrections on PR #73. Authorized: QA_CHECKLIST.md
 
 ### Recommended Next Task
 Phil: update PR description (42/42 → 48/48), resolve review threads, obtain approving review, merge PR #73.
+
+---
+
+## 2026-05-28 (session 9 — documentation consistency) — Claude Code (Sonnet 4.6)
+
+### Objective
+Three final documentation consistency corrections on PR #73 branch. Authorized: ARCHITECTURE.md, AGENTS.md, WORK_LOG.md. No test files, no runtime files, no scripts.
+
+### Changes Made
+- `ARCHITECTURE.md` — Correction 1: fixed directory tree entry for `scripts/preflight.sh` from "Full behavioral gate (start, health, auth, CSRF)" to "Dependency/syntax/startup/public endpoint smoke gate" — now consistent with AGENTS.md (session 5) and QA_CHECKLIST.md (session 8)
+- `ARCHITECTURE.md` — Correction 3: clarified `/api/*` route-auth section: changed "Write routes require requireApiKey + apiWriteRateLimit" to "CRUD write routes require requireApiKey + apiWriteRateLimit" and added explicit exception statement; updated `POST /api/properties/generate-description` line to document it is a public rate-limited exception (generateDescRateLimit only; no requireApiKey) — reflects current live route code, not a new permission grant
+- `AGENTS.md` — Correction 2: fixed step 4 of Standard Feature Workflow: changed "Codex audits PR → findings appended to WORK_LOG.md" to "Codex audits PR → findings reported for Phil or implementing agent to record if needed" — resolves contradiction between Codex role (Forbidden: Any repo mutation, commits) and workflow step that told Codex to append to WORK_LOG.md
+
+### Verification (Truthfulness Rule)
+- Command: `git diff --name-only` → Result: AGENTS.md, ARCHITECTURE.md only
+- Command: `git status --short --branch` → Result: on chore/governance-overhaul-2026-05-27, 2 modified files
+- Spot-checked: `preflight.sh` line 84, `generate-description` line 152, Codex step 4 line 135 — all confirmed correct
+- Tests not re-run (no test files changed; last run was 48/48 at HEAD 58db14f)
+
+### Security Notes
+- No runtime code, tests, scripts, or deployment config changed
+- `generate-description` exception is documentation of existing behavior only; no new permission granted
+
+### Remaining Risks
+1. **BLOCKER (merge) — 0 human approvals**: requires separate authorized reviewer
+2. **BLOCKER (merge) — unresolved review threads**: Phil must resolve in GitHub UI
+3. **ADMIN — PR description stale**: still reads 42/42; update to 48/48 before requesting approval
+
+### Recommended Next Task
+Phil: update PR description (42/42 → 48/48), resolve all addressed review threads in GitHub UI, obtain approving review from separate authorized account, merge PR #73.

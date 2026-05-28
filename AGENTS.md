@@ -132,7 +132,7 @@ OpenHands operates in **supervised sandboxed mode only**. These are permanent co
 1. Task defined → TASKS.md entry created (with acceptance criteria)
 2. ChatGPT delivers spec for complex features (schema, contracts, state machine)
 3. OpenHands or Claude Code implements → feature branch
-4. Codex audits PR → findings appended to WORK_LOG.md
+4. Codex audits PR → findings reported for Phil or implementing agent to record if needed
 5. Gemini challenges if architecture/security significant → appended to WORK_LOG.md
 6. Conflict resolution: repository docs decide; safer path wins
 7. All CI checks pass → **Phil Malick** approves PR merge

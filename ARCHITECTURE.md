@@ -81,7 +81,7 @@ wv-property-intelligence/
 │       ├── photos/compressed/
 │       └── photos/mls/
 ├── scripts/
-│   ├── preflight.sh            ← Full behavioral gate (start, health, auth, CSRF)
+│   ├── preflight.sh            ← Dependency/syntax/startup/public endpoint smoke gate
 │   ├── smoke-prod.sh           ← Read-only prod smoke
 │   ├── smoke-admin.sh          ← Authenticated admin CSRF smoke
 │   └── check-env.sh            ← Validates required env vars
@@ -137,7 +137,7 @@ Most routes require `requireAuth`. Exceptions: `/admin/login` (GET/POST) and `/a
 - `POST /admin/ai/:id` — generate AI marketing content
 
 ### /api/* (routes/api.js)
-Public read routes use `publicReadRateLimit`. Write routes require `requireApiKey` + `apiWriteRateLimit`.
+Public read routes use `publicReadRateLimit`. CRUD write routes require `requireApiKey` + `apiWriteRateLimit`. Exception: the AI description route is public and rate-limited only (see below).
 - `GET /api/health`
 - `GET /api/config`
 - `GET /api/counties`
@@ -149,7 +149,7 @@ Public read routes use `publicReadRateLimit`. Write routes require `requireApiKe
 - `POST /api/properties` — create (API-key)
 - `PUT /api/properties/:id` — update (API-key)
 - `DELETE /api/properties/:id` — delete (API-key)
-- `POST /api/properties/generate-description` — AI description (generateDescRateLimit)
+- `POST /api/properties/generate-description` — AI description (generateDescRateLimit only; no requireApiKey — public rate-limited exception)
 
 ### /* (routes/public.js)
 - `GET /robots.txt`
