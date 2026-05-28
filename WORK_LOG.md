@@ -69,4 +69,37 @@ Fix broken test suite (14+ failing tests). Update test file to check actual code
 **Decide leads.js fate.** Options: (A) implement `services/googleSheets.js` stub + add twilio dependency with human approval, or (B) delete leads.js and its service dependencies. This unblocks the leads feature decision without breaking anything. Requires ChatGPT spec decision first.
 
 ---
+## 2026-05-27 (session 3) — Claude Code (Sonnet 4.6)
+
+### Objective
+PR #73 correction pass: fix documentation accuracy issues and eliminate CodeQL false-positive in test suite. Authorized scope: 5 files only.
+
+### Changes Made
+- `tests/verify-security-fixes.test.js` — added 2 escapeHtml coverage tests (double quotes `&quot`, single quotes `&#39`/`&apos`) with proper assert guard; added `router.post('/ai/:id'` to CSRF mutatingRoutes array (confirmed in admin.js:563); rewrote Suite 7 Gmail/Drive tests using regex `.test()` on `hostname:` property pattern instead of `.includes()` on hostname string — eliminates CodeQL `js/incomplete-url-scheme-check` false positive; removed ineffective `lgtm` comments; suite now 44/44 (was 42/42)
+- `AGENTS.md` — named Phil Malick explicitly as approval authority in workflow steps 3, 7, 8 (was generic "human")
+- `ARCHITECTURE.md` — fixed admin auth docs (login/logout intentionally public, not covered by requireAuth); fixed /api/contacts auth table contradiction (POST public via contactsRateLimit only, GET protected by requireApiKey); added Data Authority section (Google Drive = documents/photos/media, SQLite = structured data); added Cloudflare as DNS/SSL/security layer in Deployment Architecture section
+- `PROJECT_STATE.md` — replaced stale "CRITICAL — test suite broken (14+)" entry with accurate status (PR #73 fixes to 42/42 on branch, pending merge); updated Known Bugs table
+- `QA_CHECKLIST.md` — corrected smoke-prod.sh invocation: `bash scripts/smoke-prod.sh <BASE_URL>` (was missing required positional arg; confirmed from scripts/smoke-prod.sh:4)
+
+### Verification (Truthfulness Rule)
+- Command: `node tests/verify-security-fixes.test.js` → Result: PASSED — 44/44 tests pass
+- Command: `git diff --name-only HEAD~1` → Result: exactly 5 authorized files (AGENTS.md, ARCHITECTURE.md, PROJECT_STATE.md, QA_CHECKLIST.md, tests/verify-security-fixes.test.js)
+- Command: `git push origin chore/governance-overhaul-2026-05-27` → Result: PUSHED (d0187b9)
+- CI gate results: PENDING at time of WORK_LOG entry; CodeQL, Semgrep, preflight, validate-api-docs, CodeScan all queued
+
+### Security Notes
+- No functional code changes — documentation and tests only
+- CodeQL fix is a test-code rewrite (regex vs .includes), not a suppression rule change
+- `.github/codeql/codeql-config.yml` NOT modified (per user directive)
+
+### Remaining Risks
+1. **BLOCKER (merge) — 0 human approvals**: enforce_admins: true; PR author is malickland-304 (cannot self-approve); requires a second GitHub account with write access to approve
+2. **BLOCKER (merge) — review threads**: 16 bot-generated review threads must be resolved before merge (required_conversation_resolution: true)
+3. **BLOCKER (merge) — CodeQL GHAS result**: previous lgtm-based fix was ineffective; regex rewrite pushed in this session is the correct fix — result pending CI completion
+4. **HIGH — leads.js unmounted**: decision still needed (implement googleSheets.js + add twilio, or delete)
+5. **MEDIUM — services layer undocumented**: docs/agent-handoff.md not yet updated for email.js, twilioService.js, leadFollowupWorker.js
+
+### Recommended Next Task
+Monitor CodeQL CI result on PR #73. If GHAS passes, the only remaining merge blockers are the review threads and Phil's approving review. Phil reviews and approves via GitHub UI — Claude cannot do this.
+
 <!-- New entries go below this line. Append; never edit prior entries. -->
