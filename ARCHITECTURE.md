@@ -122,7 +122,7 @@ server.js
 ```
 
 ### /admin/* (routes/admin.js)
-All routes require `requireAuth`. Mutating routes additionally require `requireCsrf` and `adminActionRateLimit`.
+Most routes require `requireAuth`. Exceptions: `/admin/login` (GET/POST) and `/admin/logout` (GET) are intentionally public — they handle unauthenticated entry. Mutating routes additionally require `requireCsrf` and `adminActionRateLimit`.
 - `GET /admin/` — listing index
 - `GET/POST /admin/login` — session auth
 - `GET /admin/new` — new listing form
@@ -163,13 +163,16 @@ Lead capture routes. Requires missing `services/googleSheets.js` and `twilio` pa
 
 ## Authentication Model
 
-| Path | Method |
-|------|--------|
-| `/admin/*` | Session cookie (`express-session`, `SESSION_SECRET`) |
-| `/api/contacts`, `/api/properties` (GET, public) | None — public |
-| `/api/contacts` (GET), `/api/properties` (POST/PUT/DELETE) | Bearer API key (`API_KEY` env var) |
+| Path | Auth |
+|------|------|
+| `/admin/*` (except `/admin/login`, `/admin/logout`) | Session cookie (`express-session`, `SESSION_SECRET`) |
+| `/admin/login` (GET/POST), `/admin/logout` (GET) | None — intentionally public |
+| `POST /api/contacts` | None — public (contactsRateLimit only) |
+| `GET /api/contacts` | Bearer API key (`API_KEY` env var) |
+| `GET /api/properties`, `GET /api/listings`, and other public read routes | None — public (publicReadRateLimit) |
+| `POST /api/properties`, `PUT /api/properties/:id`, `DELETE /api/properties/:id` | Bearer API key (`API_KEY` env var) |
 
-CSRF: double-submit cookie via `csrf-csrf`. Applied to all non-login `/admin/*` routes. Not applied to `/api/*` (stateless Bearer auth).
+CSRF: double-submit cookie via `csrf-csrf`. Applied to all mutating `/admin/*` routes (not login/logout). Not applied to `/api/*` (stateless Bearer auth).
 
 ---
 
@@ -186,6 +189,15 @@ CSRF: double-submit cookie via `csrf-csrf`. Applied to all non-login `/admin/*` 
 
 ---
 
+## Data Authority
+
+| Data Type | Authoritative Source |
+|-----------|---------------------|
+| Original property documents, photos, plats, disclosures, contracts, marketing/media assets | **Google Drive** (folder: `GOOGLE_DRIVE_FOLDER_ID`) |
+| Structured listing/property data, statuses, contacts, approvals, links, AI summaries | **Backend/API database** (SQLite, path: `DATABASE_PATH`) |
+
+---
+
 ## Deployment Architecture
 
 ```
@@ -196,7 +208,8 @@ GitHub main branch
     → Railway env vars: all secrets injected at runtime
 ```
 
-- No CDN, no load balancer, no Redis, no external database
+- **Cloudflare** is the DNS/SSL/security layer in front of Railway — handles DNS, TLS termination, and edge-level protection (DDoS, bot filtering). It is not a deployment platform; the application runs on Railway.
+- No application CDN, no load balancer, no Redis, no external database
 - Photos stored on Railway persistent volume at `listings/` path
 - Single-process Node.js — no clustering
 

@@ -93,7 +93,7 @@ Never report: "tests pass", "build succeeds", "no vulnerabilities" unless the co
 **Conflict resolution:** Conflicts between agent outputs are resolved by the repository documents, not by agent adjudication. When agents disagree:
 1. Both positions are documented in `DECISIONS.md`.
 2. The safer, more conservative implementation is chosen by default.
-3. Human confirms only for irreversible or production-affecting decisions.
+3. **Phil Malick** (repository owner) is the final human approval authority for merges, production deployments, schema-breaking changes, and publication of AI-generated listing or operational content. No agent may self-authorize these actions.
 
 ---
 
@@ -135,8 +135,8 @@ OpenHands operates in **supervised sandboxed mode only**. These are permanent co
 4. Codex audits PR → findings appended to WORK_LOG.md
 5. Gemini challenges if architecture/security significant → appended to WORK_LOG.md
 6. Conflict resolution: repository docs decide; safer path wins
-7. All CI checks pass → human approves PR merge
-8. Human approves → Railway deploy
+7. All CI checks pass → **Phil Malick** approves PR merge
+8. **Phil Malick** approves → Railway deploy
 9. Claude or Codex verifies smoke → result appended to WORK_LOG.md
 ```
 

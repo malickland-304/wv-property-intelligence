@@ -60,11 +60,11 @@
 - If mounted as-is, the server would crash on startup
 - Decision needed: implement missing deps, or delete/stub `leads.js`
 
-### 🔴 CRITICAL — Test suite is broken
-- `tests/verify-security-fixes.test.js` fails 14+ tests
-- Tests check `server.js` directly for route definitions/functions moved to `routes/api.js` and `routes/admin.js` in a prior refactor
-- Test suite was never updated after the monolith-to-routes refactor
-- Impact: CI does not catch regressions in route security; false test failure noise
+### 🟢 Test suite fixed (PR #73, not yet merged to main)
+- `tests/verify-security-fixes.test.js` was rewritten on branch `chore/governance-overhaul-2026-05-27`
+- Tests updated to check actual code locations: `routes/api.js`, `routes/admin.js`, `helpers.js`
+- Suite passes 42/42 on the PR branch; fix pending merge to `main` via PR #73
+- On `main` before PR #73 merges: test suite still reflects pre-fix state
 
 ### 🟡 MEDIUM — Services layer undocumented
 - `api/services/email.js` (Resend/Gmail), `twilioService.js`, `leadFollowupWorker.js` exist but are undocumented in `AGENTS.md` env vars and `docs/agent-handoff.md`
@@ -85,8 +85,8 @@
 
 | Bug | Severity | Notes |
 |-----|----------|-------|
-| Test suite tests wrong file | High | Tests check server.js; code is in routes/ |
 | leads.js missing deps | High | Not mounted, would crash if mounted |
+| Test suite wrong-file bug | Fixed (PR #73) | Tests updated to check routes/; fix pending merge to main |
 
 ---
 

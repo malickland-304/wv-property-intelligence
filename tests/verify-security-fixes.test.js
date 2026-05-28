@@ -222,6 +222,20 @@ test('escapeHtml handles angle brackets', () => {
   }
 });
 
+test('escapeHtml handles double quotes', () => {
+  const fnMatch = appJsCode.match(/function escapeHtml[^{]*\{([\s\S]*?)\n\}/);
+  assert(fnMatch, 'escapeHtml function body not found');
+  assert(fnMatch[1].includes('&quot'),
+    'escapeHtml should escape " to &quot;');
+});
+
+test('escapeHtml handles single quotes and apostrophes', () => {
+  const fnMatch = appJsCode.match(/function escapeHtml[^{]*\{([\s\S]*?)\n\}/);
+  assert(fnMatch, 'escapeHtml function body not found');
+  assert(fnMatch[1].includes('&#39') || fnMatch[1].includes('&apos'),
+    "escapeHtml should escape ' to &#39; or &apos;");
+});
+
 // ============================================================
 // Test Suite 6: Server Security Middleware and Path Safety
 // ============================================================
@@ -266,6 +280,7 @@ test('admin mutating routes require CSRF in routes/admin.js', () => {
     "router.delete('/photos/:slug/:filename'",
     "router.post('/report/:id/comps'",
     "router.post('/report/:id/dd'",
+    "router.post('/ai/:id'",
   ];
   for (const route of mutatingRoutes) {
     const routeLineIdx = adminRoutesCode.split('\n').findIndex(l => l.includes(route));
@@ -320,15 +335,17 @@ test('api/google.js does not import the googleapis SDK', () => {
 });
 
 test('api/google.js uses raw HTTPS for Gmail API calls', () => {
-  // lgtm[js/incomplete-url-scheme-check] -- checks source code text, not a user URL
-  assert(googleJsCode.includes('gmail.googleapis.com'),
-    'api/google.js should call gmail.googleapis.com directly via HTTPS');
+  assert(
+    /hostname:\s*['"]gmail\.googleapis\.com['"]/.test(googleJsCode),
+    "api/google.js should use hostname: 'gmail.googleapis.com' in https.request options"
+  );
 });
 
 test('api/google.js uses raw HTTPS for Google Drive calls', () => {
-  // lgtm[js/incomplete-url-scheme-check] -- checks source code text, not a user URL
-  assert(googleJsCode.includes('www.googleapis.com'),
-    'api/google.js should call www.googleapis.com directly via HTTPS for Drive');
+  assert(
+    /hostname:\s*['"]www\.googleapis\.com['"]/.test(googleJsCode),
+    "api/google.js should use hostname: 'www.googleapis.com' in https.request options"
+  );
 });
 
 // ============================================================

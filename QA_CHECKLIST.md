@@ -66,7 +66,7 @@
 ## Pre-Deploy Checklist (Railway Production)
 
 - [ ] All required CI checks green on GitHub
-- [ ] Smoke test passed locally (`bash scripts/smoke-prod.sh`)
+- [ ] Smoke test passed locally (`bash scripts/smoke-prod.sh <BASE_URL>`)
 - [ ] No new secrets introduced in code
 - [ ] Rollback plan: note prior Railway deployment ID
 - [ ] Human explicitly approved deploy
