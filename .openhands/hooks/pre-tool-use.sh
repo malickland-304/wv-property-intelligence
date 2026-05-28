@@ -47,14 +47,8 @@ FORBIDDEN=(
   "gh pr merge"
   "railway[[:space:]]"
   # Dependency hygiene: npm install in any form is forbidden (use npm ci)
-  "npm install[[:space:]][^-]"
-  "npm install[[:space:]].*--save"
-  "npm install[[:space:]].*-S[[:space:]]"
-  "npm install$"
-  "npm i[[:space:]][^-]"
-  "npm i[[:space:]].*--save"
-  "npm i[[:space:]].*-S[[:space:]]"
-  "npm i$"
+  "npm install([[:space:]]|$)"
+  "npm i([[:space:]]|$)"
   # Secret exposure — never log or echo production credentials
   "printenv"
   "echo[[:space:]].*SESSION_SECRET"
