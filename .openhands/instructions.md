@@ -48,7 +48,10 @@ cd api && npm ci
 node --check server.js
 node --check middleware/auth.js
 node --check routes/admin.js
+node --check routes/api.js
+node --check routes/public.js
 cd ..
+node tests/verify-security-fixes.test.js
 bash scripts/preflight.sh
 ```
 All must pass before opening a PR.

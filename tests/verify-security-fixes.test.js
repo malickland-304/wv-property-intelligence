@@ -30,23 +30,25 @@ function test(description, fn) {
   }
 }
 
-const PROJECT_ROOT   = path.join(__dirname, '..');
-const serverPath     = path.join(PROJECT_ROOT, 'api/server.js');
-const apiRoutesPath  = path.join(PROJECT_ROOT, 'api/routes/api.js');
-const adminRoutesPath = path.join(PROJECT_ROOT, 'api/routes/admin.js');
-const helpersPath    = path.join(PROJECT_ROOT, 'api/helpers.js');
-const agentsPath     = path.join(PROJECT_ROOT, 'AGENTS.md');
-const appJsPath      = path.join(PROJECT_ROOT, 'app/app.js');
-const googleJsPath   = path.join(PROJECT_ROOT, 'api/google.js');
-const validatorsPath = path.join(PROJECT_ROOT, 'api/utils/validators.js');
+const PROJECT_ROOT     = path.join(__dirname, '..');
+const serverPath       = path.join(PROJECT_ROOT, 'api/server.js');
+const apiRoutesPath    = path.join(PROJECT_ROOT, 'api/routes/api.js');
+const adminRoutesPath  = path.join(PROJECT_ROOT, 'api/routes/admin.js');
+const publicRoutesPath = path.join(PROJECT_ROOT, 'api/routes/public.js');
+const helpersPath      = path.join(PROJECT_ROOT, 'api/helpers.js');
+const agentsPath       = path.join(PROJECT_ROOT, 'AGENTS.md');
+const appJsPath        = path.join(PROJECT_ROOT, 'app/app.js');
+const googleJsPath     = path.join(PROJECT_ROOT, 'api/google.js');
+const validatorsPath   = path.join(PROJECT_ROOT, 'api/utils/validators.js');
 
-const serverCode      = fs.readFileSync(serverPath, 'utf8');
-const apiRoutesCode   = fs.readFileSync(apiRoutesPath, 'utf8');
-const adminRoutesCode = fs.readFileSync(adminRoutesPath, 'utf8');
-const helpersCode     = fs.readFileSync(helpersPath, 'utf8');
-const agentsCode      = fs.existsSync(agentsPath) ? fs.readFileSync(agentsPath, 'utf8') : '';
-const appJsCode       = fs.existsSync(appJsPath) ? fs.readFileSync(appJsPath, 'utf8') : '';
-const googleJsCode    = fs.existsSync(googleJsPath) ? fs.readFileSync(googleJsPath, 'utf8') : '';
+const serverCode       = fs.readFileSync(serverPath, 'utf8');
+const apiRoutesCode    = fs.readFileSync(apiRoutesPath, 'utf8');
+const adminRoutesCode  = fs.readFileSync(adminRoutesPath, 'utf8');
+const publicRoutesCode = fs.readFileSync(publicRoutesPath, 'utf8');
+const helpersCode      = fs.readFileSync(helpersPath, 'utf8');
+const agentsCode       = fs.existsSync(agentsPath) ? fs.readFileSync(agentsPath, 'utf8') : '';
+const appJsCode        = fs.existsSync(appJsPath) ? fs.readFileSync(appJsPath, 'utf8') : '';
+const googleJsCode     = fs.existsSync(googleJsPath) ? fs.readFileSync(googleJsPath, 'utf8') : '';
 const {
   buildLeadSchedule,
   buildPropertyLead,
@@ -281,9 +283,12 @@ test('admin.js uses sharp for image processing (not shell exec)', () => {
     'admin.js should use sharp for image processing');
   const dangerousExecLines = adminRoutesCode
     .split('\n')
-    .filter(line => /require\('child_process'\)|execFile\s*\(/.test(line));
+    .filter(line =>
+      /\bexec\s*\(|\bexecFile\s*\(|require\(['"]child_process['"]\)/.test(line) &&
+      !line.includes('db.exec')
+    );
   assert.equal(dangerousExecLines.length, 0,
-    `admin.js should not use execFile or child_process for image processing`);
+    `admin.js should not use exec, execFile, or child_process: ${dangerousExecLines.join('; ')}`);
 });
 
 test('listing filesystem paths use isSafePathComponent in admin.js', () => {
@@ -346,6 +351,15 @@ test('upload route uses uploadRateLimit in routes/admin.js', () => {
     l.includes("router.post('/upload/:slug'"));
   assert(routeLine && routeLine.includes('uploadRateLimit'),
     "POST /upload/:slug is missing uploadRateLimit in routes/admin.js");
+});
+
+test('public property-page routes use publicReadRateLimit in routes/public.js', () => {
+  // Checks the array-notation route: router.get(['/listing/:id', '/properties/:id'], publicReadRateLimit, ...)
+  const routeLine = publicRoutesCode.split('\n').find(l =>
+    l.includes("'/listing/:id'") || l.includes('"/listing/:id"'));
+  assert(routeLine, "Public property-page route (/listing/:id) not found in routes/public.js");
+  assert(routeLine.includes('publicReadRateLimit'),
+    "Public property-page routes (/listing/:id, /properties/:id) are missing publicReadRateLimit in routes/public.js");
 });
 
 // ============================================================

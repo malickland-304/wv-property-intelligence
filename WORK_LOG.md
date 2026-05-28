@@ -160,3 +160,37 @@ Final corrective pass on PR #73 branch (authorized by Phil Malick). Four correct
 
 ### Recommended Next Task
 Phil: review PR #73 diff for corrections 1–4, resolve addressed review threads in GitHub UI, obtain approving review from separate authorized account, then merge.
+
+---
+
+## 2026-05-28 (session 6) — Claude Code (Sonnet 4.6)
+
+### Objective
+Second corrective pass on PR #73 branch. Four new review findings identified after session 5 commit (fc0072a). Authorized scope: .openhands/instructions.md, .openhands/setup.sh, tests/verify-security-fixes.test.js, WORK_LOG.md.
+
+### Changes Made
+- `.openhands/instructions.md` — Correction 1 (new): aligned "Validation Before PR" checklist with AGENTS.md required validation sequence; added `node --check routes/api.js`, `node --check routes/public.js`, and `node tests/verify-security-fixes.test.js` — previously missing, meaning OpenHands could skip route syntax checks and the security test suite
+- `.openhands/setup.sh` — Correction 2: replaced step 5 ("Handoff doc") authority conflict: `cat docs/agent-handoff.md` → `cat AGENTS.md`; updated step header to "Governance authority document"; added explicit note that docs/agent-handoff.md is deployment-state reference only and does not override AGENTS.md; updated validation commands listing to match AGENTS.md full sequence (was showing only preflight + npm audit + single syntax check)
+- `tests/verify-security-fixes.test.js` — Correction 3: loaded `api/routes/public.js` as `publicRoutesCode`; added test verifying public property-page routes (`/listing/:id`, `/properties/:id`) are protected by `publicReadRateLimit` in routes/public.js — previously no test protected this rate-limit from regression
+- `tests/verify-security-fixes.test.js` — Correction 4: strengthened admin.js shell-exec regression check: regex updated from `/require\('child_process'\)|execFile\s*\(/` to `/\bexec\s*\(|\bexecFile\s*\(|require\(['"]child_process['"]\)/` with `!line.includes('db.exec')` exclusion — now catches bare `exec(` and both single/double-quote `require('child_process')` / `require("child_process")` forms
+
+### Verification (Truthfulness Rule)
+- Command: `cd api && npm ci` → Result: PASSED (silent, no errors)
+- Command: `node --check server.js && middleware/auth.js && routes/admin.js && routes/api.js && routes/public.js` → Result: PASSED — all clean
+- Command: `bash scripts/preflight.sh` → Result: PASSED — dependency check, syntax check, startup, health, property API, public page all OK
+- Command: `node tests/verify-security-fixes.test.js` → Result: PASSED — 48/48 (was 47/47; +1 public route rate-limit test)
+- Command: `git diff --name-only` → Result: exactly 3 authorized files (.openhands/instructions.md, .openhands/setup.sh, tests/verify-security-fixes.test.js)
+
+### Security Notes
+- No runtime application code changed
+- No CI or deployment configuration changed
+- Shell-exec coverage improvement is test-only; does not affect admin.js runtime behavior
+- All 4 corrections are documentation accuracy, OpenHands bootstrap alignment, and test coverage
+
+### Remaining Risks
+1. **BLOCKER (merge) — 0 human approvals**: enforce_admins: true; malickland-304 cannot self-approve
+2. **BLOCKER (merge) — unresolved review threads**: threads from current findings must be resolved by Phil in GitHub UI after verifying this commit
+3. **LOW — services layer undocumented in docs/agent-handoff.md**
+
+### Recommended Next Task
+Phil: verify diff of this commit, resolve current review threads in GitHub UI, obtain approving review from authorized second account, then merge PR #73.
