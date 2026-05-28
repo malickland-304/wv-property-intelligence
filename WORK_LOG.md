@@ -194,3 +194,30 @@ Second corrective pass on PR #73 branch. Four new review findings identified aft
 
 ### Recommended Next Task
 Phil: verify diff of this commit, resolve current review threads in GitHub UI, obtain approving review from authorized second account, then merge PR #73.
+
+---
+
+## 2026-05-28 (session 7 — micro-fix) — Claude Code (Sonnet 4.6)
+
+### Objective
+Single targeted fix: replace four fragile exact-string .includes() checks in the `status=active` guard test with a scoped regex. Authorized files: tests/verify-security-fixes.test.js and WORK_LOG.md only.
+
+### Changes Made
+- `tests/verify-security-fixes.test.js` — "Property detail endpoint has status=active guard" test: replaced `fnBody.includes("p.status='active'") || fnBody.includes('p.status="active"') || fnBody.includes("status='active'") || fnBody.includes('status="active"')` with `/\b(?:p\.)?status\s*=\s*['"]active['"]/i.test(fnBody)`; test remains scoped to the extracted `sendPropertyDetail` function body; now tolerates legitimate whitespace around `=` and either quote style without weakening the security gate
+
+### Verification (Truthfulness Rule)
+- Command: `node tests/verify-security-fixes.test.js` → Result: PASSED — 48/48
+- Command: `cd api && npm ci && node --check [5 files]` → Result: PASSED
+- Command: `bash scripts/preflight.sh` → Result: PASSED — PRE-FLIGHT PASSED
+- Command: `git diff --name-only` → Result: tests/verify-security-fixes.test.js only
+
+### Security Notes
+- No runtime code changed; test-only fix
+- Guard behavior is equivalent or stronger: regex catches all variants the .includes() checks caught plus whitespace variations
+
+### Remaining Risks
+1. **BLOCKER (merge) — 0 human approvals**: enforce_admins: true; requires separate authorized reviewer
+2. **BLOCKER (merge) — unresolved review threads**: require manual resolution by Phil in GitHub UI
+
+### Recommended Next Task
+All substantive findings now addressed. Phil: verify this commit, resolve review threads, obtain approving review, merge PR #73.

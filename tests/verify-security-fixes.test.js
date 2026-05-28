@@ -120,11 +120,7 @@ test('Property detail endpoint has status=active guard', () => {
   assert(fnStart !== -1, 'sendPropertyDetail function not found in routes/api.js');
   const fnEnd = apiRoutesCode.indexOf('\nrouter.get(', fnStart);
   const fnBody = fnEnd !== -1 ? apiRoutesCode.slice(fnStart, fnEnd) : apiRoutesCode.slice(fnStart, fnStart + 600);
-  const hasStatusGuard =
-    fnBody.includes("p.status='active'") ||
-    fnBody.includes('p.status="active"') ||
-    fnBody.includes("status='active'") ||
-    fnBody.includes('status="active"');
+  const hasStatusGuard = /\b(?:p\.)?status\s*=\s*['"]active['"]/i.test(fnBody);
   assert(hasStatusGuard,
     "Missing status='active' filter in sendPropertyDetail in routes/api.js");
 });
