@@ -186,7 +186,7 @@ bash scripts/preflight.sh
 
 | Gate | Tool | Owner |
 |------|------|-------|
-| Preflight (start server, hit endpoints, CSRF check) | `scripts/preflight.sh` | Claude + Codex |
+| Preflight (dependency check, syntax check, server startup, public endpoint smoke) | `scripts/preflight.sh` | Claude + Codex |
 | Syntax check | `node --check` | Claude |
 | Test suite | `node tests/verify-security-fixes.test.js` | All |
 | Dependency audit | `npm audit` | Codex |

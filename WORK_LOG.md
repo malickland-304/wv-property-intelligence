@@ -131,3 +131,32 @@ Final narrow cleanup pass on PR #73 branch. Resolve 4 remaining review threads v
 Phil: review and resolve addressed review threads in GitHub UI, then obtain approving review from separate authorized account, then merge PR #73.
 
 <!-- New entries go below this line. Append; never edit prior entries. -->
+
+## 2026-05-28 (session 5) — Claude Code (Sonnet 4.6)
+
+### Objective
+Final corrective pass on PR #73 branch (authorized by Phil Malick). Four corrections prescribed; Correction 1 applied in prior session. Corrections 2–4 applied here. Strict 3-file scope (plus WORK_LOG.md).
+
+### Changes Made
+- `.openhands/instructions.md` — Correction 1 (prior session): replaced `cat docs/agent-handoff.md` with `cat AGENTS.md`; replaced claim that agent-handoff.md is "canonical source of truth" with accurate AGENTS.md-aligned wording: "deployment-state reference only; does not override AGENTS.md"
+- `AGENTS.md` — Correction 2: removed false "CSRF check" claim from CI/Security Gates preflight row; updated description to "dependency check, syntax check, server startup, public endpoint smoke" — which is what `scripts/preflight.sh` actually performs (confirmed by reading script in prior sessions: `npm ls`, `node --check`, server start, `/api/health` + property endpoint hits only; no admin login, no CSRF round-trip)
+- `tests/verify-security-fixes.test.js` — Correction 3: added 3 tests to Suite 3 checking `apiRoutesCode` (routes/api.js) for absence of legacy `router.post('/listings'`, `router.put('/listings/`, `router.delete('/listings/'` mutation routes — previously only `serverCode` (server.js) was checked, leaving the mounted router file unverified
+- `tests/verify-security-fixes.test.js` — Correction 4: added explicit `assert(fnMatch, 'escapeHtml function body not found')` guard in Suite 5 tests 5a (ampersands) and 5b (angle brackets) — previously used silent `if (fnMatch)` which would pass without asserting anything if the regex failed to match; tests 5d/5e already had `assert(fnMatch)` and were correct
+
+### Verification (Truthfulness Rule)
+- Command: `node tests/verify-security-fixes.test.js` → Result: PASSED — 47/47 (was 44/44; +3 from new Suite 3 apiRoutesCode tests)
+- Command: `git diff --name-only` → Result: exactly 3 authorized files (`.openhands/instructions.md`, `AGENTS.md`, `tests/verify-security-fixes.test.js`)
+- Command: `git status --short --branch` → Result: on `chore/governance-overhaul-2026-05-27`, 3 modified files
+
+### Security Notes
+- No functional code changes — documentation accuracy and test coverage only
+- CSRF protection itself is unchanged; only the inaccurate description of the preflight script was corrected
+- escapeHtml coverage now fails loudly if function is removed rather than silently passing
+
+### Remaining Risks
+1. **BLOCKER (merge) — 0 human approvals**: enforce_admins: true; malickland-304 cannot self-approve; requires separate authorized reviewer
+2. **BLOCKER (merge) — unresolved review threads**: threads addressed by prior commits still need manual resolution by Phil in GitHub UI
+3. **LOW — services layer undocumented in docs/agent-handoff.md**
+
+### Recommended Next Task
+Phil: review PR #73 diff for corrections 1–4, resolve addressed review threads in GitHub UI, obtain approving review from separate authorized account, then merge.

@@ -162,6 +162,24 @@ test('server.js has no direct app.delete /api/listings/:id route', () => {
     'Legacy DELETE /api/listings/:id route found in server.js');
 });
 
+test('routes/api.js has no mounted router.post /listings route', () => {
+  assert(!apiRoutesCode.includes("router.post('/listings'") &&
+         !apiRoutesCode.includes('router.post("/listings"'),
+    'Legacy POST /listings route found in routes/api.js (should use /properties)');
+});
+
+test('routes/api.js has no mounted router.put /listings/:id route', () => {
+  assert(!apiRoutesCode.includes("router.put('/listings/") &&
+         !apiRoutesCode.includes('router.put("/listings/'),
+    'Legacy PUT /listings/:id route found in routes/api.js');
+});
+
+test('routes/api.js has no mounted router.delete /listings/:id route', () => {
+  assert(!apiRoutesCode.includes("router.delete('/listings/") &&
+         !apiRoutesCode.includes('router.delete("/listings/'),
+    'Legacy DELETE /listings/:id route found in routes/api.js');
+});
+
 test('routes/api.js registers GET /properties (modern route)', () => {
   assert(
     apiRoutesCode.includes("router.get('/properties'") ||
@@ -218,18 +236,16 @@ test('app/app.js has escapeHtml function', () => {
 
 test('escapeHtml handles ampersands', () => {
   const fnMatch = appJsCode.match(/function escapeHtml[^{]*\{([\s\S]*?)\n\}/);
-  if (fnMatch) {
-    assert(fnMatch[1].includes('&amp'),
-      'escapeHtml should escape & to &amp;');
-  }
+  assert(fnMatch, 'escapeHtml function body not found');
+  assert(fnMatch[1].includes('&amp'),
+    'escapeHtml should escape & to &amp;');
 });
 
 test('escapeHtml handles angle brackets', () => {
   const fnMatch = appJsCode.match(/function escapeHtml[^{]*\{([\s\S]*?)\n\}/);
-  if (fnMatch) {
-    assert(fnMatch[1].includes('&lt') || fnMatch[1].includes('&gt'),
-      'escapeHtml should escape < and >');
-  }
+  assert(fnMatch, 'escapeHtml function body not found');
+  assert(fnMatch[1].includes('&lt') || fnMatch[1].includes('&gt'),
+    'escapeHtml should escape < and >');
 });
 
 test('escapeHtml handles double quotes', () => {
