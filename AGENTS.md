@@ -111,7 +111,7 @@ OpenHands operates in **supervised sandboxed mode only**. These are permanent co
 ### Forbidden (hard stops — no exceptions)
 - ❌ Merge pull requests
 - ❌ Deploy to Railway or any production environment
-- ❌ Access or read production secrets (`SESSION_SECRET`, `ADMIN_PASSWORD`, `API_KEY`, `DATABASE_PATH`, `OPENAI_API_KEY`, `GOOGLE_*`)
+- ❌ Access or read production secrets (`SESSION_SECRET`, `ADMIN_PASSWORD`, `API_KEY`, `DATABASE_PATH`, `OPENAI_API_KEY`, `GOOGLE_*`, `RESEND_API_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `LEAD_ALERT_TO_NUMBER`)
 - ❌ Push directly to `main`
 - ❌ Modify Railway environment variables
 - ❌ Run smoke tests against production (`malickland.net`) without explicit human approval
