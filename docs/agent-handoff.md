@@ -11,12 +11,14 @@
 
 | Item | Status |
 |------|--------|
-| HEAD (main) | `ed2b977` (`feat(security): replace deprecated csurf with csrf-csrf`) |
-| Railway deployment | DEPLOYING — auto-triggered by merge of `ed2b977`; run smoke after deploy |
-| Authenticated smoke | PENDING — must run `ADMIN_PASSWORD=<pw> ./scripts/smoke-admin.sh` after deploy |
+| HEAD (main) | `2d4fffc` (merge of PR #64 — AI control plane bootstrap) |
+| Railway deployment | ✅ confirmed live (`2d4fffc`) — verify in Railway Dashboard → Deployments; smoke PASSED 2026-05-27 |
+| Authenticated smoke | ✅ PASSED (7/7) — 2026-05-27 |
 | npm audit | 0 vulnerabilities (main) |
 | Dependabot | clean |
-| Production test artifacts | none |
+| GitHub branch protection | ✅ hardened — required checks, review approval, stale dismissal, conversation resolution, admin enforcement |
+| GitHub `production` environment | ✅ locked — reviewer gate, admin bypass disabled, `main`-only deploys |
+| OpenHands executor | ⏳ NOT LIVE — awaiting token provisioning and runtime start |
 | `API_KEY` in Railway | confirmed present |
 
 ---
@@ -24,7 +26,7 @@
 ## Recent Completed Work
 
 - **csurf → csrf-csrf migration** (PR #63, merged 2026-05-27): double-submit cookie CSRF, session-bound, req.csrfToken() polyfill, 0 vulnerabilities
-- AI agent control plane bootstrap (PR #64, open): AGENTS.md, .openhands/hooks.json, issue templates, PR template, npm ci policy
+- **AI control plane bootstrap** (PR #64, merged 2026-05-27): AGENTS.md, .openhands/hooks.json (real OpenHands schema), issue templates, PR template, npm ci policy, GitHub settings docs, fail-closed audit
 - Authenticated admin smoke test added (`scripts/smoke-admin.sh`)
 - macOS smoke portability fix; smoke body-handling subshell fix
 - Smoke converted to non-mutating protected POST; `EBADCSRFTOKEN` → 403
@@ -38,16 +40,38 @@
 
 csurf removed. csrf-csrf@^3.2.2 in production. See Recent Completed Work.
 
-**Pending owner action:** run `ADMIN_PASSWORD=<pw> ./scripts/smoke-admin.sh` against prod after Railway deploy completes. Must see `PASSED (7/7)`.
+**Smoke result:** ✅ PASSED (7/7) — 2026-05-27. Production is clean.
 
 ### Tech Debt — CodeQL query exclusion (open, low priority)
 
 `.github/codeql/codeql-config.yml` globally excludes `js/missing-token-validation` as a false-positive workaround (csrf-csrf is not in CodeQL's recognized CSRF library list). This is safe while csrf-csrf is in use but broader than ideal. Future work: replace with a narrower per-file suppression or contribute csrf-csrf recognition upstream.
 
-### AI Control Plane Bootstrap (PR #64 — open, awaiting merge)
+### AI Control Plane Bootstrap — MERGED (PR #64, 2026-05-27)
 
-Branch: `chore/ai-control-plane-bootstrap`
-AGENTS.md, hooks.json, issue templates, PR template, npm ci policy. Review before merging.
+Governance layer is live on `main`. Includes:
+- `AGENTS.md` — agent roles, supervised-only restrictions, dependency hygiene, required GitHub settings
+- `.openhands/hooks.json` — documented OpenHands schema (array/matcher format)
+- `.openhands/hooks/pre-tool-use.sh` — stdin JSON parsing, exit 2 deny, secret-safe output
+- `.openhands/hooks/on-stop.sh` — structured stop report
+- `.openhands/setup.sh` — fail-closed npm audit, npm ci enforcement
+- `.openhands/instructions.md` — agent operating rules
+- `.github/pull_request_template.md` — QC checklist
+- `.github/ISSUE_TEMPLATE/` — AI task templates
+
+**OpenHands is NOT YET LIVE.** Pre-flight checklist status (2026-05-27):
+1. ✅ PR #64 merged
+2. ✅ Production smoke — PASSED (7/7)
+3. ✅ GitHub branch protection hardened
+4. ✅ `production` GitHub environment locked (reviewer gate, main-only)
+5. ⏳ OpenHands fine-grained GitHub token — `contents: write`, `pull-requests: write`, `issues: write`; all other permissions set to `none`
+6. ⏳ OpenHands executor started (`docker run ...` or `openhands start`)
+7. ⏳ First supervised run — Issue #66 as dry-run task
+
+**Runtime activation** is the only remaining blocker. All governance controls are in place.
+
+### Issue #66 — npm install --save not yet blocked (low priority, safe to defer)
+
+`.openhands/hooks/pre-tool-use.sh` blocks `npm install <pkg>`, `npm install` (bare), `npm i <pkg>`, `npm i` (bare) — but NOT `npm install --save <pkg>` or `npm i -S <pkg>`. Safe for initial supervised dry run. Fix tracked in Issue #66.
 
 **Other deferred:**
 - `leads.js` — not mounted in `server.js`; decide: mount or delete

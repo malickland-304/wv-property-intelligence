@@ -70,10 +70,16 @@ async function getAccessToken() {
 
 async function sendContactEmail(contact, property) {
   const { GOOGLE_GMAIL_USER, NOTIFICATION_EMAIL } = process.env;
-  if (!GOOGLE_GMAIL_USER || !NOTIFICATION_EMAIL) return;
+  if (!GOOGLE_GMAIL_USER || !NOTIFICATION_EMAIL) {
+    console.warn('[Gmail] sendContactEmail skipped: GOOGLE_GMAIL_USER or NOTIFICATION_EMAIL not configured');
+    return;
+  }
 
   const token = await getAccessToken().catch(() => null);
-  if (!token) return;
+  if (!token) {
+    console.warn('[Gmail] sendContactEmail skipped: OAuth token unavailable — check GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN');
+    return;
+  }
 
   try {
     const propertyLine = property

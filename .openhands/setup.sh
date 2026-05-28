@@ -51,18 +51,27 @@ node --check routes/admin.js
 echo "✓ Syntax OK"
 echo ""
 
-# ── 5. Handoff doc ────────────────────────────────────────────────────
-echo "[ 5/5 ] Current production state"
+# ── 5. Governance authority ───────────────────────────────────────────
+echo "[ 5/5 ] Governance authority document"
 cd "$ROOT"
-cat docs/agent-handoff.md
+cat AGENTS.md
+echo ""
+echo "  NOTE: docs/agent-handoff.md is a deployment-state reference only."
+echo "        It does not override AGENTS.md. If they conflict, follow AGENTS.md."
 echo ""
 
-echo "=== Setup complete. Read docs/agent-handoff.md before acting. ==="
+echo "=== Setup complete. AGENTS.md is the authority — read it before acting. ==="
 echo ""
-echo "Validation commands:"
-echo "  bash scripts/preflight.sh          # full preflight gate"
-echo "  cd api && npm audit                 # dependency audit"
-echo "  node --check api/server.js         # syntax check"
+echo "Validation commands (run in order before any PR):"
+echo "  cd api && npm ci                          # install dependencies (lockfile-enforced)"
+echo "  node --check server.js                    # syntax check"
+echo "  node --check middleware/auth.js           # syntax check"
+echo "  node --check routes/admin.js              # syntax check"
+echo "  node --check routes/api.js                # syntax check"
+echo "  node --check routes/public.js             # syntax check"
+echo "  cd ..                                     # back to project root"
+echo "  node tests/verify-security-fixes.test.js  # security test suite"
+echo "  bash scripts/preflight.sh                 # full preflight gate"
 echo ""
 echo "SUPERVISED-ONLY MODE:"
 echo "  ❌ Do NOT push directly to main."
