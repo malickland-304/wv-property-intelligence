@@ -102,4 +102,32 @@ PR #73 correction pass: fix documentation accuracy issues and eliminate CodeQL f
 ### Recommended Next Task
 Monitor CodeQL CI result on PR #73. If GHAS passes, the only remaining merge blockers are the review threads and Phil's approving review. Phil reviews and approves via GitHub UI — Claude cannot do this.
 
+## 2026-05-27 (session 4) — Claude Code (Sonnet 4.6)
+
+### Objective
+Final narrow cleanup pass on PR #73 branch. Resolve 4 remaining review threads via source-evidence-based corrections. Strict 3-file scope authorized.
+
+### Changes Made
+- `AGENTS.md` — corrected SECURITY.md description in authority hierarchy from "security requirements, threat model" to "security policy, vulnerability reporting, scope" — reflects actual SECURITY.md content (vulnerability reporting policy + scope, not a threat model)
+- `PROJECT_STATE.md` — replaced stale header "Canonical source: `docs/agent-handoff.md`" which contradicted AGENTS.md's explicit demotion of that file to deployment-state reference only; replaced with accurate non-authoritative note
+- `tests/verify-security-fixes.test.js` — narrowed both SQL `status='active'` guard tests to extract `sendPropertyDetail` function body before assertion (was scanning entire file, creating false-positive risk from analytics/other queries that also reference `status` in WHERE clauses); suite remains 44/44
+
+### Verification (Truthfulness Rule)
+- Command: `git diff --name-only` → Result: exactly 3 files (AGENTS.md, PROJECT_STATE.md, tests/verify-security-fixes.test.js)
+- Command: `node tests/verify-security-fixes.test.js` → Result: PASSED — 44/44
+- Command: `git push origin chore/governance-overhaul-2026-05-27` → Result: PUSHED (7c35185)
+- CI gate results: PENDING at time of WORK_LOG entry
+
+### Security Notes
+- No functional code changes — documentation and test-scoping only
+- SQL guard tests now fail fast if sendPropertyDetail specifically loses the status filter, rather than passing because another query has the word "status"
+
+### Remaining Risks
+1. **BLOCKER (merge) — 0 human approvals**: enforce_admins: true; malickland-304 cannot self-approve; requires separate authorized reviewer
+2. **BLOCKER (merge) — 12 unresolved review threads**: threads 1/14 (SQL assertion scope) and 8/9 (AGENTS.md SECURITY.md description + PROJECT_STATE.md header) addressed by 7c35185; remaining threads (3, 13 legacy routes; 2, 7 escapeHtml; 4, 5 PROJECT_STATE.md stale test; 6 CSRF coverage; 10, 11, 12 ARCHITECTURE.md/QA fixes) addressed by earlier commits in this PR — all need manual resolution by Phil in GitHub UI
+3. **LOW — services layer undocumented in docs/agent-handoff.md**
+
+### Recommended Next Task
+Phil: review and resolve addressed review threads in GitHub UI, then obtain approving review from separate authorized account, then merge PR #73.
+
 <!-- New entries go below this line. Append; never edit prior entries. -->
