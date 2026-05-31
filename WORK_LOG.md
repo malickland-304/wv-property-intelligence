@@ -390,3 +390,37 @@ Repair post-merge coordination state after PR #76 and PR #77 landed, and reduce 
 
 ### Recommended Next Task
 Push this docs refresh branch and open a PR, then decide the branch-protection policy before changing GitHub settings.
+
+---
+
+## 2026-05-31 — Codex — GitHub issue and PR cleanup
+
+### Objective
+Audit all open GitHub issues and pull requests, finish stale/superseded PRs with evidence, and leave the GitHub issue/PR surface clean.
+
+### Changes Made
+- GitHub PR #60 — commented and closed as stale/unsafe to merge; remote branch `codex/malickland-2-consolidation` deleted.
+- GitHub PR #70 — commented and closed as superseded by current `main`; remote branch `copilot/malickland-304-block-npm-install-save` deleted.
+- GitHub PR #71 — commented and closed as not viable because the linked Issue #65 is closed and the PR failed CodeQL; remote branch `copilot/malickland-304replace-codeql-exclusion` deleted.
+- `PROJECT_STATE.md` — recorded zero open issues / zero open PRs and the cleanup result for PRs #60, #70, and #71.
+- `TASKS.md` — removed stale open work that pointed agents at closed Issue #65 and recorded the stale PR cleanup as complete.
+- `docs/agent-handoff.md` — corrected OpenHands first-task guidance and branch-protection wording to match current GitHub state.
+
+### Verification (Truthfulness Rule applies)
+- Command: `gh issue list --state open --limit 100 --json number,title,url` → Result: PASSED (`[]`).
+- Command: `gh pr list --state open --limit 100 --json number,title,url` → Result: PASSED (`[]`).
+- Command: `gh pr view 60/70/71 --json state,closed,closedAt` → Result: PASSED (all closed at `2026-05-31T18:24:46Z`).
+- Command: `git fetch origin --prune` → Result: PASSED; deleted stale remote PR branches were pruned.
+
+### Security Notes
+- No secrets read or printed.
+- PR #71 was not merged because it failed CodeQL after removing the global `js/missing-token-validation` false-positive exclusion.
+- No branch protection, production deployment, or environment settings changed.
+
+### Remaining Risks
+1. Local stale branches still exist and should only be deleted after confirming they have no unpushed work.
+2. CodeQL suppression remains broad by design until a fresh narrowing approach passes CodeQL.
+3. Branch protection policy mismatch remains a separate decision item.
+
+### Recommended Next Task
+Open and merge this docs cleanup PR, then address remaining non-GitHub-open-item work: branch-protection policy, `leads.js`, and `/wv/*-county` links.
