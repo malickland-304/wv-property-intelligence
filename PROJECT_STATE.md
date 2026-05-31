@@ -1,6 +1,6 @@
 # PROJECT_STATE.md — Malickland 2.0
 
-> **Last verified:** 2026-05-31 (canonical repo `fix/public-navigation-links`, `git fetch origin`)
+> **Last verified:** 2026-05-31 (canonical branch `main` @ `dc8cc53`, `git pull` fast-forward; PR #76 merged)
 > **Authority:** Product completeness and repo workspace truth. Use `docs/CANONICAL_MAP.md` for repo/domain/stack disambiguation. Deployment runbooks and guardrails remain in `docs/agent-handoff.md`.
 
 ---
@@ -11,11 +11,10 @@
 |------|--------|
 | **Active repo** | `/Users/yhyh7/Projects/wv-property-intelligence` |
 | **Remote** | `https://github.com/malickland-304/wv-property-intelligence.git` |
-| **Production branch** | `origin/main` @ `2c4b71e` (2026-05-31 fetch) |
-| **In-progress branch** | `fix/public-navigation-links` — pushed as PR #76 |
-| **Ahead of `origin/main`** | Public navigation repair plus repository-state documentation refresh |
+| **Production branch** | `origin/main` @ `dc8cc53` (PR #76 merged 2026-05-31) |
+| **Last merged PR** | #76 public navigation repair — merged into `main`; branch `fix/public-navigation-links` deleted remotely |
 
-The fix branch has been rebased onto current `origin/main`; compare future work against `origin/main`, not stale local `main`.
+PR #76 is merged into `main`; compare future work against `origin/main`, not a stale local `main`.
 
 ### Do not use as source of truth
 
@@ -35,7 +34,7 @@ Local `main` checkout may lag `origin/main`; always `git fetch origin` and compa
 |----|--------|
 | **#73** (governance / test-suite overhaul) | ✅ Merged to `main` (governance commits on `origin/main`, e.g. `f8604f0`, `24399fb`) |
 | **#75** (notification observability) | ✅ Merged — `7eb8b1e` on `origin/main` |
-| **Navigation fix** | ⏳ PR #76 open; waiting for GitHub checks, review/approval, merge, Railway deploy, and production smoke |
+| **#76** (public navigation links fix) | ✅ Merged — `dc8cc53` on `origin/main` (2026-05-31); Railway deploy + production smoke still to verify |
 
 ---
 
@@ -65,7 +64,7 @@ Local `main` checkout may lag `origin/main`; always `git fetch origin` and compa
 
 ---
 
-## Navigation fix (branch `fix/public-navigation-links`)
+## Navigation fix (PR #76, merged into `main` @ `dc8cc53`)
 
 | Change | Location |
 |--------|----------|
@@ -73,9 +72,9 @@ Local `main` checkout may lag `origin/main`; always `git fetch origin` and compa
 | Legacy URL redirect | `api/routes/public.js` — `301` `/advent-drive-land-hampshire-county-wv` → `/37-advent` |
 | Site links | `app/index.html` → `/37-advent`; page file `app/37-advent.html` |
 
-**Validation (2026-05-31, fix branch):** `npm ci`, `node --check` (server + routes), **48/48** security tests, `scripts/preflight.sh`, route smoke — all passed.
+**Validation (2026-05-31, pre-merge on `fix/public-navigation-links`):** `npm ci`, `node --check` (server + routes), **48/48** security tests, `scripts/preflight.sh`, route smoke — all passed.
 
-Not yet on production until branch is pushed, PR merged to `main`, and Railway deploys.
+Merged into `main` @ `dc8cc53` via PR #76; verify Railway deploy and run read-only production smoke before claiming it is live.
 
 ---
 
@@ -100,7 +99,7 @@ Not yet on production until branch is pushed, PR merged to `main`, and Railway d
 
 - ✅ Public listing search (`/`, `/api/properties`)
 - ✅ Individual property pages (`/listing/:slug`, `/properties/:slug`)
-- ✅ 37 Advent landing (`/37-advent`, redirect from legacy slug on fix branch)
+- ✅ 37 Advent landing (`/37-advent`, redirect from legacy slug — merged to `main` via PR #76)
 - ✅ Admin panel: listing CRUD, photo uploads (with sharp compression), due-diligence notes
 - ✅ AI marketing content generation (GPT-4o, per-listing)
 - ✅ Google Drive photo backup
