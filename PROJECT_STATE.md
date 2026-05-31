@@ -1,6 +1,6 @@
 # PROJECT_STATE.md — Malickland 2.0
 
-> **Last verified:** 2026-05-31 (canonical branch `main` @ `dc8cc53`, `git pull` fast-forward; PR #76 merged)
+> **Last verified:** 2026-05-31 (canonical branch `main` @ `b34e2fb`; PR #77 merged after PR #76)
 > **Authority:** Product completeness and repo workspace truth. Use `docs/CANONICAL_MAP.md` for repo/domain/stack disambiguation. Deployment runbooks and guardrails remain in `docs/agent-handoff.md`.
 
 ---
@@ -11,10 +11,10 @@
 |------|--------|
 | **Active repo** | `/Users/yhyh7/Projects/wv-property-intelligence` |
 | **Remote** | `https://github.com/malickland-304/wv-property-intelligence.git` |
-| **Production branch** | `origin/main` @ `dc8cc53` (PR #76 merged 2026-05-31) |
-| **Last merged PR** | #76 public navigation repair — merged into `main`; branch `fix/public-navigation-links` deleted remotely |
+| **Production branch** | `origin/main` @ `b34e2fb` (PR #77 merged 2026-05-31) |
+| **Last merged PR** | #77 Cursor workspace guardrails — merged into `main` after #76 |
 
-PR #76 is merged into `main`; compare future work against `origin/main`, not a stale local `main`.
+PR #76 is merged and live; PR #77 is merged on top. Compare future work against `origin/main`, not a stale local `main`.
 
 ### Do not use as source of truth
 
@@ -34,7 +34,8 @@ Local `main` checkout may lag `origin/main`; always `git fetch origin` and compa
 |----|--------|
 | **#73** (governance / test-suite overhaul) | ✅ Merged to `main` (governance commits on `origin/main`, e.g. `f8604f0`, `24399fb`) |
 | **#75** (notification observability) | ✅ Merged — `7eb8b1e` on `origin/main` |
-| **#76** (public navigation links fix) | ✅ Merged — `dc8cc53` on `origin/main` (2026-05-31); Railway deploy + production smoke still to verify |
+| **#76** (public navigation links fix) | ✅ Merged — `dc8cc53` on `origin/main` (2026-05-31); production smoke passed |
+| **#77** (Cursor workspace guardrails) | ✅ Merged — `b34e2fb` on `origin/main` (2026-05-31) |
 
 ---
 
@@ -43,13 +44,13 @@ Local `main` checkout may lag `origin/main`; always `git fetch origin` and compa
 | Item | Status |
 |------|--------|
 | Live URL | https://malickland.net |
-| Railway deploy | Not verified in this 2026-05-31 local refresh; verify Railway before claiming production state |
+| Railway deploy / live smoke | ✅ Live read-only smoke passed 2026-05-31 after PR #76: `/api/health`, `/listings`, `/37-advent`, legacy Advent redirect |
 | Health endpoint | **`GET /api/health`** — not `/health` (mounted in `api/routes/api.js`) |
 | npm audit | ✅ 0 vulnerabilities (verified on fix branch 2026-05-31) |
 | Security test suite | ✅ **48/48** on `fix/public-navigation-links` (`node tests/verify-security-fixes.test.js`) |
 | Preflight + route smoke | ✅ Passed on fix branch per session validation (2026-05-31) |
 | CI gates | ✅ CodeQL, Semgrep, `preflight.yml` |
-| Branch protection | ✅ hardened |
+| Branch protection | Required status checks enabled (`CodeQL`, `verify`, `check`, `CodeScan`, `semgrep-cloud-platform/scan`); PR review protection, conversation resolution, and admin enforcement were not enabled in the 2026-05-31 GitHub API check |
 
 ---
 
@@ -74,7 +75,7 @@ Local `main` checkout may lag `origin/main`; always `git fetch origin` and compa
 
 **Validation (2026-05-31, pre-merge on `fix/public-navigation-links`):** `npm ci`, `node --check` (server + routes), **48/48** security tests, `scripts/preflight.sh`, route smoke — all passed.
 
-Merged into `main` @ `dc8cc53` via PR #76; verify Railway deploy and run read-only production smoke before claiming it is live.
+Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passed 2026-05-31.
 
 ---
 
@@ -149,7 +150,7 @@ Merged into `main` @ `dc8cc53` via PR #76; verify Railway deploy and run read-on
 | Bug | Severity | Notes |
 |-----|----------|-------|
 | leads.js missing deps | High | Not mounted; would crash if mounted |
-| Local `main` behind `origin/main` | Ops | Run `git checkout main && git pull origin main` before branching from stale laptop `main` |
+| Stale or wrong Cursor workspace | Ops | Cursor sessions have used `openclaw-system` and stale Documents/GitHub checkouts; reopen Cursor at `/Users/yhyh7/Projects/wv-property-intelligence` and verify `workspace_roots` before production work |
 
 ---
 

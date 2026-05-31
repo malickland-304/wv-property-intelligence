@@ -13,7 +13,7 @@
 
 ## High Priority
 
-- [ ] **Merge and deploy public navigation repair** — PR #76 is open; wait for GitHub checks, review/approval, merge to `main`, Railway deploy, and production smoke for `/listings`, `/37-advent`, legacy Advent SEO redirect, and `/api/health` — no deps — **Phil / Claude Code**
+- [ ] **Resolve branch protection policy mismatch** — GitHub currently requires status checks, but PR review protection, required conversation resolution, and admin enforcement are not enabled; decide whether to tighten settings or document the intentional policy — no deps — **Phil / Codex**
 - [ ] **Update docs/agent-handoff.md service notes** — keep deployment-state reference aligned with current service env vars and merged PR state; do not let it override AGENTS.md — no deps — Claude Code
 - [ ] **OpenHands executor activation** — provision fine-grained GitHub token; start executor; run first supervised task — waiting on developer action; Issue #66 is now fixed on main, so pick Issue #65 or new task — **developer action**
 
@@ -50,7 +50,9 @@
 - [x] Startup notification observability — PR #75 merged 2026-05-28
 - [x] Canonical production map created — `docs/CANONICAL_MAP.md` added 2026-05-31
 - [x] Public navigation repair PR opened — PR #76 opened 2026-05-31
-- [x] GitHub branch protection hardened — required checks, review approval, stale dismissal, admin enforcement
+- [x] Public navigation repair merged — PR #76 merged to `main` (`dc8cc53`) 2026-05-31
+- [x] Public navigation repair deployed and smoke-tested — production `/api/health`, `/listings`, `/37-advent`, and legacy Advent redirect verified 2026-05-31
+- [x] GitHub required status checks configured — `CodeQL`, `verify`, `check`, `CodeScan`, `semgrep-cloud-platform/scan`
 - [x] `production` GitHub environment locked — reviewer gate, main-only deploys
 - [x] `brace-expansion` patched, `cookie` transitive vuln contained
 - [x] Create PROJECT_STATE.md, TASKS.md, DECISIONS.md, QA_CHECKLIST.md — 2026-05-27 (Claude Code)
