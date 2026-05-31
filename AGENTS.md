@@ -27,6 +27,7 @@ All agents treat repository coordination documents as authoritative. In conflict
 - Do not take destructive or irreversible action until the conflict is resolved and documented.
 - Do not rely on conversational context, session memory, or prior agent output that is not committed to the repository.
 
+`docs/CANONICAL_MAP.md` is the required repo/domain/stack disambiguation map for MalickLand production work.
 `docs/agent-handoff.md` is a deployment-state reference only. It does not override AGENTS.md or other governance documents.
 
 ---
@@ -271,6 +272,21 @@ Every agent session that makes changes must append an entry to `WORK_LOG.md`. Th
 
 ---
 
+## Canonical workspace
+
+Active development repo: **`/Users/yhyh7/Projects/wv-property-intelligence`**. Workspace path, branch, merged PRs, and stale clone warnings are in `PROJECT_STATE.md`. Do not treat `~/Documents/GitHub/wv-property-intelligence`, `~/Projects/wv-realestate`, or the separate Next.js `malickland.net` tree as this product.
+
+## MalickLand Domain Guardrails
+
+1. Production website code lives in this repo unless a recorded architecture decision changes that.
+2. Do not edit `malickland-304/malickland.net` for production fixes; it is a separate Next.js experiment/prototype.
+3. Health check URL is `https://malickland.net/api/health`, not `/health`.
+4. Read `docs/CANONICAL_MAP.md` before malickland.net infrastructure or deployment work.
+5. Never run `wrangler deploy` for `listing-system/workers/` without explicit human approval and a recorded route-ownership decision.
+6. `malickland.cloud` is not `malickland.net`; treat OpenClaw/trading work as a separate project.
+
+---
+
 ## Stale Documentation Notice
 
 The following files are historical reference only:
@@ -278,4 +294,4 @@ The following files are historical reference only:
 - `PROJECT.md` — superseded by `PROJECT_STATE.md`
 - `CONTEXT.md` — may contain outdated architectural assumptions; verify against code
 - `SECURITY_VERIFICATION.md` — historical audit from 2026-04-05; does not reflect current state
-- `docs/agent-handoff.md` — deployment state notes only; does not override AGENTS.md
+- `docs/agent-handoff.md` — deployment/guardrail notes only; may lag `main` — see STALE banner; does not override AGENTS.md

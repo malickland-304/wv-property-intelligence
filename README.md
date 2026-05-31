@@ -43,11 +43,12 @@ wv-property-intelligence/
 │       └── admin.js        ← Server-rendered admin HTML shell
 ├── app/                    ← Frontend (vanilla JS, no build step)
 │   ├── index.html          ← Public listing search page
+│   ├── listings.html       ← Static listings index
+│   ├── 37-advent.html      ← Advent landing page, served at /37-advent
 │   ├── listing.html        ← Single property detail page
 │   ├── admin.html          ← Admin login page
 │   ├── app.js              ← Listing grid, filters, modal, contact form
-│   ├── listing.js          ← Property detail + inquiry form
-│   └── styles.css          ← All styles (shared across pages)
+│   └── listing.js          ← Property detail + inquiry form
 ├── database/
 │   ├── wv_property.db      ← SQLite database (runtime, gitignored)
 │   └── schema.sql          ← Reference schema (SQLite, documentation only)
