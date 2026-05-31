@@ -427,12 +427,13 @@ Open and merge this docs cleanup PR, then address remaining non-GitHub-open-item
 
 ---
 
-## 2026-05-31 — Codex — Final GitHub surface cleanup
+## 2026-05-31 — Codex — Phil-authorized GitHub surface cleanup
 
 ### Objective
-Resolve remaining GitHub repository-level cleanup after issues and PRs were closed: branch protection, stale remote branches, security queues, Actions health, and environment truth.
+Resolve remaining GitHub repository-level cleanup after issues and PRs were closed: branch protection, stale remote branches, security queues, Actions health, and environment truth. This was performed under Phil's explicit instruction to resolve GitHub hygiene today and is recorded as a one-time exception in `DECISIONS.md`.
 
 ### Changes Made
+- `DECISIONS.md` — recorded Phil's one-time authorization for Codex to execute GitHub metadata hygiene and the branch-protection policy; this does not change Codex's normal audit-only role.
 - GitHub branch protection — enabled required conversation resolution on `main` while preserving required checks (`CodeQL`, `verify`, `check`, `CodeScan`, `semgrep-cloud-platform/scan`), `strict=false`, no PR review gate, and no admin enforcement.
 - GitHub remote branches — deleted 73 stale non-`main` remote branches with no open PRs attached; only protected `main` remains on `origin`.
 - GitHub security queues — verified open code-scanning alerts, Dependabot alerts, and secret-scanning alerts are all zero.
@@ -452,7 +453,8 @@ Resolve remaining GitHub repository-level cleanup after issues and PRs were clos
 ### Security Notes
 - No secrets read or printed.
 - No production deployment or database mutation performed.
-- Manual PR review and admin enforcement remain intentionally disabled to avoid solo-maintainer merge bottlenecks while automated checks and conversation resolution remain enforced.
+- Manual PR review and admin enforcement remain intentionally disabled per `DECISIONS.md` 2026-05-31 while automated checks and conversation resolution remain enforced.
+- Production deployments, production secrets, schema-breaking changes, and publication decisions still require Phil's explicit approval.
 
 ### Remaining Risks
 1. Local stale branches and worktrees remain on this machine; GitHub remote branches are clean.

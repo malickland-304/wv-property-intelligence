@@ -21,7 +21,7 @@
 | Authenticated smoke | ✅ PASSED (7/7) — 2026-05-27 |
 | npm audit | 0 vulnerabilities (main) |
 | GitHub security queues | ✅ clean — open code-scanning, Dependabot, and secret-scanning alerts all zero on 2026-05-31 |
-| GitHub branch protection | ✅ required checks + conversation resolution; PR review/admin gates intentionally off for low-friction solo operation |
+| GitHub branch protection | ✅ required checks + conversation resolution; PR review/admin gates intentionally off per `DECISIONS.md` 2026-05-31 |
 | GitHub deployment environments | Railway reports deployments to `alert-laughter / production`; `production` and `copilot` environments exist but do not gate Railway deploys |
 | OpenHands executor | ⏳ NOT LIVE — awaiting token provisioning and runtime start |
 | `API_KEY` in Railway | confirmed present |
@@ -72,7 +72,7 @@ Governance layer is live on `main`. Includes:
 6. ⏳ OpenHands executor started (`docker run ...` or `openhands start`)
 7. ⏳ First supervised run — create or choose a current task; GitHub currently has no open issues and Issue #66 is already fixed
 
-**Runtime activation** is the only remaining blocker. Required automated checks and conversation resolution are in place; PR review protection and admin enforcement are intentionally off for solo-maintainer throughput.
+**Runtime activation** is the only remaining blocker. Required automated checks and conversation resolution are in place; PR review protection and admin enforcement are intentionally off per the 2026-05-31 `DECISIONS.md` branch-protection policy.
 
 ### Issue #66 — CLOSED
 

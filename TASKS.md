@@ -53,7 +53,7 @@
 - [x] Public navigation repair merged — PR #76 merged to `main` (`dc8cc53`) 2026-05-31
 - [x] Public navigation repair deployed and smoke-tested — production `/api/health`, `/listings`, `/37-advent`, and legacy Advent redirect verified 2026-05-31
 - [x] GitHub required status checks configured — `CodeQL`, `verify`, `check`, `CodeScan`, `semgrep-cloud-platform/scan`
-- [x] GitHub branch protection finalized — required checks + conversation resolution enabled; manual PR review/admin gates intentionally off for low-friction solo operation — 2026-05-31
+- [x] GitHub branch protection finalized — required checks + conversation resolution enabled; manual PR review/admin gates intentionally off per `DECISIONS.md` 2026-05-31 — 2026-05-31
 - [x] GitHub remote branch cleanup — 73 stale non-`main` remote branches deleted; only protected `main` remains — 2026-05-31
 - [x] GitHub security queues audited — open CodeQL/code-scanning alerts, Dependabot alerts, and secret-scanning alerts all zero — 2026-05-31
 - [x] GitHub environments audited — Railway deployments report to `alert-laughter / production`; unused `production`/`copilot` environments documented as non-gating — 2026-05-31
