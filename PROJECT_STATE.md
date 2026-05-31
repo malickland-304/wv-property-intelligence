@@ -56,7 +56,10 @@ Open GitHub issues: **0**. Open pull requests: **0** after cleanup on 2026-05-31
 | Security test suite | ✅ **48/48** on `fix/public-navigation-links` (`node tests/verify-security-fixes.test.js`) |
 | Preflight + route smoke | ✅ Passed on fix branch per session validation (2026-05-31) |
 | CI gates | ✅ CodeQL, Semgrep, `preflight.yml` |
-| Branch protection | Required status checks enabled (`CodeQL`, `verify`, `check`, `CodeScan`, `semgrep-cloud-platform/scan`); PR review protection, conversation resolution, and admin enforcement were not enabled in the 2026-05-31 GitHub API check |
+| Branch protection | Required status checks enabled (`CodeQL`, `verify`, `check`, `CodeScan`, `semgrep-cloud-platform/scan`); required conversation resolution enabled; PR review protection and admin enforcement intentionally off for low-friction solo operation |
+| GitHub security queues | ✅ Open code-scanning alerts: 0; Dependabot alerts: 0; secret-scanning alerts: 0 (2026-05-31 API audit) |
+| Remote branches | ✅ Only protected `main` remains on `origin` after stale branch cleanup (2026-05-31) |
+| GitHub environments | Railway deployment statuses use `alert-laughter / production`; `production` and `copilot` environments exist but are not deployment-gating for Railway |
 
 ---
 
@@ -139,10 +142,6 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 
 - `api/services/email.js` (Resend/Gmail), `twilioService.js`, `leadFollowupWorker.js` exist but are thinly documented in env-var lists
 - Env vars: `RESEND_API_KEY`, `FROM_EMAIL`, `NOTIFICATION_EMAIL`, `TWILIO_*`, `LEAD_ALERT_TO_NUMBER` — see `AGENTS.md`
-
-### 🟡 MEDIUM — Stale remote branches
-
-- Many `copilot/*` and old `claude/*` branches — safe to delete after review
 
 ### 🟢 LOW — OpenHands runtime not activated
 
