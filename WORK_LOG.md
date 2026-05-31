@@ -356,3 +356,37 @@ Repair repo truth after multiple overlapping agent sessions: identify the canoni
 
 ### Recommended Next Task
 Wait for PR #76 GitHub checks, merge after approval, then verify production `/listings`, `/37-advent`, `/advent-drive-land-hampshire-county-wv`, and `/api/health`.
+
+---
+
+## 2026-05-31 — Codex — chore/post-pr76-doc-refresh
+
+### Objective
+Repair post-merge coordination state after PR #76 and PR #77 landed, and reduce future Cursor/Codex drift caused by wrong workspaces, stale duplicate checkouts, and outdated branch-protection claims.
+
+### Changes Made
+- `AGENTS.md` — folded the external assistant handoff protocol into the canonical agent instructions so `CODEX_COLLABORATION.md` can be removed instead of maintained as a duplicate source.
+- `PROJECT_STATE.md` — updated current production branch to `origin/main` @ `b34e2fb`, recorded PR #77, marked PR #76 production smoke as passed, and corrected branch-protection status to match GitHub API evidence.
+- `TASKS.md` — moved public-navigation deploy/smoke out of open work, added branch-protection policy mismatch as the current high-priority decision, and corrected the completed branch-protection item to required status checks only.
+- `docs/CANONICAL_MAP.md` — updated canonical branch state, recorded live PR #76 smoke results, and documented PR #77 Cursor workspace guardrails.
+- `CODEX_COLLABORATION.md` — removed after preserving its useful handoff protocol in `AGENTS.md`.
+
+### Verification (Truthfulness Rule applies)
+- Command: `git fetch origin --prune` → Result: PASSED; `origin/main` advanced to `b34e2fb`.
+- Command: `gh pr view 77 --json state,mergedAt,mergeCommit,url,title` → Result: PASSED; PR #77 merged at `2026-05-31T18:11:58Z`, merge commit `b34e2fb`.
+- Command: live read-only probes for `/api/health`, `/listings`, `/37-advent`, and `/advent-drive-land-hampshire-county-wv` → Result: PASSED (200, 200, 200, 301 to `/37-advent`).
+- Command: `gh api repos/malickland-304/wv-property-intelligence/branches/main/protection` → Result: PASSED; required checks enabled, required PR reviews absent, conversation resolution disabled, admin enforcement disabled.
+- Command: `git diff --check` → Result: PASSED.
+
+### Security Notes
+- No secrets read or printed.
+- No branch protection, production environment, deployment, or database settings changed.
+- Local-only stop rules were added in stale duplicate workspaces to prevent future production edits there; those stale checkouts remain unarchived.
+
+### Remaining Risks
+1. Cursor still has historical transcripts rooted in `openclaw-system` and stale Documents/GitHub checkouts; every new Cursor handoff must verify `workspace_roots`.
+2. Branch protection policy still needs a decision: tighten GitHub settings or keep the lighter policy and document it.
+3. `/wv/*-county` links remain a separate route repair item until fixed in its own PR.
+
+### Recommended Next Task
+Push this docs refresh branch and open a PR, then decide the branch-protection policy before changing GitHub settings.

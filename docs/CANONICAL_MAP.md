@@ -10,16 +10,16 @@
 | Live domain | `https://malickland.net` | DNS resolves to `66.33.22.228`; responses are served by Railway |
 | Production stack | Express 5 monolith: `api/` JSON + `app/` static HTML | `railway.toml`, `api/Dockerfile`, `api/server.js`, live `/api/health` |
 | Production repo | `malickland-304/wv-property-intelligence` | `origin` in `/Users/yhyh7/Projects/wv-property-intelligence` |
-| Production branch | `origin/main` | `git fetch origin`; last observed `origin/main` was `2c4b71e` on 2026-05-31 |
-| Canonical local checkout | `/Users/yhyh7/Projects/wv-property-intelligence` | Active repair branch `fix/public-navigation-links` |
-| Health URL | `https://malickland.net/api/health` | Live probe returned `{"status":"ok", ...}` on 2026-05-31 |
+| Production branch | `origin/main` | `origin/main` at `b34e2fb` on 2026-05-31 (PR #77 merged after PR #76) |
+| Canonical local checkout | `/Users/yhyh7/Projects/wv-property-intelligence` | Use this checkout only; run `git fetch origin --prune` and compare against `origin/main` before work |
+| Health URL | `https://malickland.net/api/health` | Live probe returned 200 JSON on 2026-05-31 |
 | Not production | `malickland-304/malickland.net` | Separate dirty Next.js checkout under Documents; live site is not serving Next.js routes |
 | Not deployed | `listing-system/workers/` | Cloudflare Worker config is experimental/template-level and must not be deployed to apex without an architecture decision |
 | Separate project | `malickland.cloud` | OpenClaw/trading infrastructure; not the MalickLand real estate website |
 
-## Active Repair
+## Public Navigation Repair (PR #76 — merged)
 
-Branch: `fix/public-navigation-links`
+Branch `fix/public-navigation-links` merged into `main` @ `dc8cc53` (2026-05-31); branch deleted remotely.
 
 Purpose:
 - Serve `app/*.html` pages without requiring the `.html` suffix.
@@ -39,6 +39,21 @@ Local validation on the repair branch passed:
 - `PREFLIGHT_PORT=43137 bash scripts/preflight.sh`
 - Local route smoke: `/37-advent` 200 and legacy Advent SEO URL 301 -> `/37-advent`.
 
+Production smoke after merge passed on 2026-05-31:
+- `/api/health` -> 200 JSON.
+- `/listings` -> 200 HTML.
+- `/37-advent` -> 200 HTML.
+- `/advent-drive-land-hampshire-county-wv` -> 301 to `/37-advent`.
+
+## Cursor Workspace Guardrails (PR #77 — merged)
+
+PR #77 merged into `main` @ `b34e2fb` (2026-05-31).
+
+Purpose:
+- Track `.cursor/rules/malickland-canonical-workspace.mdc` in the canonical repo.
+- Keep external-assistant handoff guidance in tracked repo files.
+- Prevent future agents from treating stale checkouts or `openclaw-system` as the production website workspace.
+
 ## Do Not Use As Source Of Truth
 
 | Path or repo | Reason |
@@ -55,7 +70,7 @@ Local validation on the repair branch passed:
 3. Health is `/api/health`, not `/health`.
 4. Do not edit the Next.js `malickland.net` repo for production fixes unless a documented architecture decision changes the production stack.
 5. Do not run `wrangler deploy` for `listing-system/workers/` without explicit human approval and a recorded route-ownership decision.
-6. Before claiming production deployment, verify Railway and run read-only live smoke checks.
+6. Before claiming production deployment, verify Railway or run read-only live smoke checks.
 
 ## Known Follow-Up
 

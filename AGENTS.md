@@ -272,6 +272,32 @@ Every agent session that makes changes must append an entry to `WORK_LOG.md`. Th
 
 ---
 
+## External Assistant / Codex Handoff Protocol
+
+Codex (and any external reviewer that cannot attach to the Cursor account) gets all context **through the repository**, not through Cursor session state:
+
+- Paste relevant Cursor/agent output directly into the external assistant's chat when needed.
+- Share or attach the files the implementing agent created or changed.
+- Point the assistant at the same GitHub repo and branch so it can inspect committed or uncommitted changes locally. The canonical local checkout and remote are recorded in `PROJECT_STATE.md` and `docs/CANONICAL_MAP.md`.
+- Keep plans, rules, and decisions in tracked files (`.cursor/rules/`, `docs/`, and the root `*.md` coordination docs) so they survive across assistants — see the Repository Authority Rule above for which file owns which state.
+
+Every time an implementing agent finishes a chunk of work, hand off:
+
+- The **branch** worked on (`git branch --show-current`).
+- The **files touched** (`git status` / `git diff --name-only`).
+- **What changed and why** (link the relevant `*.md` doc or commit message).
+
+Quick commands to copy/paste for a handoff:
+
+```bash
+git branch --show-current        # current branch
+git status                       # uncommitted changes
+git diff --name-only             # changed file paths
+git log --oneline -10            # recent commits
+```
+
+---
+
 ## Canonical workspace
 
 Active development repo: **`/Users/yhyh7/Projects/wv-property-intelligence`**. Workspace path, branch, merged PRs, and stale clone warnings are in `PROJECT_STATE.md`. Do not treat `~/Documents/GitHub/wv-property-intelligence`, `~/Projects/wv-realestate`, or the separate Next.js `malickland.net` tree as this product.
