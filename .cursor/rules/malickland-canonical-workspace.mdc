@@ -1,0 +1,42 @@
+---
+description: MalickLand production workspace and handoff guardrails
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+# MalickLand Production Workspace
+
+This Cursor workspace is the canonical production website repo for `malickland.net`:
+
+- Local path: `/Users/yhyh7/Projects/wv-property-intelligence`
+- Remote: `https://github.com/malickland-304/wv-property-intelligence.git`
+- Production branch: `main`
+- Stack: Express 5, SQLite, vanilla HTML in `app/`, Railway deploy
+- Health URL: `https://malickland.net/api/health`
+
+Before any work:
+
+1. Run `git fetch origin --prune`.
+2. Run `git status --short --branch`.
+3. If you are not intentionally on a feature branch, switch to `main` and pull: `git checkout main && git pull --ff-only origin main`.
+4. Read `AGENTS.md`, `docs/CANONICAL_MAP.md`, `PROJECT_STATE.md`, and `TASKS.md`.
+
+Do not use these for production website work:
+
+- `/Users/yhyh7/Projects/openclaw-system`
+- `/Users/yhyh7/Documents/GitHub/wv-property-intelligence`
+- `/Users/yhyh7/Documents/GitHub/wv-property-intelligence-repair`
+- `/Users/yhyh7/Documents/Documents - Philip's MacBook Pro - 4/GitHub/malickland.net`
+- `malickland-304/malickland.net`
+- `listing-system/workers/`
+
+If a prompt mentions MalickLand website work while Cursor is rooted anywhere else, stop and tell Phil to reopen Cursor at `/Users/yhyh7/Projects/wv-property-intelligence`.
+
+When handing work to Codex, report:
+
+- Branch name
+- `git status --short --branch`
+- Files touched
+- Commit or PR URL, if pushed
+- Validation actually run
