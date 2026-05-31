@@ -350,9 +350,9 @@ Repair repo truth after multiple overlapping agent sessions: identify the canoni
 - Cloudflare Worker deploy remains explicitly blocked without human approval and route-ownership decision.
 
 ### Remaining Risks
-1. Branch still needs push, PR, GitHub CI, merge, Railway deploy, and production verification.
+1. PR #76 still needs GitHub CI, review/approval, merge, Railway deploy, and production verification.
 2. Homepage county links under `/wv/*-county` still point to missing routes/pages; tracked separately in `TASKS.md`.
 3. Old local branches and stale duplicate checkouts still exist; do not delete until unpushed work is reviewed.
 
 ### Recommended Next Task
-Push `fix/public-navigation-links`, open a PR to `main`, wait for GitHub checks, merge after approval, then verify production `/listings`, `/37-advent`, `/advent-drive-land-hampshire-county-wv`, and `/api/health`.
+Wait for PR #76 GitHub checks, merge after approval, then verify production `/listings`, `/37-advent`, `/advent-drive-land-hampshire-county-wv`, and `/api/health`.

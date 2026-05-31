@@ -13,7 +13,7 @@
 
 ## High Priority
 
-- [ ] **Open PR for public navigation repair** — push `fix/public-navigation-links`, open PR to `main`, and wait for GitHub checks; local branch is rebased onto current `origin/main` and locally verified — no deps — **Claude Code or developer**
+- [ ] **Merge and deploy public navigation repair** — PR #76 is open; wait for GitHub checks, review/approval, merge to `main`, Railway deploy, and production smoke for `/listings`, `/37-advent`, legacy Advent SEO redirect, and `/api/health` — no deps — **Phil / Claude Code**
 - [ ] **Update docs/agent-handoff.md service notes** — keep deployment-state reference aligned with current service env vars and merged PR state; do not let it override AGENTS.md — no deps — Claude Code
 - [ ] **OpenHands executor activation** — provision fine-grained GitHub token; start executor; run first supervised task — waiting on developer action; Issue #66 is now fixed on main, so pick Issue #65 or new task — **developer action**
 
@@ -49,6 +49,7 @@
 - [x] Governance test suite repair — PR #73 merged 2026-05-28
 - [x] Startup notification observability — PR #75 merged 2026-05-28
 - [x] Canonical production map created — `docs/CANONICAL_MAP.md` added 2026-05-31
+- [x] Public navigation repair PR opened — PR #76 opened 2026-05-31
 - [x] GitHub branch protection hardened — required checks, review approval, stale dismissal, admin enforcement
 - [x] `production` GitHub environment locked — reviewer gate, main-only deploys
 - [x] `brace-expansion` patched, `cookie` transitive vuln contained

@@ -12,7 +12,7 @@
 | **Active repo** | `/Users/yhyh7/Projects/wv-property-intelligence` |
 | **Remote** | `https://github.com/malickland-304/wv-property-intelligence.git` |
 | **Production branch** | `origin/main` @ `2c4b71e` (2026-05-31 fetch) |
-| **In-progress branch** | `fix/public-navigation-links` — local repair branch pending push/PR |
+| **In-progress branch** | `fix/public-navigation-links` — pushed as PR #76 |
 | **Ahead of `origin/main`** | Public navigation repair plus repository-state documentation refresh |
 
 The fix branch has been rebased onto current `origin/main`; compare future work against `origin/main`, not stale local `main`.
@@ -35,7 +35,7 @@ Local `main` checkout may lag `origin/main`; always `git fetch origin` and compa
 |----|--------|
 | **#73** (governance / test-suite overhaul) | ✅ Merged to `main` (governance commits on `origin/main`, e.g. `f8604f0`, `24399fb`) |
 | **#75** (notification observability) | ✅ Merged — `7eb8b1e` on `origin/main` |
-| **Navigation fix** | ⏳ On `fix/public-navigation-links` only — push + PR pending |
+| **Navigation fix** | ⏳ PR #76 open; waiting for GitHub checks, review/approval, merge, Railway deploy, and production smoke |
 
 ---
 
