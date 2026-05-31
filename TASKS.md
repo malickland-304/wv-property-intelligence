@@ -15,7 +15,7 @@
 
 - [ ] **Resolve branch protection policy mismatch** — GitHub currently requires status checks, but PR review protection, required conversation resolution, and admin enforcement are not enabled; decide whether to tighten settings or document the intentional policy — no deps — **Phil / Codex**
 - [ ] **Update docs/agent-handoff.md service notes** — keep deployment-state reference aligned with current service env vars and merged PR state; do not let it override AGENTS.md — no deps — Claude Code
-- [ ] **OpenHands executor activation** — provision fine-grained GitHub token; start executor; run first supervised task — waiting on developer action; Issue #66 is now fixed on main, so pick Issue #65 or new task — **developer action**
+- [ ] **OpenHands executor activation** — provision fine-grained GitHub token; start executor; run first supervised task — waiting on developer action; Issue #66 is fixed and Issue #65 is closed, so create or pick a current task — **developer action**
 
 ---
 
@@ -25,7 +25,6 @@
 - [ ] **Add twilio to package.json or remove Twilio path** — if leads feature is kept: `npm install twilio` (human approval required per AGENTS.md); if deleted: remove twilioService.js and references — depends on leads.js decision
 - [ ] **Resolve broken county links** — homepage links `/wv/hampshire-county`, `/wv/hardy-county`, `/wv/morgan-county`, and other county paths, but no static pages or Express route exists; decide whether to create county pages or replace links with listing filters — no deps
 - [ ] **Phase 1: Document Registry spec** — ChatGPT delivers schema, approval state machine, AI extraction JSON contract — no code deps — **ChatGPT**
-- [ ] **Narrow CodeQL suppression** (Issue #65) — replace broad `js/missing-token-validation` query exclusion with per-file suppression — low risk, no deps — **Claude Code**
 
 ---
 
@@ -46,6 +45,8 @@
 - [x] AI control plane bootstrap (AGENTS.md, OpenHands hooks, issue templates) — PR #64 merged 2026-05-27
 - [x] Handoff doc update post-PR #64 — PR #67 merged
 - [x] Block `npm install --save` / `npm i -S` in pre-tool hook — PR #68 merged 2026-05-27 (copilot fix for Issue #66)
+- [x] GitHub stale PR cleanup — PRs #60, #70, and #71 closed with evidence comments; linked Issues #65/#66 already closed — 2026-05-31
+- [x] CodeQL suppression narrowing attempt closed — PR #71 failed CodeQL; broad false-positive exclusion remains documented until a fresh green approach exists
 - [x] Governance test suite repair — PR #73 merged 2026-05-28
 - [x] Startup notification observability — PR #75 merged 2026-05-28
 - [x] Canonical production map created — `docs/CANONICAL_MAP.md` added 2026-05-31

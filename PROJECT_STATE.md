@@ -30,12 +30,18 @@ Local `main` checkout may lag `origin/main`; always `git fetch origin` and compa
 
 ## GitHub / PR status (2026-05-31)
 
+Open GitHub issues: **0**. Open pull requests: **0** after cleanup on 2026-05-31.
+
 | PR | Status |
 |----|--------|
+| **#60** (old consolidation PR) | Closed 2026-05-31 as stale/unsafe to merge; branch deleted |
+| **#70** (npm hook blocker) | Closed 2026-05-31 as superseded by current `main`; branch deleted |
+| **#71** (CodeQL suppression narrowing) | Closed 2026-05-31 as not viable; linked Issue #65 is closed and PR failed CodeQL; branch deleted |
 | **#73** (governance / test-suite overhaul) | ✅ Merged to `main` (governance commits on `origin/main`, e.g. `f8604f0`, `24399fb`) |
 | **#75** (notification observability) | ✅ Merged — `7eb8b1e` on `origin/main` |
 | **#76** (public navigation links fix) | ✅ Merged — `dc8cc53` on `origin/main` (2026-05-31); production smoke passed |
 | **#77** (Cursor workspace guardrails) | ✅ Merged — `b34e2fb` on `origin/main` (2026-05-31) |
+| **#78** (post-PR76 docs refresh) | ✅ Merged — `0908cd4` on `origin/main` (2026-05-31) |
 
 ---
 

@@ -66,13 +66,13 @@ Governance layer is live on `main`. Includes:
 **OpenHands is NOT YET LIVE.** Pre-flight checklist status (2026-05-27):
 1. ✅ PR #64 merged
 2. ✅ Production smoke — PASSED (7/7)
-3. ✅ GitHub branch protection hardened
+3. ✅ GitHub required status checks configured (`CodeQL`, `verify`, `check`, `CodeScan`, `semgrep-cloud-platform/scan`)
 4. ✅ `production` GitHub environment locked (reviewer gate, main-only)
 5. ⏳ OpenHands fine-grained GitHub token — `contents: write`, `pull-requests: write`, `issues: write`; all other permissions set to `none`
 6. ⏳ OpenHands executor started (`docker run ...` or `openhands start`)
-7. ⏳ First supervised run — choose a current open issue; Issue #66 is already fixed
+7. ⏳ First supervised run — create or choose a current task; GitHub currently has no open issues and Issue #66 is already fixed
 
-**Runtime activation** is the only remaining blocker. All governance controls are in place.
+**Runtime activation** is the only remaining blocker. Required automated checks are in place; PR review protection, required conversation resolution, and admin enforcement were not enabled in the 2026-05-31 GitHub API check.
 
 ### Issue #66 — CLOSED
 
@@ -82,6 +82,7 @@ Issue #66 was fixed by merged PRs #68/#69. The OpenHands npm install blocker now
 - `leads.js` — not mounted in `server.js`; decide: mount or delete
 - `PROJECT.md` — may be stale, needs review before use
 - Stale local branches (`copilot/*`, some `claude/*`, superseded fix branches) — safe to delete only after confirming no unpushed work
+- Closed stale GitHub PRs #60, #70, and #71 on 2026-05-31; do not revive them without re-cutting fresh branches from current `main`
 
 ---
 
