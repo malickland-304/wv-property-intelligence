@@ -444,9 +444,9 @@ Resolve remaining GitHub repository-level cleanup after issues and PRs were clos
 - Command: `gh issue list --state open --limit 100` → Result: PASSED (`[]`).
 - Command: `gh pr list --state open --limit 100` → Result: PASSED (`[]`).
 - Command: `gh api repos/malickland-304/wv-property-intelligence/branches/main/protection` → Result: PASSED; required conversation resolution enabled, required checks preserved.
-- Command: `gh api .../code-scanning/alerts -f state=open` → Result: PASSED (0).
-- Command: `gh api .../dependabot/alerts -f state=open` → Result: PASSED (0).
-- Command: `gh api .../secret-scanning/alerts -f state=open` → Result: PASSED (0).
+- Command: `gh api repos/malickland-304/wv-property-intelligence/code-scanning/alerts -f state=open` → Result: PASSED (0).
+- Command: `gh api repos/malickland-304/wv-property-intelligence/dependabot/alerts -f state=open` → Result: PASSED (0).
+- Command: `gh api repos/malickland-304/wv-property-intelligence/secret-scanning/alerts -f state=open` → Result: PASSED (0).
 - Command: `gh api repos/malickland-304/wv-property-intelligence/branches --paginate` → Result: PASSED; only `main` remains.
 
 ### Security Notes
