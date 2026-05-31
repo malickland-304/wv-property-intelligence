@@ -71,3 +71,15 @@
 **Decision:** ChatGPT = orchestrator/PM; Claude Code = implementation; Codex = audit-only (no mutations); Gemini = architecture challenger (no code in active PRs); OpenHands = supervised worker.
 **Reasoning:** Prevents conflicting implementations, ensures human review, preserves security posture.
 **Files:** `AGENTS.md`
+
+---
+
+## 2026-05-31 — GitHub hygiene cleanup and branch-protection policy
+
+**Problem:** GitHub had no open issues/PRs after cleanup, but repository metadata still contained stale remote branches, branch-protection drift, and misleading environment documentation.
+**Decision:** Under Phil's direct instruction for a one-time GitHub cleanup, Codex may execute GitHub metadata hygiene for this task only: close stale PRs, delete stale non-`main` remote branches, and update branch protection. This is not a standing change to the Codex audit-only role.
+**Branch protection:** Preserve required status checks (`CodeQL`, `verify`, `check`, `CodeScan`, `semgrep-cloud-platform/scan`) and enable required conversation resolution. Keep required PR reviews and admin enforcement off to avoid solo-maintainer merge bottlenecks.
+**Human gate:** Production deployments, production secrets, schema-breaking changes, and publication decisions still require Phil's explicit approval. Disabling required PR reviews does not grant any agent deploy authority.
+**Reasoning:** Automated checks plus conversation resolution provide the useful GitHub safety gates without recreating the manual-review bottleneck that previously blocked repository throughput.
+**Alternatives:** Required PR reviews/admin enforcement — rejected for now because the repo is operated by a solo maintainer and those settings can block emergency fixes or docs-only cleanup.
+**Files:** `TASKS.md`, `PROJECT_STATE.md`, `docs/agent-handoff.md`, `WORK_LOG.md`

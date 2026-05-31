@@ -424,3 +424,42 @@ Audit all open GitHub issues and pull requests, finish stale/superseded PRs with
 
 ### Recommended Next Task
 Open and merge this docs cleanup PR, then address remaining non-GitHub-open-item work: branch-protection policy, `leads.js`, and `/wv/*-county` links.
+
+---
+
+## 2026-05-31 — Codex — Phil-authorized GitHub surface cleanup
+
+### Objective
+Resolve remaining GitHub repository-level cleanup after issues and PRs were closed: branch protection, stale remote branches, security queues, Actions health, and environment truth. This was performed under Phil's explicit instruction to resolve GitHub hygiene today and is recorded as a one-time exception in `DECISIONS.md`.
+
+### Changes Made
+- `DECISIONS.md` — recorded Phil's one-time authorization for Codex to execute GitHub metadata hygiene and the branch-protection policy; this does not change Codex's normal audit-only role.
+- GitHub branch protection — enabled required conversation resolution on `main` while preserving required checks (`CodeQL`, `verify`, `check`, `CodeScan`, `semgrep-cloud-platform/scan`), `strict=false`, no PR review gate, and no admin enforcement.
+- GitHub remote branches — deleted 73 stale non-`main` remote branches with no open PRs attached; only protected `main` remains on `origin`.
+- GitHub security queues — verified open code-scanning alerts, Dependabot alerts, and secret-scanning alerts are all zero.
+- GitHub Actions — verified recent `main` runs are green; cancelled Copilot dynamic review runs were non-required and from merged PR branches.
+- GitHub environments — verified Railway deployment statuses use `alert-laughter / production`; `production` and `copilot` environments exist but do not gate Railway deploys.
+- `PROJECT_STATE.md`, `TASKS.md`, and `docs/agent-handoff.md` — updated to match the final GitHub state.
+
+### Verification (Truthfulness Rule applies)
+- Command: `gh issue list --state open --limit 100` → Result: PASSED (`[]`).
+- Command: `gh pr list --state open --limit 100` → Result: PASSED (`[]`).
+- Command: `gh api repos/malickland-304/wv-property-intelligence/branches/main/protection` → Result: PASSED; required conversation resolution enabled, required checks preserved.
+- Command: `gh api repos/malickland-304/wv-property-intelligence/code-scanning/alerts -f state=open` → Result: PASSED (0).
+- Command: `gh api repos/malickland-304/wv-property-intelligence/dependabot/alerts -f state=open` → Result: PASSED (0).
+- Command: `gh api repos/malickland-304/wv-property-intelligence/secret-scanning/alerts -f state=open` → Result: PASSED (0).
+- Command: `gh api repos/malickland-304/wv-property-intelligence/branches --paginate` → Result: PASSED; only `main` remains.
+
+### Security Notes
+- No secrets read or printed.
+- No production deployment or database mutation performed.
+- Manual PR review and admin enforcement remain intentionally disabled per `DECISIONS.md` 2026-05-31 while automated checks and conversation resolution remain enforced.
+- Production deployments, production secrets, schema-breaking changes, and publication decisions still require Phil's explicit approval.
+
+### Remaining Risks
+1. Local stale branches and worktrees remain on this machine; GitHub remote branches are clean.
+2. Railway deployment gating is not controlled by GitHub environments; deployment statuses are reported to `alert-laughter / production`.
+3. Product backlog items (`leads.js`, `/wv/*-county`, document registry) remain non-GitHub-open-item work.
+
+### Recommended Next Task
+Open and merge this final docs PR, then move from GitHub hygiene to product/runtime backlog: `leads.js`, `/wv/*-county`, and OpenHands runtime activation.

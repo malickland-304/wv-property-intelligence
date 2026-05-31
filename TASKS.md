@@ -13,7 +13,6 @@
 
 ## High Priority
 
-- [ ] **Resolve branch protection policy mismatch** — GitHub currently requires status checks, but PR review protection, required conversation resolution, and admin enforcement are not enabled; decide whether to tighten settings or document the intentional policy — no deps — **Phil / Codex**
 - [ ] **Update docs/agent-handoff.md service notes** — keep deployment-state reference aligned with current service env vars and merged PR state; do not let it override AGENTS.md — no deps — Claude Code
 - [ ] **OpenHands executor activation** — provision fine-grained GitHub token; start executor; run first supervised task — waiting on developer action; Issue #66 is fixed and Issue #65 is closed, so create or pick a current task — **developer action**
 
@@ -21,7 +20,7 @@
 
 ## Medium Priority
 
-- [ ] **Delete stale local branches** — remove superseded local `copilot/*`, old `claude/*`, and merged fix branches after confirming no unpushed work — no deps — **Claude Code or developer**
+- [ ] **Delete stale local branches** — remote branches are cleaned up; remove superseded local `copilot/*`, old `claude/*`, and merged fix branches after confirming no unpushed work — no deps — **Claude Code or developer**
 - [ ] **Add twilio to package.json or remove Twilio path** — if leads feature is kept: `npm install twilio` (human approval required per AGENTS.md); if deleted: remove twilioService.js and references — depends on leads.js decision
 - [ ] **Resolve broken county links** — homepage links `/wv/hampshire-county`, `/wv/hardy-county`, `/wv/morgan-county`, and other county paths, but no static pages or Express route exists; decide whether to create county pages or replace links with listing filters — no deps
 - [ ] **Phase 1: Document Registry spec** — ChatGPT delivers schema, approval state machine, AI extraction JSON contract — no code deps — **ChatGPT**
@@ -54,7 +53,10 @@
 - [x] Public navigation repair merged — PR #76 merged to `main` (`dc8cc53`) 2026-05-31
 - [x] Public navigation repair deployed and smoke-tested — production `/api/health`, `/listings`, `/37-advent`, and legacy Advent redirect verified 2026-05-31
 - [x] GitHub required status checks configured — `CodeQL`, `verify`, `check`, `CodeScan`, `semgrep-cloud-platform/scan`
-- [x] `production` GitHub environment locked — reviewer gate, main-only deploys
+- [x] GitHub branch protection finalized — required checks + conversation resolution enabled; manual PR review/admin gates intentionally off per `DECISIONS.md` 2026-05-31 — 2026-05-31
+- [x] GitHub remote branch cleanup — 73 stale non-`main` remote branches deleted; only protected `main` remains — 2026-05-31
+- [x] GitHub security queues audited — open CodeQL/code-scanning alerts, Dependabot alerts, and secret-scanning alerts all zero — 2026-05-31
+- [x] GitHub environments audited — Railway deployments report to `alert-laughter / production`; unused `production`/`copilot` environments documented as non-gating — 2026-05-31
 - [x] `brace-expansion` patched, `cookie` transitive vuln contained
 - [x] Create PROJECT_STATE.md, TASKS.md, DECISIONS.md, QA_CHECKLIST.md — 2026-05-27 (Claude Code)
 - [x] Create ARCHITECTURE.md, WORK_LOG.md — 2026-05-27 (Claude Code)

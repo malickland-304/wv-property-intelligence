@@ -16,13 +16,13 @@
 
 | Item | Status |
 |------|--------|
-| HEAD (main) | See `PROJECT_STATE.md` — verify with `git rev-parse origin/main` (was `2c4b71e` at 2026-05-31 doc pass) |
+| HEAD (main) | See `PROJECT_STATE.md` — verify with `git rev-parse origin/main` before work |
 | Railway deployment | ✅ Tracks `main` — confirm HEAD in Railway Dashboard → Deployments |
 | Authenticated smoke | ✅ PASSED (7/7) — 2026-05-27 |
 | npm audit | 0 vulnerabilities (main) |
-| Dependabot | clean |
-| GitHub branch protection | ✅ hardened — required checks, review approval, stale dismissal, conversation resolution, admin enforcement |
-| GitHub `production` environment | ✅ locked — reviewer gate, admin bypass disabled, `main`-only deploys |
+| GitHub security queues | ✅ clean — open code-scanning, Dependabot, and secret-scanning alerts all zero on 2026-05-31 |
+| GitHub branch protection | ✅ required checks + conversation resolution; PR review/admin gates intentionally off per `DECISIONS.md` 2026-05-31 |
+| GitHub deployment environments | Railway reports deployments to `alert-laughter / production`; `production` and `copilot` environments exist but do not gate Railway deploys |
 | OpenHands executor | ⏳ NOT LIVE — awaiting token provisioning and runtime start |
 | `API_KEY` in Railway | confirmed present |
 
@@ -67,12 +67,12 @@ Governance layer is live on `main`. Includes:
 1. ✅ PR #64 merged
 2. ✅ Production smoke — PASSED (7/7)
 3. ✅ GitHub required status checks configured (`CodeQL`, `verify`, `check`, `CodeScan`, `semgrep-cloud-platform/scan`)
-4. ✅ `production` GitHub environment locked (reviewer gate, main-only)
+4. ✅ GitHub branch protection finalized (required checks + conversation resolution)
 5. ⏳ OpenHands fine-grained GitHub token — `contents: write`, `pull-requests: write`, `issues: write`; all other permissions set to `none`
 6. ⏳ OpenHands executor started (`docker run ...` or `openhands start`)
 7. ⏳ First supervised run — create or choose a current task; GitHub currently has no open issues and Issue #66 is already fixed
 
-**Runtime activation** is the only remaining blocker. Required automated checks are in place; PR review protection, required conversation resolution, and admin enforcement were not enabled in the 2026-05-31 GitHub API check.
+**Runtime activation** is the only remaining blocker. Required automated checks and conversation resolution are in place; PR review protection and admin enforcement are intentionally off per the 2026-05-31 `DECISIONS.md` branch-protection policy.
 
 ### Issue #66 — CLOSED
 
@@ -83,6 +83,7 @@ Issue #66 was fixed by merged PRs #68/#69. The OpenHands npm install blocker now
 - `PROJECT.md` — may be stale, needs review before use
 - Stale local branches (`copilot/*`, some `claude/*`, superseded fix branches) — safe to delete only after confirming no unpushed work
 - Closed stale GitHub PRs #60, #70, and #71 on 2026-05-31; do not revive them without re-cutting fresh branches from current `main`
+- Deleted stale remote branches on 2026-05-31; only protected `main` remains on `origin`
 
 ---
 
