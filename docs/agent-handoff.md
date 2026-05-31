@@ -1,18 +1,23 @@
-# Agent Handoff — Source of Truth
+# Agent Handoff — Deployment reference
 
 > **All agents must read this file before acting on this repo.**
 
 ---
 
-> **This file reflects canonical production state, not necessarily any agent's local checkout.**
-> Always verify local repo state with `git fetch origin && git status` before acting.
+> **⚠️ STALE RISK — Product/repo workspace truth lives in [`PROJECT_STATE.md`](../PROJECT_STATE.md).**
+> This file may lag GitHub `main` (HEAD, merged PRs, branch paths). Before acting: use canonical repo `/Users/yhyh7/Projects/wv-property-intelligence`, `git fetch origin`, compare `git rev-parse origin/main`. Do **not** use stale clones under `~/Documents/GitHub/` or the separate Next.js `malickland.net` tree.
+
+---
+
+> **This file reflects deployment/guardrail notes, not necessarily any agent's local checkout.**
+> Always verify with `git fetch origin && git status` before acting.
 
 ## Current Production State
 
 | Item | Status |
 |------|--------|
-| HEAD (main) | `2d4fffc` (merge of PR #64 — AI control plane bootstrap) |
-| Railway deployment | ✅ confirmed live (`2d4fffc`) — verify in Railway Dashboard → Deployments; smoke PASSED 2026-05-27 |
+| HEAD (main) | See `PROJECT_STATE.md` — verify with `git rev-parse origin/main` (was `2c4b71e` at 2026-05-31 doc pass) |
+| Railway deployment | ✅ Tracks `main` — confirm HEAD in Railway Dashboard → Deployments |
 | Authenticated smoke | ✅ PASSED (7/7) — 2026-05-27 |
 | npm audit | 0 vulnerabilities (main) |
 | Dependabot | clean |
@@ -65,24 +70,24 @@ Governance layer is live on `main`. Includes:
 4. ✅ `production` GitHub environment locked (reviewer gate, main-only)
 5. ⏳ OpenHands fine-grained GitHub token — `contents: write`, `pull-requests: write`, `issues: write`; all other permissions set to `none`
 6. ⏳ OpenHands executor started (`docker run ...` or `openhands start`)
-7. ⏳ First supervised run — Issue #66 as dry-run task
+7. ⏳ First supervised run — choose a current open issue; Issue #66 is already fixed
 
 **Runtime activation** is the only remaining blocker. All governance controls are in place.
 
-### Issue #66 — npm install --save not yet blocked (low priority, safe to defer)
+### Issue #66 — CLOSED
 
-`.openhands/hooks/pre-tool-use.sh` blocks `npm install <pkg>`, `npm install` (bare), `npm i <pkg>`, `npm i` (bare) — but NOT `npm install --save <pkg>` or `npm i -S <pkg>`. Safe for initial supervised dry run. Fix tracked in Issue #66.
+Issue #66 was fixed by merged PRs #68/#69. The OpenHands npm install blocker now covers the previously missed save-flag forms.
 
 **Other deferred:**
 - `leads.js` — not mounted in `server.js`; decide: mount or delete
-- `PROJECT.md` — severely stale, needs update
-- Stale remote branches (`copilot/*`, some `claude/*`) — safe to delete
+- `PROJECT.md` — may be stale, needs review before use
+- Stale local branches (`copilot/*`, some `claude/*`, superseded fix branches) — safe to delete only after confirming no unpushed work
 
 ---
 
 ## Guardrails
 
-- **This file reflects canonical production state, not any agent's local checkout.** Verify: `git fetch origin && git status && git rev-parse HEAD`
+- **This file is a deployment-state reference, not the canonical authority document and not proof of any agent's local checkout.** Verify: `git fetch origin && git status && git rev-parse HEAD`
 - Read this file before acting
 - **Do not commit directly to `main`** unless explicitly approved by the user
 - **Do not mutate production data** during smoke tests

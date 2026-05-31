@@ -105,7 +105,7 @@ app.use('/admin', cookieParser(), adminSession, (req, res, next) => {
 app.use('/api',   apiRoutes);
 app.use('/',      publicRoutes);
 
-app.use(express.static(path.join(PROJECT_ROOT, 'app')));
+app.use(express.static(path.join(PROJECT_ROOT, 'app'), { extensions: ['html'] }));
 
 app.use((req, res) => {
   if (req.path.startsWith('/api')) return res.status(404).json({ error: 'Not found' });

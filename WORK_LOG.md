@@ -315,3 +315,44 @@ Add structured observability to notification provider paths — startup readines
 1. (Phil) Add `RESEND_API_KEY` to Railway → redeploy → verify `[Startup] Resend configured: true` in Railway logs
 2. (Phil) Verify live contact form submission delivers notification email
 3. (Phil, separate authorization required) Route `POST /api/contacts` through `services/email.js` so Resend is the active path for contact form notifications
+
+---
+
+## 2026-05-31 — Codex — fix/public-navigation-links
+
+### Objective
+Repair repo truth after multiple overlapping agent sessions: identify the canonical production checkout, stop agents from using stale clones or the separate Next.js experiment for production fixes, rebase the public navigation repair onto current `origin/main`, and prepare the branch for PR.
+
+### Changes Made
+- `api/server.js` — existing branch change retained: static HTML files are served with extension resolution so `/listings` and `/37-advent` can resolve without `.html`.
+- `api/routes/public.js` — existing branch change retained: legacy Advent SEO URL redirects to `/37-advent`.
+- `docs/CANONICAL_MAP.md` — added canonical repo/domain/stack map and guardrails from local git state plus read-only live probes.
+- `AGENTS.md` — added required reference to `docs/CANONICAL_MAP.md` and MalickLand domain guardrails.
+- `PROJECT_STATE.md` — refreshed current repo, branch, PR, validation, and stale-checkout status.
+- `ARCHITECTURE.md` and `README.md` — corrected frontend file tree and documented `/37-advent` extensionless static serving.
+- `TASKS.md` — updated completed PR/test status and added follow-up for broken `/wv/*-county` links.
+- `docs/agent-handoff.md` — demoted to deployment-state reference and removed stale PR #64-era source-of-truth language.
+
+### Verification (Truthfulness Rule)
+- Command: `git fetch origin --prune` → Result: PASSED.
+- Command: `git rebase origin/main` → Result: PASSED.
+- Command: `cd api && npm ci` → Result: PASSED (0 vulnerabilities).
+- Command: `node --check server.js && node --check middleware/auth.js && node --check routes/admin.js && node --check routes/api.js && node --check routes/public.js` → Result: PASSED.
+- Command: `node tests/verify-security-fixes.test.js` → Result: PASSED (48/48).
+- Command: `PREFLIGHT_PORT=43137 bash scripts/preflight.sh` → Result: PASSED after rerun; an earlier parallel run failed before `npm ci` completed and was not a code failure.
+- Command: local route smoke on port 43138 for `/37-advent` and `/advent-drive-land-hampshire-county-wv` → Result: PASSED (`/37-advent` 200, legacy URL 301 then 200).
+- Command: `curl -fsS https://malickland.net/api/health` → Result: PASSED (200 JSON health response).
+- Command: live read-only probes for `/listings`, `/37-advent`, and `/listings.html` → Result: VERIFIED current production still has extensionless 404s before this branch is merged.
+
+### Security Notes
+- No secrets read or printed.
+- No production mutation, deploy, merge, database mutation, or destructive filesystem cleanup performed.
+- Cloudflare Worker deploy remains explicitly blocked without human approval and route-ownership decision.
+
+### Remaining Risks
+1. PR #76 still needs GitHub CI, review/approval, merge, Railway deploy, and production verification.
+2. Homepage county links under `/wv/*-county` still point to missing routes/pages; tracked separately in `TASKS.md`.
+3. Old local branches and stale duplicate checkouts still exist; do not delete until unpushed work is reviewed.
+
+### Recommended Next Task
+Wait for PR #76 GitHub checks, merge after approval, then verify production `/listings`, `/37-advent`, `/advent-drive-land-hampshire-county-wv`, and `/api/health`.

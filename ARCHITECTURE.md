@@ -67,11 +67,12 @@ wv-property-intelligence/
 │       └── admin.js            ← adminShell(), listingForm(), loginPageHtml() (SSR)
 ├── app/                        ← Vanilla JS frontend (served as static files)
 │   ├── index.html              ← Public listing search
+│   ├── listings.html           ← Static listings index
+│   ├── 37-advent.html          ← Advent landing page, extensionless at /37-advent
 │   ├── listing.html            ← Single property detail
 │   ├── admin.html              ← Admin login
 │   ├── app.js                  ← Frontend JS for index.html
-│   ├── listing.js              ← Frontend JS for listing.html
-│   └── styles.css
+│   └── listing.js              ← Frontend JS for listing.html
 ├── database/
 │   ├── schema.sql              ← Reference schema (documentation only, not auto-applied)
 │   └── wv_property.db          ← Live DB (gitignored)
@@ -155,6 +156,8 @@ Public read routes use `publicReadRateLimit`. CRUD write routes require `require
 - `GET /robots.txt`
 - `GET /sitemap.xml`
 - `GET /listing/:id`, `/properties/:id` — serve listing.html
+- `GET /advent-drive-land-hampshire-county-wv` — 301 redirect to `/37-advent`
+- Static frontend files are served from `app/` with `.html` extension resolution, so `/37-advent` serves `app/37-advent.html`
 
 ### /api/leads/* (routes/leads.js) — NOT MOUNTED
 Lead capture routes. Requires missing `services/googleSheets.js` and `twilio` package. Unmounting is intentional; mounting would crash the server.
