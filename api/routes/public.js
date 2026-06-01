@@ -10,7 +10,14 @@ const { publicReadRateLimit } = require('../middleware/rate-limits');
 
 const router = express.Router();
 const HOMEPAGE_DISCLOSURE = 'WV Real Estate Agency, LLC | Sheila Judy, Broker | 501 East Main Street, Romney, WV 26757 | (540) 246-1421';
-const COUNTY_TEMPLATE = fs.readFileSync(path.join(PROJECT_ROOT, 'app', 'county.html'), 'utf8');
+let countyTemplate = null;
+
+function getCountyTemplate() {
+  if (countyTemplate == null) {
+    countyTemplate = fs.readFileSync(path.join(PROJECT_ROOT, 'app', 'county.html'), 'utf8');
+  }
+  return countyTemplate;
+}
 
 function replaceHomepageContent(html, search, replacement) {
   if (!html.includes(search)) {
@@ -144,10 +151,10 @@ router.get('/wv/:slug', publicReadRateLimit, (req, res, next) => {
 
   const slug = county.name.toLowerCase().replace(/\s+/g, '-') + '-county';
   try {
-    const html = COUNTY_TEMPLATE
+    const html = getCountyTemplate()
       .replaceAll('{{COUNTY_NAME}}', esc(county.name))
       .replaceAll('{{COUNTY_ID}}', String(county.id))
-      .replaceAll('{{COUNTY_SLUG}}', slug)
+      .replaceAll('{{COUNTY_SLUG}}', esc(slug))
       .replaceAll('{{DISCLOSURE}}', esc(HOMEPAGE_DISCLOSURE));
     res.type('html').send(html);
   } catch (err) {

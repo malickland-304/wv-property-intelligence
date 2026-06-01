@@ -129,4 +129,5 @@ CREATE INDEX IF NOT EXISTS idx_properties_status ON properties(status);
 CREATE INDEX IF NOT EXISTS idx_properties_type   ON properties(property_type);
 CREATE INDEX IF NOT EXISTS idx_properties_price  ON properties(price);
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
+CREATE INDEX IF NOT EXISTS idx_lead_followups_lead_due ON lead_followups(lead_id, due_at);
 CREATE INDEX IF NOT EXISTS idx_lead_followups_due ON lead_followups(status, due_at);

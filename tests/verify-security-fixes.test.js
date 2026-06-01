@@ -367,6 +367,8 @@ test('mounted lead routes have runtime and reference schema tables', () => {
       'leads table must exist in runtime and reference schemas');
     assert(/CREATE TABLE IF NOT EXISTS lead_followups/i.test(code),
       'lead_followups table must exist in runtime and reference schemas');
+    assert(/CREATE INDEX IF NOT EXISTS idx_lead_followups_lead_due/i.test(code),
+      'lead_followups lead_id due_at index must exist in runtime and reference schemas');
   }
 });
 
