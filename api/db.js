@@ -86,10 +86,50 @@ db.exec(`
     source      TEXT DEFAULT 'web',
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
   );
+  CREATE TABLE IF NOT EXISTS leads (
+    id                TEXT PRIMARY KEY,
+    property_id       TEXT REFERENCES properties(id) ON DELETE SET NULL,
+    property_slug     TEXT,
+    property_address  TEXT,
+    name              TEXT NOT NULL,
+    email             TEXT,
+    phone             TEXT,
+    lead_type         TEXT NOT NULL,
+    buyer_intent      TEXT,
+    financing_type    TEXT,
+    timeline          TEXT,
+    message           TEXT,
+    sms_consent       INTEGER NOT NULL DEFAULT 0,
+    source            TEXT DEFAULT 'property-lead',
+    utm_source        TEXT,
+    utm_medium        TEXT,
+    utm_campaign      TEXT,
+    status            TEXT NOT NULL DEFAULT 'new',
+    follow_up_status  TEXT NOT NULL DEFAULT 'scheduled',
+    next_follow_up_at TEXT,
+    created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS lead_followups (
+    id            TEXT PRIMARY KEY,
+    lead_id       TEXT NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+    step_code     TEXT NOT NULL,
+    channel       TEXT NOT NULL,
+    template_name TEXT NOT NULL,
+    subject       TEXT NOT NULL,
+    body          TEXT NOT NULL,
+    due_at        TEXT NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'pending',
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    sent_at       TEXT
+  );
   CREATE INDEX IF NOT EXISTS idx_properties_county ON properties(county_id);
   CREATE INDEX IF NOT EXISTS idx_properties_status ON properties(status);
   CREATE INDEX IF NOT EXISTS idx_properties_type   ON properties(property_type);
   CREATE INDEX IF NOT EXISTS idx_properties_price  ON properties(price);
+  CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
+  CREATE INDEX IF NOT EXISTS idx_lead_followups_lead_due ON lead_followups(lead_id, due_at);
+  CREATE INDEX IF NOT EXISTS idx_lead_followups_due ON lead_followups(status, due_at);
 `);
 
 // Seed counties

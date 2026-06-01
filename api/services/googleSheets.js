@@ -1,7 +1,7 @@
 'use strict';
 
 function isLeadCaptureConfigured() {
-  return false;
+  return Boolean(process.env.GOOGLE_SHEETS_ID || process.env.GOOGLE_SHEET_ID);
 }
 
 async function append37AdventLead() {
