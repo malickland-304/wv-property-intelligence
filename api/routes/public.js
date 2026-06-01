@@ -50,7 +50,20 @@ router.get('/sitemap.xml', publicReadRateLimit, (_req, res) => {
     }));
   } catch (_) {}
 
-  const allPages = [...staticPages, ...propertyPages];
+  // County landing pages — only counties with active listings (avoids thin-content pages).
+  let countyPages = [];
+  try {
+    const counties = db.prepare(
+      "SELECT DISTINCT c.name FROM counties c JOIN properties p ON p.county_id = c.id WHERE p.status = 'active'"
+    ).all();
+    countyPages = counties.map(c => ({
+      loc:        SITE + '/wv/' + c.name.toLowerCase().replace(/\s+/g, '-') + '-county',
+      changefreq: 'weekly',
+      priority:   '0.7',
+    }));
+  } catch (_) {}
+
+  const allPages = [...staticPages, ...countyPages, ...propertyPages];
   const xml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
@@ -113,6 +126,32 @@ router.get(['/listing/:id', '/properties/:id'], publicReadRateLimit, (_req, res)
 
 router.get('/advent-drive-land-hampshire-county-wv', publicReadRateLimit, (_req, res) => {
   res.redirect(301, '/37-advent');
+});
+
+// County landing pages: /wv/<county>-county → server-rendered page listing that county's
+// active properties. Slug is validated against the counties table; unknown → 404 handler.
+router.get('/wv/:slug', publicReadRateLimit, (req, res, next) => {
+  const name = String(req.params.slug || '')
+    .toLowerCase()
+    .replace(/-county$/, '')
+    .replace(/-/g, ' ')
+    .trim();
+  if (!name) return next();
+
+  const county = db.prepare('SELECT id, name FROM counties WHERE LOWER(name) = ?').get(name);
+  if (!county) return next();  // unknown county → falls through to the site 404 page
+
+  const slug = county.name.toLowerCase().replace(/\s+/g, '-') + '-county';
+  try {
+    const html = fs.readFileSync(path.join(PROJECT_ROOT, 'app', 'county.html'), 'utf8')
+      .replaceAll('{{COUNTY_NAME}}', county.name)
+      .replaceAll('{{COUNTY_ID}}', String(county.id))
+      .replaceAll('{{COUNTY_SLUG}}', slug)
+      .replaceAll('{{DISCLOSURE}}', HOMEPAGE_DISCLOSURE);
+    res.type('html').send(html);
+  } catch (err) {
+    next(err);
+  }
 });
 
 module.exports = router;
