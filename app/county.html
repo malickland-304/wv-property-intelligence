@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{COUNTY_NAME}} County, WV — Land &amp; Property for Sale | MalickLand</title>
+  <meta name="description" content="Browse land, homes, farms and acreage for sale in {{COUNTY_NAME}} County, West Virginia. Local WV real estate from MalickLand — Phil Malick, agent." />
+  <link rel="canonical" href="https://malickland.net/wv/{{COUNTY_SLUG}}" />
+  <meta property="og:title" content="{{COUNTY_NAME}} County, WV — Land &amp; Property for Sale | MalickLand" />
+  <meta property="og:description" content="Land, homes, farms and acreage for sale in {{COUNTY_NAME}} County, West Virginia." />
+  <meta property="og:url" content="https://malickland.net/wv/{{COUNTY_SLUG}}" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://malickland.net/public/brand/og-image.jpg" />
+  <!-- Analytics — loaded from /api/config -->
+  <script>
+    fetch('/api/config').then(r=>r.json()).then(cfg=>{
+      if (cfg.gaId) {
+        var s = document.createElement('script');
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=' + cfg.gaId;
+        s.async = true; document.head.appendChild(s);
+        window.dataLayer = window.dataLayer || [];
+        window.gtag = function(){dataLayer.push(arguments);};
+        gtag('js', new Date()); gtag('config', cfg.gaId);
+      }
+      if (cfg.pixelId) {
+        !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+        n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}
+        (window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', cfg.pixelId); fbq('track', 'PageView');
+      }
+    }).catch(()=>{});
+  </script>
+  <link rel="icon" type="image/png" sizes="32x32" href="/public/brand/favicon.png" />
+  <link rel="apple-touch-icon" href="/public/brand/favicon.png" />
+  <link rel="stylesheet" href="/styles.css" />
+  <!-- Schema: county-scoped RealEstateAgent service area -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "RealEstateAgent",
+    "name": "MalickLand",
+    "url": "https://malickland.net/wv/{{COUNTY_SLUG}}",
+    "telephone": "(540) 246-1421",
+    "areaServed": { "@type": "AdministrativeArea", "name": "{{COUNTY_NAME}} County, West Virginia" },
+    "address": { "@type": "PostalAddress", "streetAddress": "501 East Main Street", "addressLocality": "Romney", "addressRegion": "WV", "postalCode": "26757", "addressCountry": "US" }
+  }
+  </script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+      color:#1a1a1a; background:#f6f7f5; min-height:100vh; display:flex; flex-direction:column; }
+
+    /* NAVBAR */
+    .navbar { display:flex; justify-content:space-between; align-items:center;
+      background:#1B4332; padding:.75rem 2rem; position:sticky; top:0; z-index:100;
+      box-shadow:0 2px 8px rgba(0,0,0,.25); }
+    .logo { display:flex; align-items:center; gap:.6rem; text-decoration:none;
+      color:#D4AF37; font-size:1.15rem; font-weight:700; letter-spacing:.5px; }
+    .logo img { height:38px; width:auto; }
+    .nav-links { list-style:none; display:flex; gap:1.25rem; }
+    .nav-links a { color:#fff; text-decoration:none; font-size:.88rem; font-weight:500; }
+    .nav-links a:hover { color:#D4AF37; }
+
+    /* HERO */
+    .county-hero { background:linear-gradient(135deg,#1B4332 0%,#2d5c42 60%,#1a3a2a 100%);
+      padding:2.5rem 2rem 2rem; text-align:center; }
+    .county-hero .breadcrumb { color:rgba(255,255,255,.6); font-size:.8rem; margin-bottom:.6rem; }
+    .county-hero .breadcrumb a { color:rgba(255,255,255,.75); text-decoration:none; }
+    .county-hero .breadcrumb a:hover { color:#D4AF37; }
+    .county-hero h1 { color:#D4AF37; font-size:1.9rem; margin-bottom:.4rem; }
+    .county-hero p.sub { color:rgba(255,255,255,.8); font-size:.98rem; max-width:640px; margin:0 auto; }
+    .hero-disclosure { font-size:.82rem; color:rgba(255,255,255,.88); line-height:1.55;
+      max-width:680px; margin:1.1rem auto 0; }
+
+    /* RESULTS BAR */
+    .results-bar { padding:1rem 2rem .25rem; font-size:.9rem; color:#4b5563; font-weight:600;
+      max-width:1400px; margin:0 auto; width:100%; }
+
+    /* GRID */
+    #listings { padding:.5rem 2rem 2rem; max-width:1400px; margin:0 auto; flex:1; width:100%; }
+    .listings-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:1.25rem; }
+    .skeleton { background:#e5e7eb; border-radius:10px; height:320px; animation:shimmer 1.4s infinite; }
+    @keyframes shimmer { 0%,100%{opacity:.6;} 50%{opacity:1;} }
+
+    /* EMPTY STATE */
+    .empty-state { text-align:center; padding:2.5rem 1rem; max-width:620px; margin:0 auto; }
+    .empty-state p { color:#374151; font-size:1.05rem; line-height:1.7; margin-bottom:1.25rem; }
+    .cta-btn { display:inline-block; background:#1B4332; color:#D4AF37; text-decoration:none;
+      padding:.7rem 1.4rem; border-radius:8px; font-weight:700; }
+    .cta-btn:hover { background:#2d5c42; }
+    .empty-state a.alt { color:#1B4332; font-weight:600; text-decoration:underline; margin-left:.5rem; }
+
+    /* FOOTER */
+    footer { background:#1B4332; color:#fff; text-align:center; padding:1.5rem 2rem; font-size:.82rem; margin-top:auto; }
+    footer a { color:#D4AF37; text-decoration:none; }
+    footer .disclosure { opacity:.85; line-height:1.6; margin-top:.5rem; font-size:.78rem; }
+
+    @media (max-width:768px) {
+      .navbar { padding:.65rem 1rem; }
+      .nav-links { gap:.75rem; }
+      .county-hero h1 { font-size:1.45rem; }
+      #listings { padding:.5rem 1rem 1.5rem; }
+      .results-bar { padding:.85rem 1rem .2rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+  <a href="/" class="logo">
+    <img src="/public/brand/icon-mark.png" alt="MalickLand" onerror="this.style.display='none'" />
+    MalickLand
+  </a>
+  <ul class="nav-links">
+    <li><a href="/">Home</a></li>
+    <li><a href="/listings">Search</a></li>
+    <li><a href="/#contact-form">Contact</a></li>
+    <li><a href="tel:+15402461421">📞 (540) 246-1421</a></li>
+  </ul>
+</nav>
+
+<!-- HERO (broker disclosure is first-screen, per WV advertising rule) -->
+<div class="county-hero">
+  <div class="breadcrumb"><a href="/">Home</a> › <a href="/listings">Listings</a> › {{COUNTY_NAME}} County</div>
+  <h1>🌲 {{COUNTY_NAME}} County, West Virginia</h1>
+  <p class="sub">Land, homes, farms &amp; rural property for sale in {{COUNTY_NAME}} County, WV. Local expertise from MalickLand — Phil Malick, agent.</p>
+  <p class="hero-disclosure" aria-label="Brokerage disclosure">{{DISCLOSURE}}</p>
+</div>
+
+<!-- RESULTS -->
+<div class="results-bar"><span id="resultsCount">Loading {{COUNTY_NAME}} County listings…</span></div>
+
+<!-- LISTINGS -->
+<div id="listings">
+  <div class="listings-grid" id="listingsGrid">
+    <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+  </div>
+  <div class="empty-state" id="emptyState" style="display:none">
+    <p>We don't have active listings in <strong>{{COUNTY_NAME}} County</strong> right now — but new West Virginia land and property come up often. Tell us what you're looking for and we'll reach out when something fits.</p>
+    <p>
+      <a href="/#contact-form" class="cta-btn">Get notified about {{COUNTY_NAME}} County →</a>
+      <a href="/listings" class="alt">Browse all listings</a>
+    </p>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <p><strong style="color:#D4AF37">MalickLand</strong> · Phil Malick, Agent
+    &nbsp;·&nbsp; <a href="tel:+15402461421">(540) 246-1421</a>
+    &nbsp;·&nbsp; <a href="mailto:phil@malickland.net">phil@malickland.net</a></p>
+  <p class="disclosure">{{DISCLOSURE}} · Licensed in West Virginia &nbsp;·&nbsp; © 2026 MalickLand</p>
+</footer>
+
+<div id="countyData" data-id="{{COUNTY_ID}}" data-name="{{COUNTY_NAME}}" hidden></div>
+<script>
+(function(){
+  const data = document.getElementById('countyData');
+  const countyId = data.dataset.id;
+  const countyName = data.dataset.name;
+  const grid = document.getElementById('listingsGrid');
+  const countEl = document.getElementById('resultsCount');
+  const empty = document.getElementById('emptyState');
+
+  const escapeHtml = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  const timeAgo = d => { const n = Math.floor((Date.now() - new Date(d)) / 86400000); return n <= 0 ? 'today' : n === 1 ? 'yesterday' : n + ' days ago'; };
+  window.openPropertyPage = slug => { window.location.href = '/properties/' + encodeURIComponent(slug); };
+
+  const card = p => `
+    <div class="property-card" onclick="openPropertyPage(${JSON.stringify(p.listing_slug || p.id)})">
+      <div class="card-img" style="background-image:url('${escapeHtml(p.image_url || 'https://placehold.co/400x240/1a3a2a/gold?text=No+Photo')}')">
+        ${p.price_reduced ? '<span class="badge reduced">Price Reduced</span>' : ''}
+        <span class="badge type">${escapeHtml(p.property_type)}</span>
+      </div>
+      <div class="card-body">
+        <div class="card-price">${p.price != null ? '$' + Number(p.price).toLocaleString() : 'Contact for price'}</div>
+        <div class="card-address">${escapeHtml(p.address)}${p.city ? ', ' + escapeHtml(p.city) : ''}</div>
+        <div class="card-county">${escapeHtml(p.county)} County${p.zip ? ' · ' + escapeHtml(p.zip) : ''}</div>
+        <div class="card-details">
+          ${p.bedrooms ? `<span>🛏 ${escapeHtml(p.bedrooms)} bd</span>` : ''}
+          ${p.bathrooms ? `<span>🚿 ${escapeHtml(p.bathrooms)} ba</span>` : ''}
+          ${p.sqft ? `<span>📐 ${Number(p.sqft).toLocaleString()} sqft</span>` : ''}
+          ${p.lot_acres ? `<span>🌿 ${escapeHtml(p.lot_acres)} ac</span>` : ''}
+        </div>
+        <div class="card-listed">Listed ${timeAgo(p.listed_at)}</div>
+        <button class="request-info-btn" onclick="event.stopPropagation();openPropertyPage(${JSON.stringify(p.listing_slug || p.id)})">View Details</button>
+      </div>
+    </div>`;
+
+  fetch('/api/properties?county=' + encodeURIComponent(countyId) + '&limit=24')
+    .then(r => r.json())
+    .then(d => {
+      const props = d.properties || [];
+      if (!props.length) {
+        grid.style.display = 'none';
+        empty.style.display = 'block';
+        countEl.textContent = 'No active listings in ' + countyName + ' County right now.';
+        return;
+      }
+      grid.innerHTML = props.map(card).join('');
+      countEl.textContent = d.total + ' active listing' + (d.total === 1 ? '' : 's') + ' in ' + countyName + ' County';
+    })
+    .catch(() => {
+      grid.innerHTML = '<p style="grid-column:1/-1;color:#b91c1c">Could not load listings. Please call (540) 246-1421.</p>';
+      countEl.textContent = '';
+    });
+})();
+</script>
+</body>
+</html>
