@@ -7,7 +7,7 @@
 ## Critical
 
 - [x] **Fix test suite** — 48/48 pass; tests updated to check route files (`routes/api.js`, `routes/admin.js`, `helpers.js`); Suite 9 added for governance file presence — **Claude Code** — COMPLETED 2026-05-27 / reverified 2026-05-31
-- [ ] **Resolve leads.js** — decide: (A) implement missing `services/googleSheets.js` + add `twilio` to package.json, or (B) delete `leads.js` and its service deps — decision from ChatGPT required first — **ChatGPT decides / Claude implements**
+- [x] **Resolve leads.js** — mounted `/api/leads`, added local-safe `services/googleSheets.js` adapter, and guarded lead/contact POSTs in `server.js` — **Codex** — COMPLETED 2026-06-01
 
 ---
 
@@ -21,7 +21,7 @@
 ## Medium Priority
 
 - [ ] **Delete stale local branches** — remote branches are cleaned up; remove superseded local `copilot/*`, old `claude/*`, and merged fix branches after confirming no unpushed work — no deps — **Claude Code or developer**
-- [ ] **Add twilio to package.json or remove Twilio path** — if leads feature is kept: `npm install twilio` (human approval required per AGENTS.md); if deleted: remove twilioService.js and references — depends on leads.js decision
+- [ ] **Add twilio to package.json or remove Twilio path** — optional SMS alert follow-up; current code fails gracefully when `twilio` is unavailable — no longer blocks lead route mounting
 - [ ] **Resolve broken county links** — homepage links `/wv/hampshire-county`, `/wv/hardy-county`, `/wv/morgan-county`, and other county paths, but no static pages or Express route exists; decide whether to create county pages or replace links with listing filters — no deps
 - [ ] **Phase 1: Document Registry spec** — ChatGPT delivers schema, approval state machine, AI extraction JSON contract — no code deps — **ChatGPT**
 

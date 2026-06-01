@@ -39,6 +39,7 @@ const helpersPath      = path.join(PROJECT_ROOT, 'api/helpers.js');
 const agentsPath       = path.join(PROJECT_ROOT, 'AGENTS.md');
 const appJsPath        = path.join(PROJECT_ROOT, 'app/app.js');
 const googleJsPath     = path.join(PROJECT_ROOT, 'api/google.js');
+const googleSheetsPath = path.join(PROJECT_ROOT, 'api/services/googleSheets.js');
 const validatorsPath   = path.join(PROJECT_ROOT, 'api/utils/validators.js');
 
 const serverCode       = fs.readFileSync(serverPath, 'utf8');
@@ -335,6 +336,25 @@ test('contacts route uses contactsRateLimit in routes/api.js', () => {
   const routeLine = apiRoutesCode.split('\n').find(l => l.includes("router.post('/contacts'"));
   assert(routeLine && routeLine.includes('contactsRateLimit'),
     "POST /contacts is missing contactsRateLimit in routes/api.js");
+});
+
+test('lead routes are mounted behind server-side origin and JSON guards', () => {
+  assert(fs.existsSync(googleSheetsPath),
+    'api/services/googleSheets.js must exist before mounting leads routes');
+  assert(serverCode.includes("require('./routes/leads')"),
+    'server.js should import the leads router');
+  assert(serverCode.includes('function requireLeadSameOrigin'),
+    'server.js should define same-origin protection for lead POSTs');
+  assert(serverCode.includes('function requireLeadJson'),
+    'server.js should require JSON lead POST bodies');
+  assert(
+    /app\.use\(\s*['"]\/api\/leads['"]\s*,\s*requireLeadJson\s*,\s*requireLeadSameOrigin\s*,\s*createLeadsRouter\(\{\s*db\s*\}\)\s*\)/.test(serverCode),
+    'server.js should mount /api/leads behind requireLeadJson and requireLeadSameOrigin'
+  );
+  assert(
+    /app\.use\(\s*['"]\/api\/contacts['"]\s*,\s*requireLeadJson\s*,\s*requireLeadSameOrigin\s*\)/.test(serverCode),
+    'server.js should guard /api/contacts lead submissions behind requireLeadJson and requireLeadSameOrigin'
+  );
 });
 
 test('admin routes use adminActionRateLimit in routes/admin.js', () => {

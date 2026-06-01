@@ -29,11 +29,11 @@ Full repository audit per Malickland 2.0 Unified Engineering Operating Prompt. C
 - No new security issues introduced (documentation-only changes)
 - Confirmed: 0 npm audit vulnerabilities
 - Confirmed: CORS without origin restriction on public API — acceptable, tracked
-- Confirmed: `leads.js` correctly unmounted (would crash on require if mounted)
+- Updated 2026-06-01: `leads.js` is mounted after adding a local-safe `googleSheets.js` adapter and server-side lead guards.
 
 ### Remaining Risks
 1. **CRITICAL — Test suite broken**: 14+ tests fail. Tests assert against server.js for code now in routes/api.js and routes/admin.js. CI gate `verify-security-fixes.test.js` is not catching regressions. This is the #1 quality risk.
-2. **HIGH — leads.js unmounted with broken deps**: `services/googleSheets.js` does not exist. Decision needed: implement or delete.
+2. **RESOLVED 2026-06-01 — leads.js unmounted with broken deps**: `services/googleSheets.js` now exists as a no-op adapter; `/api/leads` is mounted behind JSON and same-origin guards.
 3. **MEDIUM — Local branch stale**: `fix/hook-npm-save-patterns` is superseded by merged PR #68. Next work should start from `main`.
 4. **MEDIUM — Services layer undocumented in docs/agent-handoff.md**: email, Twilio, leadFollowupWorker added after last handoff update.
 5. **LOW — 73 remote branches**: many stale copilot/* and claude/* branches add noise.
@@ -41,7 +41,7 @@ Full repository audit per Malickland 2.0 Unified Engineering Operating Prompt. C
 
 ### Recommended Next Task
 ~~Fix test suite~~ — COMPLETED in this session (see below).
-Next: resolve leads.js (see entry below).
+Next: wire real Google Sheets append support only if that integration is needed.
 
 ---
 
@@ -96,7 +96,7 @@ PR #73 correction pass: fix documentation accuracy issues and eliminate CodeQL f
 1. **BLOCKER (merge) — 0 human approvals**: enforce_admins: true; PR author is malickland-304 (cannot self-approve); requires a second GitHub account with write access to approve
 2. **BLOCKER (merge) — review threads**: 16 bot-generated review threads must be resolved before merge (required_conversation_resolution: true)
 3. **BLOCKER (merge) — CodeQL GHAS result**: previous lgtm-based fix was ineffective; regex rewrite pushed in this session is the correct fix — result pending CI completion
-4. **HIGH — leads.js unmounted**: decision still needed (implement googleSheets.js + add twilio, or delete)
+4. **RESOLVED 2026-06-01 — leads.js unmounted**: mounted with a local-safe Google Sheets adapter; Twilio remains optional/fail-graceful
 5. **MEDIUM — services layer undocumented**: docs/agent-handoff.md not yet updated for email.js, twilioService.js, leadFollowupWorker.js
 
 ### Recommended Next Task

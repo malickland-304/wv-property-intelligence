@@ -55,13 +55,13 @@
 
 ---
 
-## 2026-05-27 — leads.js NOT mounted (pending decision)
+## 2026-06-01 — leads.js mounted with local-safe adapters
 
-**Problem:** `api/routes/leads.js` exists but requires missing `services/googleSheets.js` and the `twilio` package (not in package.json). Mounting it would crash the server.
-**Decision (interim):** Keep unmounted. Do not mount until: (A) missing deps are implemented, OR (B) the file is deleted.
-**Reasoning:** Server stability. The missing `googleSheets.js` suggests the service was planned but not built.
-**Pending:** ChatGPT to decide: implement leads feature (requires googleSheets.js + twilio) or delete leads.js.
-**Files:** `api/routes/leads.js`, `api/services/` (missing `googleSheets.js`)
+**Problem:** `api/routes/leads.js` existed but was unmounted because `services/googleSheets.js` was missing.
+**Decision:** Mount `/api/leads` behind JSON and same-origin guards, and add a no-op Google Sheets adapter so local SQLite capture works when sheet credentials are absent.
+**Reasoning:** Server stability plus functional lead capture. Optional notification/sheet integrations should fail closed or no-op when credentials/packages are unavailable.
+**Pending:** Real Google Sheets append support can be added later without changing the public route contract.
+**Files:** `api/server.js`, `api/routes/leads.js`, `api/services/googleSheets.js`
 
 ---
 

@@ -159,8 +159,8 @@ Public read routes use `publicReadRateLimit`. CRUD write routes require `require
 - `GET /advent-drive-land-hampshire-county-wv` — 301 redirect to `/37-advent`
 - Static frontend files are served from `app/` with `.html` extension resolution, so `/37-advent` serves `app/37-advent.html`
 
-### /api/leads/* (routes/leads.js) — NOT MOUNTED
-Lead capture routes. Requires missing `services/googleSheets.js` and `twilio` package. Unmounting is intentional; mounting would crash the server.
+### /api/leads/* (routes/leads.js)
+Lead capture routes mounted behind JSON and same-origin guards in `server.js`. Local SQLite lead persistence works without external credentials; Google Sheets append is currently a no-op adapter until real sheet credentials/support are added.
 
 ---
 
