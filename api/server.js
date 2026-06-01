@@ -6,6 +6,7 @@ const express  = require('express');
 const cors     = require('cors');
 const helmet   = require('helmet');
 const morgan   = require('morgan');
+const compression  = require('compression');
 const session      = require('express-session');
 const cookieParser = require('cookie-parser');
 const path         = require('path');
@@ -61,6 +62,10 @@ app.use(helmet({
     },
   },
 }));
+
+// Compress all responses (gzip) — shrinks the ~71KB homepage to ~12-15KB on the wire.
+app.use(compression());
+
 app.use(cors((req, cb) => {
   const origin = req.headers.origin;
   if (!origin) {
