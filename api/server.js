@@ -16,6 +16,7 @@ const BetterSqlite3Store = require('better-sqlite3-session-store')(session);
 const { db }             = require('./db');
 const adminRoutes  = require('./routes/admin');
 const apiRoutes    = require('./routes/api');
+const createLeadsRouter = require('./routes/leads');
 const publicRoutes = require('./routes/public');
 
 const app  = express();
@@ -34,6 +35,53 @@ if (!SESSION_SECRET) {
 }
 if (!process.env.ADMIN_PASSWORD) {
   throw new Error('ADMIN_PASSWORD must be set');
+}
+
+function expectedLeadOrigins(req) {
+  const origins = new Set([`${req.protocol}://${req.get('host')}`]);
+
+  for (const origin of [process.env.SITE_URL, ...corsAllowlist]) {
+    if (!origin) continue;
+    try {
+      origins.add(new URL(origin).origin);
+    } catch (_) {}
+  }
+
+  return origins;
+}
+
+function requireLeadSameOrigin(req, res, next) {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+    return next();
+  }
+
+  const header = req.get('origin') || req.get('referer');
+  if (!header) {
+    return res.status(403).json({ error: 'Lead request origin is required.' });
+  }
+
+  let origin;
+  try {
+    origin = new URL(header).origin;
+  } catch (_) {
+    return res.status(403).json({ error: 'Invalid lead request origin.' });
+  }
+
+  if (!expectedLeadOrigins(req).has(origin)) {
+    return res.status(403).json({ error: 'Lead request origin is not allowed.' });
+  }
+
+  return next();
+}
+
+function requireLeadJson(req, res, next) {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+    return next();
+  }
+  if (!req.is('application/json')) {
+    return res.status(415).json({ error: 'Lead requests must use application/json.' });
+  }
+  return next();
 }
 
 const gmailConfigured =
@@ -107,6 +155,8 @@ app.use('/admin', cookieParser(), adminSession, (req, res, next) => {
   if (req.path === '/login') return next();
   return doubleCsrfProtection(req, res, next);
 }, adminRoutes);
+app.use('/api/contacts', requireLeadJson, requireLeadSameOrigin);
+app.use('/api/leads', requireLeadJson, requireLeadSameOrigin, createLeadsRouter({ db }));
 app.use('/api',   apiRoutes);
 app.use('/',      publicRoutes);
 

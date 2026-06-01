@@ -124,13 +124,12 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 
 ## Incomplete / broken
 
-### 🔴 CRITICAL — Leads system non-functional
+### 🟡 Follow-up — External lead integrations
 
-- `api/routes/leads.js` is **NOT mounted** in `server.js`
-- `leads.js` requires `../services/googleSheets` — **file does not exist**
-- `leads.js` requires `twilio` package — **not in package.json**
-- If mounted as-is, the server would crash on startup
-- Decision needed: implement missing deps, or delete/stub `leads.js`
+- `api/routes/leads.js` is mounted in `server.js`
+- Public lead/contact POSTs require JSON plus same-origin request headers
+- `api/services/googleSheets.js` is a no-op adapter until real Sheets append support is implemented
+- `twilio` is still optional and not in `package.json`; SMS alerts remain disabled unless that dependency and env are added
 
 ### 🟢 Test suite — fixed on `main` (PR #73 governance merge)
 
