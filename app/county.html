@@ -166,11 +166,22 @@
   const empty = document.getElementById('emptyState');
 
   const escapeHtml = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-  const timeAgo = d => { const n = Math.floor((Date.now() - new Date(d)) / 86400000); return n <= 0 ? 'today' : n === 1 ? 'yesterday' : n + ' days ago'; };
-  window.openPropertyPage = slug => { window.location.href = '/properties/' + encodeURIComponent(slug); };
+  const timeAgo = d => {
+    const date = new Date(d);
+    if (Number.isNaN(date.getTime())) return 'recently';
+    const n = Math.floor((Date.now() - date.getTime()) / 86400000);
+    return n <= 0 ? 'today' : n === 1 ? 'yesterday' : n + ' days ago';
+  };
+  const openPropertyPage = slug => { window.location.href = '/properties/' + encodeURIComponent(slug); };
+
+  grid.addEventListener('click', event => {
+    const cardEl = event.target.closest('.property-card');
+    if (!cardEl || !grid.contains(cardEl)) return;
+    openPropertyPage(cardEl.dataset.slug || '');
+  });
 
   const card = p => `
-    <div class="property-card" onclick="openPropertyPage(${JSON.stringify(p.listing_slug || p.id)})">
+    <div class="property-card" data-slug="${escapeHtml(p.listing_slug || p.id)}">
       <div class="card-img" style="background-image:url('${escapeHtml(p.image_url || 'https://placehold.co/400x240/1a3a2a/gold?text=No+Photo')}')">
         ${p.price_reduced ? '<span class="badge reduced">Price Reduced</span>' : ''}
         <span class="badge type">${escapeHtml(p.property_type)}</span>
@@ -186,7 +197,7 @@
           ${p.lot_acres ? `<span>🌿 ${escapeHtml(p.lot_acres)} ac</span>` : ''}
         </div>
         <div class="card-listed">Listed ${timeAgo(p.listed_at)}</div>
-        <button class="request-info-btn" onclick="event.stopPropagation();openPropertyPage(${JSON.stringify(p.listing_slug || p.id)})">View Details</button>
+        <button class="request-info-btn" type="button">View Details</button>
       </div>
     </div>`;
 

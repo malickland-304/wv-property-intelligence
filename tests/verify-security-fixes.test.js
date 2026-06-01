@@ -35,6 +35,8 @@ const serverPath       = path.join(PROJECT_ROOT, 'api/server.js');
 const apiRoutesPath    = path.join(PROJECT_ROOT, 'api/routes/api.js');
 const adminRoutesPath  = path.join(PROJECT_ROOT, 'api/routes/admin.js');
 const publicRoutesPath = path.join(PROJECT_ROOT, 'api/routes/public.js');
+const dbPath           = path.join(PROJECT_ROOT, 'api/db.js');
+const schemaPath       = path.join(PROJECT_ROOT, 'database/schema.sql');
 const helpersPath      = path.join(PROJECT_ROOT, 'api/helpers.js');
 const agentsPath       = path.join(PROJECT_ROOT, 'AGENTS.md');
 const appJsPath        = path.join(PROJECT_ROOT, 'app/app.js');
@@ -46,6 +48,8 @@ const serverCode       = fs.readFileSync(serverPath, 'utf8');
 const apiRoutesCode    = fs.readFileSync(apiRoutesPath, 'utf8');
 const adminRoutesCode  = fs.readFileSync(adminRoutesPath, 'utf8');
 const publicRoutesCode = fs.readFileSync(publicRoutesPath, 'utf8');
+const dbCode           = fs.readFileSync(dbPath, 'utf8');
+const schemaCode       = fs.readFileSync(schemaPath, 'utf8');
 const helpersCode      = fs.readFileSync(helpersPath, 'utf8');
 const agentsCode       = fs.existsSync(agentsPath) ? fs.readFileSync(agentsPath, 'utf8') : '';
 const appJsCode        = fs.existsSync(appJsPath) ? fs.readFileSync(appJsPath, 'utf8') : '';
@@ -355,6 +359,15 @@ test('lead routes are mounted behind server-side origin and JSON guards', () => 
     /app\.use\(\s*['"]\/api\/contacts['"]\s*,\s*requireLeadJson\s*,\s*requireLeadSameOrigin\s*\)/.test(serverCode),
     'server.js should guard /api/contacts lead submissions behind requireLeadJson and requireLeadSameOrigin'
   );
+});
+
+test('mounted lead routes have runtime and reference schema tables', () => {
+  for (const code of [dbCode, schemaCode]) {
+    assert(/CREATE TABLE IF NOT EXISTS leads/i.test(code),
+      'leads table must exist in runtime and reference schemas');
+    assert(/CREATE TABLE IF NOT EXISTS lead_followups/i.test(code),
+      'lead_followups table must exist in runtime and reference schemas');
+  }
 });
 
 test('admin routes use adminActionRateLimit in routes/admin.js', () => {
