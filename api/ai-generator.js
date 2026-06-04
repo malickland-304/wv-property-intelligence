@@ -5,7 +5,7 @@
  *
  * One function call turns raw property data into a complete marketing package:
  *   - MLS description
- *   - Investor pitch
+ *   - Buyer research summary
  *   - Headline + 5 highlights
  *   - Facebook ad (short + long)
  *   - Instagram caption
@@ -138,7 +138,7 @@ function buildPrompt(p) {
     ? `${p.bedrooms || '?'} bed / ${p.bathrooms || '?'} bath`
     : null;
 
-  const systemPrompt = `You are a professional real estate marketing engine specializing in West Virginia land and residential properties. You write compelling, accurate, compliant copy for buyers and investors across WV, VA, MD, PA, and OH. Write in a direct, confident voice. No fluff. No emojis. No exaggeration. Focus on what matters to rural land buyers and investors.`;
+  const systemPrompt = `You are a professional real estate marketing engine specializing in West Virginia land and residential properties. You write compelling, accurate, brokerage-safe copy for rural property buyers and sellers across WV, VA, MD, PA, and OH. Write in a direct, confident voice. No fluff. No emojis. No exaggeration. Avoid guaranteed pricing, ROI, appreciation, legal, tax, or investment-advice claims.`;
 
   const userPrompt = `Generate a complete marketing package for this property. Return ONLY a valid JSON object with the exact keys listed.
 
@@ -165,7 +165,7 @@ OUTPUT FORMAT — Return this exact JSON structure:
   "headline": "max 12 words, punchy, specific to this property",
   "highlights": ["5 bullet points, 1 sentence each, most important features first"],
   "mls_description": "150-250 words. Professional, MLS-compliant. Lead with location and key feature. Include acreage, utilities, access, taxes, flood note. End with agent name Phil Malick and brokerage MalickLand WV Real Estate.",
-  "investor_description": "100-150 words. ROI-focused. Mention price per acre if applicable. Highlight upside: hunting, timber, buildable, rental potential, etc. No fluff.",
+  "investor_description": "100-150 words. Buyer research focused. Mention price per acre if applicable. Highlight property context: hunting, timber, buildable potential, recreation, utilities, access, and buyer verification. No ROI, appreciation, rental, legal, tax, or guaranteed-value claims.",
   "facebook_short": "40-60 words. Hook + key details + call to action. Direct.",
   "facebook_long": "100-150 words. Tell the story of the land. Why WV. Why now. End with CTA.",
   "instagram_caption": "60-80 words. Visual storytelling. 5-8 relevant hashtags at end.",

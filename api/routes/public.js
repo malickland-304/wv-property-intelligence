@@ -106,8 +106,8 @@ router.get('/', publicReadRateLimit, (_req, res, next) => {
     );
     html = replaceHomepageContent(
       html,
-      '    <p class="hero-sub">Land, homes, farms &amp; rural retreats across all 55 WV counties. AI-powered pricing, local expertise, fast response.</p>',
-      `    <p class="hero-sub">Land, homes, farms &amp; rural retreats across all 55 WV counties. AI-powered pricing, local expertise, fast response.</p>\n    <p aria-label="Brokerage disclosure" style="font-size:.82rem;color:rgba(255,255,255,.88);margin:-1.75rem 0 2rem;max-width:640px;line-height:1.55;">${HOMEPAGE_DISCLOSURE}</p>`
+      '    <p class="hero-sub">Land, homes, farms &amp; rural retreats across all 55 WV counties. AI-assisted property research, local expertise, responsive guidance.</p>',
+      `    <p class="hero-sub">Land, homes, farms &amp; rural retreats across all 55 WV counties. AI-assisted property research, local expertise, responsive guidance.</p>\n    <p aria-label="Brokerage disclosure" style="font-size:.82rem;color:rgba(255,255,255,.88);margin:-1.75rem 0 2rem;max-width:640px;line-height:1.55;">${HOMEPAGE_DISCLOSURE}</p>`
     );
     html = replaceHomepageContent(
       html,

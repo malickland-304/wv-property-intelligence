@@ -121,7 +121,7 @@ See `AGENTS.md` for full operating rules, forbidden actions, and workflow.
 |-------|----------|
 | **ChatGPT** | Orchestration, task routing, QC adjudication |
 | **Claude Code** | Implementation, refactoring, PRs |
-| **Codex** | Audit, security review, CI forensics — no mutations |
+| **Codex** | Audit, security review, CI forensics; small scoped implementation when Phil explicitly authorizes it in the current task |
 | **Gemini** | Architecture critique, threat modeling — no code in active PRs |
 | **OpenHands** | Supervised sandboxed implementation — supervised-only |
 

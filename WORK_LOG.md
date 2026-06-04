@@ -433,7 +433,7 @@ Open and merge this docs cleanup PR, then address remaining non-GitHub-open-item
 Resolve remaining GitHub repository-level cleanup after issues and PRs were closed: branch protection, stale remote branches, security queues, Actions health, and environment truth. This was performed under Phil's explicit instruction to resolve GitHub hygiene today and is recorded as a one-time exception in `DECISIONS.md`.
 
 ### Changes Made
-- `DECISIONS.md` — recorded Phil's one-time authorization for Codex to execute GitHub metadata hygiene and the branch-protection policy; this does not change Codex's normal audit-only role.
+- `DECISIONS.md` — recorded Phil's one-time authorization for Codex to execute GitHub metadata hygiene and the branch-protection policy; standing Codex implementation authority was later updated in `DECISIONS.md` on 2026-06-03.
 - GitHub branch protection — enabled required conversation resolution on `main` while preserving required checks (`CodeQL`, `verify`, `check`, `CodeScan`, `semgrep-cloud-platform/scan`), `strict=false`, no PR review gate, and no admin enforcement.
 - GitHub remote branches — deleted 73 stale non-`main` remote branches with no open PRs attached; only protected `main` remains on `origin`.
 - GitHub security queues — verified open code-scanning alerts, Dependabot alerts, and secret-scanning alerts are all zero.
@@ -463,3 +463,35 @@ Resolve remaining GitHub repository-level cleanup after issues and PRs were clos
 
 ### Recommended Next Task
 Open and merge this final docs PR, then move from GitHub hygiene to product/runtime backlog: `leads.js`, `/wv/*-county`, and OpenHands runtime activation.
+
+---
+
+## 2026-06-03 — Codex — Phil-authorized governance, compliance copy, and contact source fixes
+
+### Objective
+Under Phil's explicit instruction, remove the stale Codex audit-only blocker, clean up high-risk MalickLand copy, preserve contact source tags, and fix the preflight port collision that could smoke the wrong local service.
+
+### Changes Made
+- `AGENTS.md`, `DECISIONS.md`, `docs/agent-handoff.md` — Codex may now make small scoped repo edits when Phil explicitly authorizes implementation in the current task. Direct `main` pushes, deploys, secrets, production data mutation, and self-authorized architecture/schema changes remain forbidden.
+- `app/index.html`, `api/routes/public.js` — replaced AI pricing, valuation, seller-exposure, investment-property, and 2-hour guarantee language with AI-assisted research, listing visibility support, and practical follow-up wording.
+- `app/37-advent.html`, `api/db.js`, `api/utils/propertyMarketing.js`, `api/ai-generator.js`, `api/routes/admin.js` — softened Advent and generated marketing language around upside, urgency, investment framing, and value claims; admin display now says Buyer Research Description while preserving the existing JSON key.
+- `api/routes/api.js`, `api/google.js` — `/api/contacts` now sanitizes and preserves submitted `source` in the existing `contacts.source` column, includes it in Gmail notification text, and preserves submitted `interest` in the saved/emailed message.
+- `tests/verify-security-fixes.test.js` — added regression checks that `/api/contacts` reads/sanitizes source, passes the source variable into the insert, preserves interest in the contact message, and includes source in Gmail notification text.
+- `scripts/preflight.sh` — chooses a free local port by default to avoid false smoke results when another service already owns port 3000, falls back to 3000 if dynamic port selection fails, validates the chosen port, and still honors explicit `PREFLIGHT_PORT`.
+
+### Verification (Truthfulness Rule applies)
+- Command: `npm ci` in `api/` -> PASSED; 177 packages installed, 0 vulnerabilities.
+- Command: `node --check server.js middleware/auth.js routes/admin.js routes/api.js routes/public.js` -> PASSED.
+- Command: `node tests/verify-security-fixes.test.js` -> PASSED, 52/52 after review follow-up.
+- Command: `bash scripts/preflight.sh` -> PASSED after preflight port fix.
+- Command: `bash -n scripts/preflight.sh` -> PASSED.
+- Command: `git diff --check` -> PASSED.
+
+### Security Notes
+- No secrets read or printed.
+- No production deployment, production data mutation, schema migration, or live-service change performed.
+- The remaining `investor_description` string is an internal compatibility key; visible admin labeling now uses Buyer Research Description.
+
+### Remaining Risks
+1. Compliance wording should still receive broker/legal review before publication.
+2. This work was moved from the stale `fix/lead-review-followups` branch onto fresh branch `fix/codex-governance-copy-source` before PR creation.

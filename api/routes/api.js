@@ -91,20 +91,25 @@ router.get('/analytics', publicReadRateLimit, (_req, res) => {
 
 // ── Contacts ──────────────────────────────────────────────
 router.post('/contacts', contactsRateLimit, (req, res) => {
-  const { property_id, name, email, phone, message } = req.body;
+  const { property_id, name, email, phone, message, interest } = req.body;
+  const source = String(req.body.source || 'web').trim().slice(0, 80).replace(/[^a-zA-Z0-9_-]/g, '') || 'web';
+  const interestText = String(interest || '').trim().slice(0, 120);
+  const combinedMessage = interestText
+    ? `[Interest: ${interestText}] ${message || ''}`.trim()
+    : message;
   if (!name || !email) return res.status(400).json({ error: 'Name and email required' });
   if (!isValidEmail(email)) return res.status(400).json({ error: 'Invalid email address' });
 
   const result = db.prepare(
-    'INSERT INTO contacts (property_id,name,email,phone,message) VALUES (?,?,?,?,?)'
-  ).run(property_id||null, name, email, phone, message);
+    'INSERT INTO contacts (property_id,name,email,phone,message,source) VALUES (?,?,?,?,?,?)'
+  ).run(property_id||null, name, email, phone, combinedMessage, source);
 
   const property = property_id
     ? db.prepare(`SELECT p.id, p.address, p.city, c.name AS county
                   FROM properties p LEFT JOIN counties c ON c.id=p.county_id
                   WHERE p.id=?`).get(property_id)
     : null;
-  sendContactEmail({ name, email, phone, message }, property).catch(() => {});
+  sendContactEmail({ name, email, phone, message: combinedMessage, source }, property).catch(() => {});
 
   res.status(201).json({ id: result.lastInsertRowid });
 });

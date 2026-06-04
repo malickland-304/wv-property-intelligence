@@ -86,7 +86,7 @@ Never report: "tests pass", "build succeeds", "no vulnerabilities" unless the co
 | Agent | Role | Allowed | Forbidden |
 |-------|------|---------|-----------|
 | **Claude Code** | Implementation | Branch work, code changes, PRs, documentation | Direct main push, deploy, printing secrets, self-authorized architecture changes |
-| **Codex** | QA / Security Audit | Code review, security skepticism, CI forensics, readiness verdicts | Any repo mutation, commits, deploys |
+| **Codex** | Audit + Phil-authorized implementation | Code review, security skepticism, CI forensics, readiness verdicts; small scoped repo edits only when Phil explicitly authorizes implementation in the current task | Direct main push, deploys, printing secrets, self-authorized architecture/schema changes |
 | **Gemini** | Architecture Challenger | Architecture critique, threat modeling, vendor analysis | Touching code in active PRs |
 | **ChatGPT** | Spec / Orchestration | Task definition, phase specs, API contracts | Architecture decisions without DECISIONS.md entry |
 | **OpenHands** | Supervised Worker | Sandboxed implementation, branch edits, opening PRs | See restrictions below |
@@ -133,7 +133,7 @@ OpenHands operates in **supervised sandboxed mode only**. These are permanent co
 1. Task defined → TASKS.md entry created (with acceptance criteria)
 2. ChatGPT delivers spec for complex features (schema, contracts, state machine)
 3. OpenHands or Claude Code implements → feature branch
-4. Codex audits PR → findings reported for Phil or implementing agent to record if needed
+4. Codex audits PR or implements a Phil-authorized scoped task → findings/changes reported for Phil or implementing agent to record if needed
 5. Gemini challenges if architecture/security significant → appended to WORK_LOG.md
 6. Conflict resolution: repository docs decide; safer path wins
 7. All CI checks pass → **Phil Malick** approves PR merge
