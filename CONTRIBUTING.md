@@ -1,6 +1,6 @@
 # Contributing to WV Property Intelligence
 
-This document is for human contributors and AI agents. AI agents: read `AGENTS.md` first — it overrides any conflicting guidance here.
+This document is for human contributors and AI agents. `AGENTS.md` is the higher-ranked authority: when any guidance here conflicts with `AGENTS.md`, `AGENTS.md` wins. AI agents must read `AGENTS.md` before acting.
 
 ---
 
@@ -112,6 +112,6 @@ When sources conflict, prefer the safer, more conservative path and document the
 
 ## After your PR merges
 
-- Append an entry to `WORK_LOG.md` summarising what changed and why.
+- Append an entry to `WORK_LOG.md` summarizing what changed and why.
 - Update `docs/agent-handoff.md` if the change affects production state or architecture.
 - Railway deployment (`main` branch) is triggered automatically on merge; only Phil Malick approves production deploys.
