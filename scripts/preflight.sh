@@ -3,7 +3,17 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 API_DIR="$ROOT/api"
-PORT_TO_USE="${PREFLIGHT_PORT:-3000}"
+if [[ -n "${PREFLIGHT_PORT:-}" ]]; then
+  PORT_TO_USE="$PREFLIGHT_PORT"
+else
+  if ! PORT_TO_USE="$(node -e "const net=require('net'); const s=net.createServer(); s.listen(0,'127.0.0.1',()=>{console.log(s.address().port); s.close();});")" || [[ -z "$PORT_TO_USE" ]]; then
+    PORT_TO_USE="3000"
+  fi
+fi
+if [[ ! "$PORT_TO_USE" =~ ^[0-9]+$ ]] || (( PORT_TO_USE < 1 || PORT_TO_USE > 65535 )); then
+  echo "✗ Invalid preflight port: $PORT_TO_USE" >&2
+  exit 1
+fi
 TMP_DIR="$(mktemp -d)"
 APP_LOG="$TMP_DIR/app.log"
 PID=""

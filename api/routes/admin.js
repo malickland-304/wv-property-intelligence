@@ -508,7 +508,7 @@ router.get('/ai/:id', requireAuth, adminActionRateLimit, (req, res) => {
     section('Headline',              content.headline),
     section('Highlights',            content.highlights),
     section('MLS Description',       content.mls_description),
-    section('Investor Description',  content.investor_description),
+    section('Buyer Research Description',  content.investor_description),
     section('Facebook — Short',      content.facebook_short),
     section('Facebook — Long',       content.facebook_long),
     section('Instagram Caption',     content.instagram_caption),

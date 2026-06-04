@@ -21,12 +21,12 @@ function buildPropertyMarketing(property = {}, similarProperties = []) {
   const heroHighlights = isAdvent
     ? [
         'Close to Short Mountain Wildlife Management Area for hunting and weekend recreation.',
-        'A strong setup for an off-grid retreat, cabin basecamp, or long-term land hold.',
+        'A potential setup for an off-grid retreat, cabin basecamp, or rural recreation use, subject to buyer verification.',
         'Useable ground that helps buyers picture a real first move, not just raw dirt.',
       ]
     : [
         `${propertyType} opportunity in ${countyName} County with local guidance from Phil Malick.`,
-        'Built to move serious buyers from browsing to requesting maps, access details, and next steps.',
+        'Built to help buyers request maps, access details, and next steps.',
         'Best for buyers who want real property intelligence, not just a few listing facts.',
       ];
 
@@ -34,22 +34,22 @@ function buildPropertyMarketing(property = {}, similarProperties = []) {
     ? [
         'Hunters who want quick access to public-land recreation without giving up privacy.',
         'Buyers planning a weekend cabin, off-grid setup, or recreational escape in Hampshire County.',
-        'Investors looking for a land play that can serve lifestyle value now and upside later.',
+        'Buyers comparing rural land uses and wanting local context before they commit.',
       ]
     : [
         `Buyers looking for ${propertyType.toLowerCase()} in ${countyName} County.`,
         'People who want local insight on road access, utilities, and due diligence before they commit.',
-        'Anyone comparing several rural properties and needing the right one narrowed down quickly.',
+        'Anyone comparing several rural properties and needing clearer local context.',
       ];
 
   const useCases = isAdvent
     ? [
         'Set up a weekend hunting base or seasonal retreat close to Romney and public land access.',
         'Create a private cabin or camp-style setup for family getaways and short-stay potential.',
-        'Hold the land as a long-term Hampshire County asset while you improve it over time.',
+        'Review the land, structures, access, and improvement options before deciding whether it fits your plans.',
       ]
     : [
-        `Use it as a primary ${propertyType.toLowerCase()} purchase or a strategic long-term hold.`,
+        `Consider it as a primary ${propertyType.toLowerCase()} purchase or rural-use property after reviewing the facts.`,
         'Request maps, access notes, and local context before making a showing decision.',
         'Turn interest into a real next step with a guided property packet and direct follow-up.',
       ];
@@ -57,10 +57,10 @@ function buildPropertyMarketing(property = {}, similarProperties = []) {
   return {
     eyebrow: isAdvent ? 'Hampshire County Land Opportunity' : `${countyName} County ${propertyType}`,
     heroHeadline: isAdvent
-      ? 'Get the maps, access details, and next-step guidance before this one slips by.'
+      ? 'Get the maps, access details, and next-step guidance for this property.'
       : `See what this ${propertyType.toLowerCase()} can actually do for you.`,
     heroBody: isAdvent
-      ? `${property.address || 'This property'} is positioned for buyers chasing hunting access, cabin potential, and a true West Virginia weekend lifestyle. The goal here is simple: help serious buyers get the packet, understand the land, and decide fast.`
+      ? `${property.address || 'This property'} is positioned for buyers reviewing hunting access, cabin potential, and a true West Virginia weekend lifestyle. The goal here is simple: help buyers get the packet, understand the land, and verify whether it fits.`
       : `${property.address || 'This property'} is set up for buyers who want more than a generic listing sheet. Request the property packet, ask for access details, or get similar land options lined up with Phil Malick.`,
     heroHighlights,
     perfectFor,

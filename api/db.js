@@ -216,8 +216,8 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
     const existing = db.prepare(
       "SELECT id FROM properties WHERE listing_slug='advent-dr-hampshire-wv' OR mls_number='WVHS2007468'"
     ).get();
-    const desc = '37 Advent Dr is a 2.52-acre, multi-lot Hampshire County opportunity in the Elk Horn subdivision with existing structures and clear value-add potential. Includes lots 48, 49, 95, and 96 (parcel 14-09-012B-0096-0000) with a 2004 double wide, deck, foundation/additions, sheds, lean-tos, and carport. Best positioned as a fixer, hunting camp, recreational base, or rural value-add project. Out of flood zone at ~1,592 ft elevation. MLS# WVHS2007468 | Listed at $219,900 | Contact Phil Malick (540) 246-1421.';
-    const mktg = 'Multi-lot value-add opportunity in Hampshire County. 37 Advent Dr offers 2.52 acres across four lots with existing structures already on site. The right buyer can look past the rough edges and see the upside: a fixer setup, hunting camp, weekend base, or rural retreat project with room to improve. Not in a flood zone. A price point built for a serious rural-property buyer.';
+    const desc = '37 Advent Dr is a 2.52-acre, multi-lot Hampshire County property in the Elk Horn subdivision with existing structures and details buyers should verify. Includes lots 48, 49, 95, and 96 (parcel 14-09-012B-0096-0000) with a 2004 double wide, deck, foundation/additions, sheds, lean-tos, and carport. Potential fit as a fixer, hunting camp, recreational base, or rural retreat project, subject to buyer due diligence. Out of flood zone at ~1,592 ft elevation. MLS# WVHS2007468 | Listed at $219,900 | Contact Phil Malick (540) 246-1421.';
+    const mktg = 'Multi-lot rural property in Hampshire County. 37 Advent Dr offers 2.52 acres across four lots with existing structures already on site. Buyers should review condition, access, utilities, and intended use carefully while considering a fixer setup, hunting camp, weekend base, or rural retreat project. Not in a flood zone. Request details and verify all facts independently.';
     if (existing) {
       db.prepare(`
         UPDATE properties SET
@@ -259,8 +259,8 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
     const existing = db.prepare(
       "SELECT id FROM properties WHERE listing_slug='advent-dr-lot-hampshire-wv' OR mls_number='WVHS2007442'"
     ).get();
-    const desc = 'Advent Dr Lot is a raw land parcel in Hampshire County, WV — ideal for a buyer looking for a quiet rural build site, hunting land, or long-term land hold. Located near the Advent Dr corridor in Augusta/Delray, WV. Out of flood zone. MLS# WVHS2007442 | Contact Phil Malick (540) 246-1421.';
-    const mktg = 'Raw Hampshire County land with clean title and rural appeal. The Advent Dr lot is a straightforward opportunity — no structures, no complications. Great for a builder, hunter, or land investor looking for a foothold in the WV market at a price that makes sense.';
+    const desc = 'Advent Dr Lot is a raw land parcel in Hampshire County, WV — a potential fit for a buyer looking for a quiet rural build site, hunting land, or recreational property, subject to due diligence. Located near the Advent Dr corridor in Augusta/Delray, WV. Out of flood zone. MLS# WVHS2007442 | Contact Phil Malick (540) 246-1421.';
+    const mktg = 'Raw Hampshire County land with rural appeal. The Advent Dr lot is a straightforward property to review — no structures, no complications. Potential fit for a builder, hunter, or rural land buyer after confirming access, utilities, allowed uses, and all property facts.';
     if (existing) {
       db.prepare(`
         UPDATE properties SET

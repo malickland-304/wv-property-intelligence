@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MalickLand | West Virginia Land, Homes & Property</title>
-  <meta name="description" content="Find land, homes, farms, and rural property across all 55 West Virginia counties. AI-powered pricing, local expertise, fast response." />
+  <meta name="description" content="Find land, homes, farms, and rural property across all 55 West Virginia counties. AI-assisted property research, local expertise, responsive guidance." />
   <!-- Open Graph -->
   <meta property="og:title" content="MalickLand | West Virginia Land, Homes & Property" />
-  <meta property="og:description" content="Find land, homes, farms, and rural property across all 55 WV counties. AI-powered pricing, local WV expertise." />
+  <meta property="og:description" content="Find land, homes, farms, and rural property across all 55 WV counties. AI-assisted property research and local WV expertise." />
   <meta property="og:url" content="https://malickland.net" />
   <meta property="og:type" content="website" />
   <meta property="og:image" content="https://malickland.net/public/brand/og-image.jpg" />
@@ -1174,7 +1174,7 @@
   <div class="hero-content">
     <span class="hero-badge">West Virginia Land &amp; Home Specialist</span>
     <h1>Find Your <em>Wild &amp; Wonderful</em> Place in West Virginia</h1>
-    <p class="hero-sub">Land, homes, farms &amp; rural retreats across all 55 WV counties. AI-powered pricing, local expertise, fast response.</p>
+    <p class="hero-sub">Land, homes, farms &amp; rural retreats across all 55 WV counties. AI-assisted property research, local expertise, responsive guidance.</p>
 
     <div class="hero-form">
       <h3>Tell Phil What You're Looking For</h3>
@@ -1201,7 +1201,7 @@
             <option value="Selling Property">Selling My Property</option>
             <option value="Hunting / Recreation Land">Hunting / Recreation Land</option>
             <option value="Cabin / Rural Retreat">Cabin or Rural Retreat</option>
-            <option value="Investment Property">Investment / Timberland</option>
+            <option value="Timberland / Rural Land">Timberland / Rural Land</option>
             <option value="Just Browsing">Just Browsing</option>
           </select>
         </div>
@@ -1214,7 +1214,7 @@
         <p class="consent-text">By submitting, you consent to receive calls and texts from MalickLand at the number provided. Message &amp; data rates may apply. Reply STOP to opt out at any time.</p>
       </form>
       <div class="form-success" id="heroSuccess">
-        ✅ Got it! Phil will reach out within 2 hours. Call anytime: <strong>(540) 246-1421</strong>
+        ✅ Got it! Phil will follow up as soon as practical. Call anytime: <strong>(540) 246-1421</strong>
       </div>
     </div>
   </div>
@@ -1233,10 +1233,10 @@
     </div>
     <div class="trust-item">
       <span class="trust-num">AI</span>
-      <span class="trust-label">Powered Pricing</span>
+      <span class="trust-label">Assisted Research</span>
     </div>
     <a href="tel:+15402461421" class="trust-item" style="text-decoration:none;">
-      <span class="trust-num">2hr</span>
+      <span class="trust-num">Call</span>
       <span class="trust-label">Call or Text Phil</span>
     </a>
   </div>
@@ -1323,8 +1323,8 @@
       </div>
       <div class="why-card">
         <div class="why-icon">🤖</div>
-        <h3>AI-Powered Pricing</h3>
-        <p>Every listing gets an AI-generated market analysis — comparable sales, price trends, and honest valuations.</p>
+        <h3>AI-Assisted Research</h3>
+        <p>Listings can include market context, comparable-property review, and buyer/seller research support.</p>
       </div>
       <div class="why-card">
         <div class="why-icon">🗺️</div>
@@ -1338,13 +1338,13 @@
       </div>
       <div class="why-card">
         <div class="why-icon">⚡</div>
-        <h3>Fast Response Guarantee</h3>
-        <p>Every inquiry gets a personal response within 2 hours. No automated runaround — real answers from Phil.</p>
+        <h3>Responsive Local Follow-Up</h3>
+        <p>Phil reviews inquiries personally and follows up as quickly as practical with local property context.</p>
       </div>
       <div class="why-card">
         <div class="why-icon">📢</div>
-        <h3>Maximum Seller Exposure</h3>
-        <p>Professional photos, video tours, social media syndication, and AI-crafted descriptions for every listing.</p>
+        <h3>Listing Visibility Support</h3>
+        <p>Professional photos, video tours, social media visibility, and listing descriptions subject to broker and MLS rules.</p>
       </div>
     </div>
   </div>
@@ -1424,7 +1424,7 @@
         <p class="consent-text" style="color:rgba(255,255,255,0.45);">By submitting, you consent to receive calls and texts from MalickLand. Reply STOP to opt out.</p>
       </form>
       <div class="form-success" id="ctaSuccess" style="color:var(--gold);">
-        ✅ Message received! Phil will respond within 2 hours.
+        ✅ Message received! Phil will follow up as soon as practical.
       </div>
     </div>
   </div>
@@ -1436,7 +1436,7 @@
     <div class="footer-brand">
       <img src="/public/brand/logo-secondary.jpg" alt="MalickLand" class="footer-logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
       <h4 style="display:none">🏡 MalickLand</h4>
-      <p>West Virginia's land &amp; home specialist. Land, acreage, rural homes, and investment property across all 55 WV counties.</p>
+      <p>West Virginia's land &amp; home specialist. Land, acreage, rural homes, and rural property across all 55 WV counties.</p>
     </div>
     <div class="footer-links">
       <h5>Quick Links</h5>
@@ -1862,7 +1862,7 @@ async function submitChatLead(btn) {
     pixelEvent('Lead', { content_name: 'ai_chat' });
     if (window.gtag) gtag('event', 'generate_lead');
   } catch(e) {}
-  document.getElementById('chatBody').innerHTML = `<div class="chat-done">✅ Phil will reach out within 2 hours!<br/><br/>Call anytime: <a href="tel:+15402461421" style="color:var(--green);font-weight:700">(540) 246-1421</a></div>`;
+  document.getElementById('chatBody').innerHTML = `<div class="chat-done">✅ Phil will follow up as soon as practical.<br/><br/>Call anytime: <a href="tel:+15402461421" style="color:var(--green);font-weight:700">(540) 246-1421</a></div>`;
 }
 </script>
 </body>

@@ -68,16 +68,27 @@
 ## 2026-05-27 — Multi-agent governance roles defined
 
 **Problem:** Multiple AI agents (Claude, Codex, Gemini, ChatGPT, OpenHands) need clear boundaries.
-**Decision:** ChatGPT = orchestrator/PM; Claude Code = implementation; Codex = audit-only (no mutations); Gemini = architecture challenger (no code in active PRs); OpenHands = supervised worker.
+**Decision:** ChatGPT = orchestrator/PM; Claude Code = implementation; Codex = audit plus Phil-authorized scoped implementation; Gemini = architecture challenger (no code in active PRs); OpenHands = supervised worker.
 **Reasoning:** Prevents conflicting implementations, ensures human review, preserves security posture.
 **Files:** `AGENTS.md`
+
+---
+
+## 2026-06-03 — Codex may implement when explicitly authorized by Phil
+
+**Problem:** The prior Codex audit-only rule blocked small, owner-requested fixes even when Phil explicitly wanted Codex to patch the repo.
+**Decision:** Codex may make small, scoped repository edits when Phil explicitly authorizes implementation in the current task. Codex still may not push directly to `main`, deploy, print secrets, alter production secrets, mutate production data, or self-authorize architecture/schema-breaking changes.
+**Reasoning:** Keeps the useful safety boundaries while removing unnecessary friction for narrow fixes and review follow-ups.
+**Alternatives:** Keep Codex audit-only forever — rejected because it blocks authorized maintenance; grant Codex full autonomy — rejected because deployment, secrets, and architecture changes still need human control.
+**Security impact:** Neutral to positive. Production access and irreversible actions remain blocked; authorized implementation can now fix discovered issues without handoff churn.
+**Files:** `AGENTS.md`, `DECISIONS.md`, `docs/agent-handoff.md`
 
 ---
 
 ## 2026-05-31 — GitHub hygiene cleanup and branch-protection policy
 
 **Problem:** GitHub had no open issues/PRs after cleanup, but repository metadata still contained stale remote branches, branch-protection drift, and misleading environment documentation.
-**Decision:** Under Phil's direct instruction for a one-time GitHub cleanup, Codex may execute GitHub metadata hygiene for this task only: close stale PRs, delete stale non-`main` remote branches, and update branch protection. This is not a standing change to the Codex audit-only role.
+**Decision:** Under Phil's direct instruction for a one-time GitHub cleanup, Codex may execute GitHub metadata hygiene for this task only: close stale PRs, delete stale non-`main` remote branches, and update branch protection. This does not grant Codex deploy authority or permission to bypass the scoped-implementation rule.
 **Branch protection:** Preserve required status checks (`CodeQL`, `verify`, `check`, `CodeScan`, `semgrep-cloud-platform/scan`) and enable required conversation resolution. Keep required PR reviews and admin enforcement off to avoid solo-maintainer merge bottlenecks.
 **Human gate:** Production deployments, production secrets, schema-breaking changes, and publication decisions still require Phil's explicit approval. Disabling required PR reviews does not grant any agent deploy authority.
 **Reasoning:** Automated checks plus conversation resolution provide the useful GitHub safety gates without recreating the manual-review bottleneck that previously blocked repository throughput.

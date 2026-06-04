@@ -94,6 +94,7 @@ async function sendContactEmail(contact, property) {
       `Name:    ${contact.name}`,
       `Email:   ${contact.email}`,
       `Phone:   ${contact.phone || '(not provided)'}`,
+      `Source:  ${contact.source || 'web'}`,
       '',
       'Message:',
       contact.message || '(no message)',

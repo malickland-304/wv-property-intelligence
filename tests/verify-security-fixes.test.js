@@ -342,6 +342,24 @@ test('contacts route uses contactsRateLimit in routes/api.js', () => {
     "POST /contacts is missing contactsRateLimit in routes/api.js");
 });
 
+test('contacts route preserves submitted source tag', () => {
+  const routeStart = apiRoutesCode.indexOf("router.post('/contacts'");
+  assert(routeStart !== -1, 'POST /contacts route not found in routes/api.js');
+  const routeEnd = apiRoutesCode.indexOf("\nrouter.get('/contacts'", routeStart);
+  assert(routeEnd !== -1, 'GET /contacts route boundary not found in routes/api.js');
+  const routeBody = apiRoutesCode.slice(routeStart, routeEnd);
+  assert(/req\.body\.source/.test(routeBody),
+    'POST /contacts should read the submitted source from req.body.source');
+  assert(/\bsource\s*=.*\.replace\(\s*\/\[\^a-zA-Z0-9_-\]\//s.test(routeBody),
+    'POST /contacts should sanitize source before storing or emailing it');
+  assert(/INSERT INTO contacts\s*\(property_id,name,email,phone,message,source\)/.test(routeBody),
+    'POST /contacts should insert the submitted source into contacts.source');
+  assert(/\.run\([^)]*combinedMessage,\s*source\)/s.test(routeBody),
+    'POST /contacts should pass the submitted source variable into the INSERT run call');
+  assert(/combinedMessage/.test(routeBody) && /Interest:/.test(routeBody),
+    'POST /contacts should preserve submitted interest in the saved contact message');
+});
+
 test('lead routes are mounted behind server-side origin and JSON guards', () => {
   assert(fs.existsSync(googleSheetsPath),
     'api/services/googleSheets.js must exist before mounting leads routes');
@@ -409,6 +427,13 @@ test('api/google.js uses raw HTTPS for Gmail API calls', () => {
   assert(
     /hostname:\s*['"]gmail\.googleapis\.com['"]/.test(googleJsCode),
     "api/google.js should use hostname: 'gmail.googleapis.com' in https.request options"
+  );
+});
+
+test('api/google.js includes contact source in Gmail notification body', () => {
+  assert(
+    /Source:\s+\$\{contact\.source\s*\|\|\s*['"]web['"]\}/.test(googleJsCode),
+    'api/google.js should include contact.source in Gmail notification body'
   );
 });
 
