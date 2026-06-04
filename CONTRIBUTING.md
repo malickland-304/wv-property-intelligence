@@ -24,7 +24,7 @@ Thanks for helping improve this repository.
 Before opening or updating a PR, run:
 
 ```bash
-cd api && npm test
+(cd api && node --check server.js)
 node tests/verify-security-fixes.test.js
 bash scripts/preflight.sh
 ```
@@ -78,8 +78,10 @@ After operational PR merges (including PR #84 disposition and similar changes), 
 Until automation is enabled, use this manual cadence:
 
 - Weekly triage (recommended every Monday): review open issues/PRs for inactivity.
-- Mark items as stale when there has been no meaningful update for 14+ days.
-- Close stale items after an additional 7 days with no response.
+- Mark items as stale when there has been no meaningful update for 14+ calendar days.
+- Close stale items after an additional 7 calendar days with no response.
 - Exempt security, incident, and actively blocked items (label or note the reason).
+
+For this cadence, a meaningful update is substantive progress (code, repro details, review response, or a maintainer-approved unblock plan). Bot churn, label-only changes, and "still working on this" comments do not reset inactivity on their own.
 
 If a stale bot is later enabled, update this file with the automation rules and grace periods.
