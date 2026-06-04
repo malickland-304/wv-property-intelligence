@@ -19,6 +19,7 @@
 | HEAD (main) | See `PROJECT_STATE.md` — verify with `git rev-parse origin/main` before work |
 | Railway deployment | ✅ Tracks `main` — confirm HEAD in Railway Dashboard → Deployments |
 | Authenticated smoke | ✅ PASSED (7/7) — 2026-05-27 |
+| Production smoke path | ✅ `scripts/smoke-prod.sh` is read-only (`GET` health + property page checks only) |
 | npm audit | 0 vulnerabilities (main) |
 | GitHub security queues | ✅ clean — open code-scanning, Dependabot, and secret-scanning alerts all zero on 2026-05-31 |
 | GitHub branch protection | ✅ required checks + conversation resolution; PR review/admin gates intentionally off per `DECISIONS.md` 2026-05-31 |
@@ -32,6 +33,8 @@
 
 - **csurf → csrf-csrf migration** (PR #63, merged 2026-05-27): double-submit cookie CSRF, session-bound, req.csrfToken() polyfill, 0 vulnerabilities
 - **AI control plane bootstrap** (PR #64, merged 2026-05-27): AGENTS.md, .openhands/hooks.json (real OpenHands schema), issue templates, PR template, npm ci policy, GitHub settings docs, fail-closed audit
+- **Lead hardening review followups** (PR #84, merged 2026-06-01): lead tables added to runtime/reference schema, county rendering hardened, all required PR checks green before merge
+- **Governance follow-up** (PR #86, merged 2026-06-04): compliance copy refreshed; `CONTRIBUTING.md` and `.github/CODEOWNERS` now exist on `main`
 - Authenticated admin smoke test added (`scripts/smoke-admin.sh`)
 - macOS smoke portability fix; smoke body-handling subshell fix
 - Smoke converted to non-mutating protected POST; `EBADCSRFTOKEN` → 403
@@ -79,11 +82,11 @@ Governance layer is live on `main`. Includes:
 Issue #66 was fixed by merged PRs #68/#69. The OpenHands npm install blocker now covers the previously missed save-flag forms.
 
 **Other deferred:**
-- `leads.js` — not mounted in `server.js`; decide: mount or delete
 - `PROJECT.md` — may be stale, needs review before use
 - Stale local branches (`copilot/*`, some `claude/*`, superseded fix branches) — safe to delete only after confirming no unpushed work
 - Closed stale GitHub PRs #60, #70, and #71 on 2026-05-31; do not revive them without re-cutting fresh branches from current `main`
 - Deleted stale remote branches on 2026-05-31; only protected `main` remains on `origin`
+- Manual hygiene cadence: review open PRs weekly and open issues monthly; treat ~21-day PRs and ~45-day issues as stale candidates unless active progress is documented
 
 ---
 
@@ -134,4 +137,5 @@ See `AGENTS.md` for full operating rules, forbidden actions, and workflow.
 - **Routes:** `/api/properties` and `/api/listings` are alias routes for the same handler. `/properties/:slug` and `/listing/:slug` are both active.
 - **Deploy:** Railway via Dockerfile, branch `main` auto-deploys.
 - **Smoke scripts:** `scripts/preflight.sh`, `scripts/smoke-admin.sh`, `scripts/smoke-prod.sh`, `scripts/check-env.sh`
+- **Lead capture:** `/api/leads` is mounted; the Google Sheets adapter is local-safe when sheet credentials are absent
 - **CI:** `.github/workflows/preflight.yml` runs `preflight.sh` on all PRs and pushes to `main`.

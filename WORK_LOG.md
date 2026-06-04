@@ -132,6 +132,36 @@ Phil: review and resolve addressed review threads in GitHub UI, then obtain appr
 
 <!-- New entries go below this line. Append; never edit prior entries. -->
 
+## 2026-06-04 — Codex (Issue #85 governance completion)
+
+### Objective
+Close the remaining governance checklist from Issue #85 by adding missing contributor-ownership docs and refreshing stale repo-state references.
+
+### Changes Made
+- `CONTRIBUTING.md` — created: contributor workflow, required validation, non-mutating smoke guidance, manual stale-work cadence, and current PR review policy
+- `.github/CODEOWNERS` — created: assigns default ownership to `@malickland-304`
+- `PROJECT_STATE.md` — updated verification date, current `main` SHA/merged PR references, local validation status, and governance-file presence
+- `TASKS.md` — marked the Issue #85 governance follow-up and handoff refresh work complete
+- `docs/agent-handoff.md` — removed stale `leads.js` note, added PR #84 / PR #86 state, documented read-only smoke path, and recorded the manual stale cadence
+
+### Verification (Truthfulness Rule)
+- Command: `cd api && npm ci && npm test && npm audit --audit-level=high` → Result: PASSED
+- Command: `node tests/verify-security-fixes.test.js` → Result: PASSED — 52/52
+- Command: `bash scripts/preflight.sh` → Result: PASSED
+- Command: `bash scripts/smoke-prod.sh https://malickland.net` → Result: FAILED in sandbox — DNS resolution for `malickland.net` was unavailable, so no live re-check was possible from this session
+- GitHub evidence: PR #84 is merged (`48c891d`), and its required checks all completed successfully before merge
+
+### Security Notes
+- Documentation and ownership metadata only; no runtime code changed
+- Production smoke guidance remains explicitly non-mutating
+
+### Remaining Risks
+1. Live Railway smoke was not re-run from this sandbox because `malickland.net` did not resolve here
+2. OpenHands executor activation remains pending developer action
+
+### Recommended Next Task
+If a fresh live deployment confirmation is still needed, run `bash scripts/smoke-prod.sh https://malickland.net` from an environment with public DNS/network access.
+
 ## 2026-05-28 (session 5) — Claude Code (Sonnet 4.6)
 
 ### Objective

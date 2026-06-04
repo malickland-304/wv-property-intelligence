@@ -1,6 +1,6 @@
 # PROJECT_STATE.md — Malickland 2.0
 
-> **Last verified:** 2026-05-31 (canonical branch `main` @ `b34e2fb`; PR #77 merged after PR #76)
+> **Last verified:** 2026-06-04 (canonical branch `main` @ `a479bfb`; PR #86 merged after PR #84)
 > **Authority:** Product completeness and repo workspace truth. Use `docs/CANONICAL_MAP.md` for repo/domain/stack disambiguation. Deployment runbooks and guardrails remain in `docs/agent-handoff.md`.
 
 ---
@@ -11,8 +11,8 @@
 |------|--------|
 | **Active repo** | `/Users/yhyh7/Projects/wv-property-intelligence` |
 | **Remote** | `https://github.com/malickland-304/wv-property-intelligence.git` |
-| **Production branch** | `origin/main` @ `b34e2fb` (PR #77 merged 2026-05-31) |
-| **Last merged PR** | #77 Cursor workspace guardrails — merged into `main` after #76 |
+| **Production branch** | `origin/main` @ `a479bfb` (PR #86 merged 2026-06-04) |
+| **Last merged PR** | #86 codex governance and compliance copy — merged into `main` after PR #84 |
 
 PR #76 is merged and live; PR #77 is merged on top. Compare future work against `origin/main`, not a stale local `main`.
 
@@ -28,9 +28,9 @@ Local `main` checkout may lag `origin/main`; always `git fetch origin` and compa
 
 ---
 
-## GitHub / PR status (2026-05-31)
+## GitHub / PR status (2026-06-04)
 
-Open GitHub issues: **0**. Open pull requests: **0** after cleanup on 2026-05-31.
+Open GitHub issues: **1** (Issue #85 governance follow-up). Open pull requests: **0**.
 
 | PR | Status |
 |----|--------|
@@ -40,6 +40,8 @@ Open GitHub issues: **0**. Open pull requests: **0** after cleanup on 2026-05-31
 | **#73** (governance / test-suite overhaul) | ✅ Merged to `main` (governance commits on `origin/main`, e.g. `f8604f0`, `24399fb`) |
 | **#75** (notification observability) | ✅ Merged — `7eb8b1e` on `origin/main` |
 | **#76** (public navigation links fix) | ✅ Merged — `dc8cc53` on `origin/main` (2026-05-31); production smoke passed |
+| **#84** (lead hardening review followups) | ✅ Merged — `48c891d` on `origin/main` (2026-06-01); all required PR checks green before merge |
+| **#86** (governance and compliance copy) | ✅ Merged — `a479bfb` on `origin/main` (2026-06-04) |
 | **#77** (Cursor workspace guardrails) | ✅ Merged — `b34e2fb` on `origin/main` (2026-05-31) |
 | **#78** (post-PR76 docs refresh) | ✅ Merged — `0908cd4` on `origin/main` (2026-05-31) |
 
@@ -50,13 +52,14 @@ Open GitHub issues: **0**. Open pull requests: **0** after cleanup on 2026-05-31
 | Item | Status |
 |------|--------|
 | Live URL | https://malickland.net |
-| Railway deploy / live smoke | ✅ Live read-only smoke passed 2026-05-31 after PR #76: `/api/health`, `/listings`, `/37-advent`, legacy Advent redirect |
+| Railway deploy / live smoke | ✅ Latest confirmed live read-only smoke remains 2026-05-31 after PR #76: `/api/health`, `/listings`, `/37-advent`, legacy Advent redirect |
 | Health endpoint | **`GET /api/health`** — not `/health` (mounted in `api/routes/api.js`) |
 | npm audit | ✅ 0 vulnerabilities (verified on fix branch 2026-05-31) |
-| Security test suite | ✅ **48/48** on `fix/public-navigation-links` (`node tests/verify-security-fixes.test.js`) |
-| Preflight + route smoke | ✅ Passed on fix branch per session validation (2026-05-31) |
+| Security test suite | ✅ **52/52** locally on 2026-06-04 (`node tests/verify-security-fixes.test.js`) |
+| Preflight + route smoke | ✅ `scripts/preflight.sh` passed locally on 2026-06-04 |
 | CI gates | ✅ CodeQL, Semgrep, `preflight.yml` |
 | Branch protection | Required status checks enabled (`CodeQL`, `verify`, `check`, `CodeScan`, `semgrep-cloud-platform/scan`); required conversation resolution enabled; PR review protection and admin enforcement intentionally off per `DECISIONS.md` 2026-05-31 |
+| Governance files | ✅ `README.md`, `CONTRIBUTING.md`, `.github/CODEOWNERS`, issue templates, and PR template present |
 | GitHub security queues | ✅ Open code-scanning alerts: 0; Dependabot alerts: 0; secret-scanning alerts: 0 (2026-05-31 API audit) |
 | Remote branches | ✅ Only protected `main` remains on `origin` after stale branch cleanup (2026-05-31) |
 | GitHub environments | Railway deployment statuses use `alert-laughter / production`; `production` and `copilot` environments exist but are not deployment-gating for Railway |
