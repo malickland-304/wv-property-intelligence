@@ -27,7 +27,7 @@ bash scripts/smoke-prod.sh <BASE_URL>
 ## Smoke-test safety
 
 - `scripts/smoke-prod.sh` is read-only. It only performs `GET` requests against `/api/health`, the property API, and the public property page.
-- `scripts/smoke-admin.sh` is also designed to stay non-mutating. Its CSRF round-trip posts to a non-existent edit target so auth and CSRF can be verified without creating or updating production data.
+- `scripts/smoke-admin.sh` is also designed to stay non-mutating. Its CSRF round-trip posts to `/admin/edit/smoke-test-nonexistent`, so the request exercises auth and CSRF handling against a deliberately missing record instead of creating or updating production data.
 
 ## Pull request policy
 

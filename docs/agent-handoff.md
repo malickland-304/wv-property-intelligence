@@ -86,7 +86,7 @@ Issue #66 was fixed by merged PRs #68/#69. The OpenHands npm install blocker now
 - Stale local branches (`copilot/*`, some `claude/*`, superseded fix branches) — safe to delete only after confirming no unpushed work
 - Closed stale GitHub PRs #60, #70, and #71 on 2026-05-31; do not revive them without re-cutting fresh branches from current `main`
 - Deleted stale remote branches on 2026-05-31; only protected `main` remains on `origin`
-- Manual hygiene cadence: review open PRs weekly and open issues monthly; treat ~21-day PRs and ~45-day issues as stale candidates unless active progress is documented
+- Manual hygiene cadence is documented in `CONTRIBUTING.md`; use that file as the authoritative reference for stale-work review timing
 
 ---
 
