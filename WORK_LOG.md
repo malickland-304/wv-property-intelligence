@@ -495,3 +495,33 @@ Under Phil's explicit instruction, remove the stale Codex audit-only blocker, cl
 ### Remaining Risks
 1. Compliance wording should still receive broker/legal review before publication.
 2. This work was moved from the stale `fix/lead-review-followups` branch onto fresh branch `fix/codex-governance-copy-source` before PR creation.
+
+---
+
+## 2026-06-04 — Claude Code (Sonnet 4.6)
+
+### Objective
+Address remaining open items from Issue #85 (Full-Stack Stability Sprint Checklist — Week of 2026-06-01): add `CONTRIBUTING.md`, add `.github/CODEOWNERS`, verify smoke path non-mutation, document stale issue/PR policy.
+
+### Changes Made
+- `CONTRIBUTING.md` — created: development setup, branch/PR conventions, required validation steps, smoke script non-mutation guarantee, CI required checks table, security notes, stale issue/PR policy (45-day issues, 21-day PRs, weekly maintainer cadence), coordination document hierarchy, post-merge steps.
+- `.github/CODEOWNERS` — created: `* @malickland-304` (sole owner of all files).
+
+### Smoke Path Non-Mutation Verification
+- `scripts/smoke-prod.sh` — reviewed; issues only `curl -fsS GET` requests to `/api/health`, `/api/properties/advent-dr-hampshire-wv`, and `/properties/advent-dr-hampshire-wv`. No POST/PUT/DELETE calls. No session mutations. Non-mutating: CONFIRMED.
+- `scripts/preflight.sh` — reviewed; starts a local test server with ephemeral `DATABASE_PATH` and issues only `curl -fsS GET` requests to `/api/health`, `/api/properties/advent-dr-hampshire-wv`, and `/properties/advent-dr-hampshire-wv`. Non-mutating: CONFIRMED.
+
+### Verification (Truthfulness Rule applies)
+- Command: `node --check` → NOT RUN (no code files changed; CONTRIBUTING.md and CODEOWNERS are documentation/config only).
+- Command: `bash scripts/preflight.sh` → NOT RUN (no code changes; smoke script review was a manual read-only inspection).
+
+### Security Notes
+- No secrets read or printed.
+- No production deployment, production data mutation, schema migration, or live-service change performed.
+
+### Remaining Risks / Requires Human Decision
+1. **Required PR review policy** — Issue #85 notes that required PR review is not enabled on `main`. This is a governance decision for Phil Malick. Enabling it would require human review approval on all PRs; automation-first governance may intentionally omit it. No change made here; documented for human decision.
+2. **Railway deployment health** — Confirming live Railway deployment health after PR #84 disposition requires production access (malickland.net). Not performed by agent per AGENTS.md OpenHands restrictions. Phil Malick should run `bash scripts/smoke-prod.sh https://malickland.net` to confirm.
+
+### Recommended Next Task
+- Phil Malick: decide required PR review policy (issue #85 checklist item 3) and run `bash scripts/smoke-prod.sh https://malickland.net` to confirm production health (checklist item 5).
