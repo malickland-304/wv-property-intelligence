@@ -30,7 +30,7 @@ Local `main` checkout may lag `origin/main`; always `git fetch origin` and compa
 
 ## GitHub / PR status (2026-06-04)
 
-Open pull requests: **0**. Re-check open issue count in GitHub before acting; this document is not the live issue tracker.
+Open pull requests: **0**. Open issue count must be re-checked live in GitHub before acting; this document is not the live issue tracker.
 
 | PR | Status |
 |----|--------|

@@ -41,8 +41,8 @@ This repository currently uses a manual hygiene cadence instead of stale-bot aut
 
 - Review open pull requests at least weekly.
 - Review open issues at least monthly.
-- Treat pull requests with about 21 days of no progress as stale candidates.
-- Treat issues with about 45 days of no progress as stale candidates.
+- Treat pull requests with 21+ days of no progress as stale candidates.
+- Treat issues with 45+ days of no progress as stale candidates.
 - Before closing stale work, leave a short evidence-based note so the next pass can see why it was closed or deferred.
 
 ## Security
