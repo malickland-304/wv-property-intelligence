@@ -13,7 +13,6 @@
 
 ## High Priority
 
-- [ ] **Update docs/agent-handoff.md service notes** — keep deployment-state reference aligned with current service env vars and merged PR state; do not let it override AGENTS.md — no deps — Claude Code
 - [ ] **OpenHands executor activation** — provision fine-grained GitHub token; start executor; run first supervised task — waiting on developer action; Issue #66 is fixed and Issue #65 is closed, so create or pick a current task — **developer action**
 
 ---
@@ -57,6 +56,8 @@
 - [x] GitHub remote branch cleanup — 73 stale non-`main` remote branches deleted; only protected `main` remains — 2026-05-31
 - [x] GitHub security queues audited — open CodeQL/code-scanning alerts, Dependabot alerts, and secret-scanning alerts all zero — 2026-05-31
 - [x] GitHub environments audited — Railway deployments report to `alert-laughter / production`; unused `production`/`copilot` environments documented as non-gating — 2026-05-31
+- [x] Issue #85 governance follow-up — added `CONTRIBUTING.md`, `.github/CODEOWNERS`, manual stale-work cadence, and non-mutating smoke guidance — 2026-06-04
+- [x] `docs/agent-handoff.md` refresh — corrected merged PR state, lead-route status, and maintenance notes — 2026-06-04
 - [x] `brace-expansion` patched, `cookie` transitive vuln contained
 - [x] Create PROJECT_STATE.md, TASKS.md, DECISIONS.md, QA_CHECKLIST.md — 2026-05-27 (Claude Code)
 - [x] Create ARCHITECTURE.md, WORK_LOG.md — 2026-05-27 (Claude Code)

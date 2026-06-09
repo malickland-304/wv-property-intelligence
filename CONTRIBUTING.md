@@ -113,5 +113,5 @@ When sources conflict, prefer the safer, more conservative path and document the
 ## After your PR merges
 
 - Append an entry to `WORK_LOG.md` summarizing what changed and why.
-- Update `docs/agent-handoff.md` if the change affects production state or architecture.
+- Only update `docs/agent-handoff.md` when deployment topology or runtime guardrails materially change; it remains a deployment-state reference only and may lag `main`.
 - Railway deployment (`main` branch) is triggered automatically on merge; only Phil Malick approves production deploys.
