@@ -14,7 +14,8 @@
  *   - Landing page content
  *   - SMS blast
  *
- * Requires: OPENAI_API_KEY in environment
+ * Requires: AI_GATEWAY_API_KEY (preferred — routes via Vercel AI Gateway) or
+ * OPENAI_API_KEY (direct) in environment
  *
  * Usage:
  *   const { generateListingContent } = require('./ai-generator');
@@ -28,26 +29,78 @@ const path   = require('path');
 
 const PROJECT_ROOT = path.join(__dirname, '..');
 
-// ── OpenAI call (no SDK — keeps dependencies minimal) ────────────────────────
+// ── AI provider calls — Vercel AI Gateway or direct OpenAI, no SDK ────────────────────────
 
-function requestOpenAI(messages, model, apiKey) {
-  const body = JSON.stringify({
-    model,
-    messages,
-    temperature: 0.7,
-    max_tokens: 2500,
-    response_format: { type: 'json_object' }
-  });
+const ENDPOINTS = {
+  gateway: { hostname: 'ai-gateway.vercel.sh', path: '/v1/chat/completions' },
+  openai:  { hostname: 'api.openai.com',       path: '/v1/chat/completions' }
+};
+
+const DEFAULT_GATEWAY_MODEL          = 'openai/gpt-5.4';
+const DEFAULT_GATEWAY_FALLBACK_MODEL = 'anthropic/claude-haiku-4.5';
+const DEFAULT_OPENAI_MODEL           = 'gpt-4o';
+
+/**
+ * Pick provider, endpoint, key, and models from the environment.
+ * Pure (no I/O) so it is unit-testable. Returns null when nothing is configured.
+ * The gateway takes precedence over a direct OpenAI key when both are present.
+ */
+function resolveAiProvider(env = process.env) {
+  const gatewayKey = env.AI_GATEWAY_API_KEY?.trim();
+  if (gatewayKey) {
+    const primaryModel  = env.AI_GATEWAY_MODEL?.trim()          || DEFAULT_GATEWAY_MODEL;
+    const fallbackModel = env.AI_GATEWAY_FALLBACK_MODEL?.trim() || DEFAULT_GATEWAY_FALLBACK_MODEL;
+    return {
+      mode: 'gateway',
+      ...ENDPOINTS.gateway,
+      apiKey: gatewayKey,
+      primaryModel,
+      fallbackModel: fallbackModel === primaryModel ? null : fallbackModel
+    };
+  }
+
+  const openaiKey = env.OPENAI_API_KEY?.trim();
+  if (openaiKey) {
+    const primaryModel = env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL;
+    return {
+      mode: 'openai',
+      ...ENDPOINTS.openai,
+      apiKey: openaiKey,
+      primaryModel,
+      // Preserve the original auto-fallback to gpt-4o-mini for the default model.
+      fallbackModel: primaryModel === DEFAULT_OPENAI_MODEL ? 'gpt-4o-mini' : null
+    };
+  }
+
+  return null;
+}
+
+/** True when any AI provider is configured (gateway or direct OpenAI). */
+function aiConfigured(env = process.env) {
+  return Boolean(env.AI_GATEWAY_API_KEY?.trim() || env.OPENAI_API_KEY?.trim());
+}
+
+// response_format:{type:'json_object'} is an OpenAI-family feature. Send it for
+// OpenAI models (direct, or gateway openai/*); for other gateway providers
+// (e.g. anthropic/*) rely on the prompt's "return ONLY valid JSON" instruction.
+function supportsJsonObjectFormat(model) {
+  return !model.includes('/') || model.startsWith('openai/');
+}
+
+function requestChat(messages, model, endpoint) {
+  const payload = { model, messages, temperature: 0.7, max_tokens: 2500 };
+  if (supportsJsonObjectFormat(model)) payload.response_format = { type: 'json_object' };
+  const body = JSON.stringify(payload);
 
   return new Promise((resolve, reject) => {
     const req = https.request(
       {
-        hostname: 'api.openai.com',
-        path: '/v1/chat/completions',
+        hostname: endpoint.hostname,
+        path: endpoint.path,
         method: 'POST',
         headers: {
-          'Content-Type':  'application/json',
-          'Authorization': 'Bearer ' + apiKey,
+          'Content-Type':   'application/json',
+          'Authorization':  'Bearer ' + endpoint.apiKey,
           'Content-Length': Buffer.byteLength(body)
         }
       },
@@ -59,22 +112,22 @@ function requestOpenAI(messages, model, apiKey) {
             const parsed = data ? JSON.parse(data) : {};
             if (res.statusCode >= 400 || parsed.error) {
               const message = parsed?.error?.message || `HTTP ${res.statusCode}`;
-              const err = new Error(`OpenAI API error (${res.statusCode}): ${message}`);
+              const err = new Error(`AI API error (${res.statusCode}): ${message}`);
               err.statusCode = res.statusCode;
               err.openaiCode = parsed?.error?.code || null;
               err.openaiType = parsed?.error?.type || null;
               return reject(err);
             }
             const content = parsed.choices?.[0]?.message?.content;
-            if (!content) return reject(new Error('Empty response from OpenAI'));
+            if (!content) return reject(new Error('Empty response from AI provider'));
             resolve(JSON.parse(content));
           } catch (e) {
-            reject(new Error('Failed to parse OpenAI response: ' + e.message));
+            reject(new Error('Failed to parse AI response: ' + e.message));
           }
         });
       }
     );
-    req.setTimeout(30000, () => req.destroy(new Error('OpenAI request timed out')));
+    req.setTimeout(30000, () => req.destroy(new Error('AI request timed out')));
     req.on('error', reject);
     req.write(body);
     req.end();
@@ -86,18 +139,31 @@ function isModelAccessError(err) {
     ((err?.statusCode === 403 || err?.statusCode === 404) && err?.openaiType === 'invalid_request_error');
 }
 
-async function callOpenAI(messages, model) {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) throw new Error('OPENAI_API_KEY is not set');
+// Through the gateway, also fail over on transient provider errors (5xx / 429 /
+// timeout) so an outage at the primary provider falls back to the secondary.
+function isRetryableError(err) {
+  const sc = err?.statusCode;
+  return isModelAccessError(err) || sc === 429 ||
+    (typeof sc === 'number' && sc >= 500 && sc <= 599) ||
+    /timed out/i.test(err?.message || '');
+}
 
-  const configuredModel = process.env.OPENAI_MODEL?.trim() || model || 'gpt-4o';
+async function callAI(messages) {
+  const provider = resolveAiProvider();
+  if (!provider) {
+    throw new Error('No AI provider configured — set AI_GATEWAY_API_KEY (preferred) or OPENAI_API_KEY');
+  }
+
+  const endpoint = { hostname: provider.hostname, path: provider.path, apiKey: provider.apiKey };
 
   try {
-    return await requestOpenAI(messages, configuredModel, apiKey);
+    return await requestChat(messages, provider.primaryModel, endpoint);
   } catch (err) {
-    if (configuredModel === 'gpt-4o' && isModelAccessError(err)) {
-      console.warn('[AI] Falling back to gpt-4o-mini due to model access error');
-      return requestOpenAI(messages, 'gpt-4o-mini', apiKey);
+    const shouldFallback = provider.fallbackModel &&
+      (provider.mode === 'gateway' ? isRetryableError(err) : isModelAccessError(err));
+    if (shouldFallback) {
+      console.warn(`[AI] Primary model ${provider.primaryModel} failed (${err.message}); falling back to ${provider.fallbackModel}`);
+      return requestChat(messages, provider.fallbackModel, endpoint);
     }
     throw err;
   }
@@ -220,9 +286,9 @@ async function generateListingContent(property, db = null) {
   let content;
 
   try {
-    content = await callOpenAI(messages);
+    content = await callAI(messages);
   } catch (err) {
-    console.error('[AI] OpenAI call failed:', err.message);
+    console.error('[AI] generation call failed:', err.message);
     throw err;
   }
 
@@ -275,4 +341,11 @@ async function getOrGenerateContent(property, db, force = false) {
   return generateListingContent(property, db);
 }
 
-module.exports = { generateListingContent, getOrGenerateContent, buildPrompt };
+module.exports = {
+  generateListingContent,
+  getOrGenerateContent,
+  buildPrompt,
+  resolveAiProvider,
+  supportsJsonObjectFormat,
+  aiConfigured
+};
