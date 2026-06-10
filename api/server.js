@@ -17,6 +17,7 @@ const { db }             = require('./db');
 const adminRoutes  = require('./routes/admin');
 const apiRoutes    = require('./routes/api');
 const createLeadsRouter = require('./routes/leads');
+const createChatRouter = require('./routes/chat');
 const publicRoutes = require('./routes/public');
 
 const app  = express();
@@ -157,6 +158,7 @@ app.use('/admin', cookieParser(), adminSession, (req, res, next) => {
 }, adminRoutes);
 app.use('/api/contacts', requireLeadJson, requireLeadSameOrigin);
 app.use('/api/leads', requireLeadJson, requireLeadSameOrigin, createLeadsRouter({ db }));
+app.use('/api/chat', requireLeadJson, requireLeadSameOrigin, createChatRouter());
 app.use('/api',   apiRoutes);
 app.use('/',      publicRoutes);
 

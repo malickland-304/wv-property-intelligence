@@ -88,9 +88,13 @@ function supportsJsonObjectFormat(model) {
   return !model.includes('/') || model.startsWith('openai/');
 }
 
-function requestChat(messages, model, endpoint) {
-  const payload = { model, messages, temperature: 0.7, max_tokens: 2500 };
-  if (supportsJsonObjectFormat(model)) payload.response_format = { type: 'json_object' };
+// options.json (default true) keeps the structured-JSON behavior the listing
+// generator relies on. Pass { json: false } for free-text chat completions
+// (the public assistant): no response_format, raw string content returned.
+function requestChat(messages, model, endpoint, options = {}) {
+  const { json = true, temperature = 0.7, maxTokens = 2500 } = options;
+  const payload = { model, messages, temperature, max_tokens: maxTokens };
+  if (json && supportsJsonObjectFormat(model)) payload.response_format = { type: 'json_object' };
   const body = JSON.stringify(payload);
 
   return new Promise((resolve, reject) => {
@@ -130,6 +134,7 @@ function requestChat(messages, model, endpoint) {
           }
           const content = parsed.choices?.[0]?.message?.content;
           if (!content) return reject(new Error('Empty response from AI provider'));
+          if (!json) return resolve(content);
           try {
             resolve(JSON.parse(content));
           } catch (e) {
@@ -159,8 +164,12 @@ function isRetryableError(err) {
     /timed out/i.test(err?.message || '');
 }
 
-async function callAI(messages) {
-  const provider = resolveAiProvider();
+// Shared gateway-aware caller: resolve provider, try the primary model, fail
+// over to the secondary on retryable/access errors. Used by both the structured
+// listing generator (json:true) and the free-text chat assistant (json:false),
+// so provider routing + failover live in exactly one place.
+async function callProvider(messages, options = {}) {
+  const provider = resolveAiProvider(options.env);
   if (!provider) {
     throw new Error('No AI provider configured — set AI_GATEWAY_API_KEY (preferred) or OPENAI_API_KEY');
   }
@@ -168,16 +177,39 @@ async function callAI(messages) {
   const endpoint = { hostname: provider.hostname, path: provider.path, apiKey: provider.apiKey };
 
   try {
-    return await requestChat(messages, provider.primaryModel, endpoint);
+    return await requestChat(messages, provider.primaryModel, endpoint, options);
   } catch (err) {
     const shouldFallback = provider.fallbackModel &&
       (provider.mode === 'gateway' ? isRetryableError(err) : isModelAccessError(err));
     if (shouldFallback) {
       console.warn(`[AI] Primary model ${provider.primaryModel} failed (${err.message}); falling back to ${provider.fallbackModel}`);
-      return requestChat(messages, provider.fallbackModel, endpoint);
+      return requestChat(messages, provider.fallbackModel, endpoint, options);
     }
     throw err;
   }
+}
+
+// Listing content path — structured JSON output (admin generator).
+async function callAI(messages) {
+  return callProvider(messages, { json: true });
+}
+
+/**
+ * Free-text chat completion for the public MalickLand assistant widget.
+ *
+ * Reuses the same gateway-aware provider resolution + model failover as the
+ * listing generator (resolveAiProvider / requestChat), but returns the raw
+ * assistant text instead of parsed JSON. Throws when no provider is configured
+ * or the upstream call fails — callers must catch and degrade gracefully.
+ *
+ * @param {Array<{role:string, content:string}>} messages - system prompt + chat turns
+ * @param {{temperature?:number, maxTokens?:number, env?:object}} [opts]
+ * @returns {Promise<string>} assistant reply text (trimmed)
+ */
+async function generateChatReply(messages, opts = {}) {
+  const { temperature = 0.4, maxTokens = 500, env } = opts;
+  const text = await callProvider(messages, { json: false, temperature, maxTokens, env });
+  return typeof text === 'string' ? text.trim() : '';
 }
 
 // ── Build structured prompt from property data ────────────────────────────────
@@ -355,6 +387,7 @@ async function getOrGenerateContent(property, db, force = false) {
 module.exports = {
   generateListingContent,
   getOrGenerateContent,
+  generateChatReply,
   buildPrompt,
   resolveAiProvider,
   supportsJsonObjectFormat,

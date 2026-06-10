@@ -94,3 +94,16 @@
 **Reasoning:** Automated checks plus conversation resolution provide the useful GitHub safety gates without recreating the manual-review bottleneck that previously blocked repository throughput.
 **Alternatives:** Required PR reviews/admin enforcement — rejected for now because the repo is operated by a solo maintainer and those settings can block emergency fixes or docs-only cleanup.
 **Files:** `TASKS.md`, `PROJECT_STATE.md`, `docs/agent-handoff.md`, `WORK_LOG.md`
+
+---
+
+## 2026-06-10 — Public assistant gets a backend (`POST /api/chat`) instead of removing the widget
+
+**Problem:** The homepage "MalickLand Assistant" chat widget POSTs to `/api/chat`, but no such route existed on `main`, so the button 404'd in production. Two paths: (A) build the backend, or (B) remove/hide the widget.
+**Decision:** Build the backend (option A). Add a public, per-IP rate-limited, same-origin `POST /api/chat` that reuses the gateway-aware AI plumbing from PR #90 (`resolveAiProvider` + the generalized `requestChat`, surfaced as `generateChatReply`). It routes through the Vercel AI Gateway when `AI_GATEWAY_API_KEY` is set (model `openai/gpt-5.4`, failover `anthropic/claude-haiku-4.5`) and falls back to direct OpenAI otherwise.
+**Reasoning:** The widget is a complete, polished frontend (greeting → Q&A → lead handoff → analytics), and the gateway plumbing was merged specifically to be reused — the backend was the known follow-up to PR #90. Removing a finished feature is the wasteful path. The route is safe-by-default (graceful fallback when no AI key) so it cannot break the Railway auto-deploy.
+**Brokerage-safety:** A strict server-injected system prompt forbids ROI/appreciation/legal/tax/financing claims and inventing listings/prices; valuations are routed to a CMA from Phil. The client cannot override it — `sanitizeChatMessages()` strips any client-supplied `system` role. This aligns with the WV first-screen disclosure posture and mirrors `buildPrompt` in `ai-generator.js`.
+**Cost control:** Per-IP rate limit (15/min), trimmed history (≤10 turns / ≤6000 chars), capped output (~500 tokens). The endpoint is a no-op cost-wise until `AI_GATEWAY_API_KEY` is set in Railway.
+**Alternatives considered:** (B) remove the widget — rejected; throws away finished UX and the planned feature. Giving the model live DB/listing context — deferred to a follow-up to keep this change conservative and avoid fabrication risk.
+**Security impact:** Neutral-to-positive — new public endpoint, but defended in depth (same-origin + JSON guards reused from the lead routes, rate limit, prompt-injection stripping, server-controlled prompt, bounded I/O). No new dependencies.
+**Files:** `api/ai-generator.js`, `api/utils/chatAssistant.js`, `api/routes/chat.js`, `api/middleware/rate-limits.js`, `api/server.js`, `scripts/preflight.sh`, `tests/chat-assistant.test.js`, `api/.env.example`

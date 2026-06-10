@@ -555,3 +555,47 @@ Address remaining open items from Issue #85 (Full-Stack Stability Sprint Checkli
 
 ### Recommended Next Task
 - Phil Malick: decide required PR review policy (issue #85 checklist item 3) and run `bash scripts/smoke-prod.sh https://malickland.net` to confirm production health (checklist item 5).
+
+---
+
+## 2026-06-10 — Claude Code (Opus 4.8)
+
+### Objective
+Give the public "MalickLand Assistant" homepage chat widget a backend. The widget
+(`app/index.html`) POSTs to `/api/chat`, but no such route existed on `main`, so the
+button 404'd in production. Implemented option (A): a public, rate-limited, same-origin
+`POST /api/chat` that reuses the gateway-aware AI plumbing merged in PR #90.
+
+### Changes Made
+- `api/ai-generator.js` — generalized `requestChat(messages, model, endpoint, options)` to support a `json:false` free-text mode (no `response_format`, returns raw string). Extracted the provider-resolution + model-failover core into `callProvider()`; `callAI()` is now a thin `{json:true}` wrapper (behavior identical to before). Added and exported `generateChatReply()` — the free-text caller that reuses the exact same gateway routing + failover.
+- `api/utils/chatAssistant.js` — NEW. Pure helpers: `buildChatSystemPrompt()` (strict brokerage-safe system prompt — no ROI/appreciation/legal/tax/financing claims, never invents listings/prices, routes valuations to a CMA and humans to Phil) and `sanitizeChatMessages()` (drops any client-supplied `system` role, whitelists user/assistant, coerces+trims content, caps per-message/total length and turn count). Exports `FALLBACK_REPLY`.
+- `api/routes/chat.js` — NEW. `createChatRouter()` factory (mirrors `createLeadsRouter`). Handles `POST /`: sanitize → require ≥1 user message (else 400) → safe-by-default fallback when no AI key → inject server-side system prompt → `generateChatReply()` → `{ reply }`. Upstream failure → 502 with a usable `reply` and a server-side log.
+- `api/middleware/rate-limits.js` — added `chatRateLimit` (15/min/IP) and exported it.
+- `api/server.js` — imported `createChatRouter`; mounted `app.use('/api/chat', requireLeadJson, requireLeadSameOrigin, createChatRouter())` directly after `/api/leads` (same JSON + same-origin guards; before the generic `/api` mount).
+- `scripts/preflight.sh` — added a `/api/chat` smoke step (sends a same-origin POST; asserts HTTP 200 + a `reply` field with NO AI key configured — proves safe-by-default).
+- `tests/chat-assistant.test.js` — NEW. 14 pure unit tests for the sanitizer (incl. system-role-stripping injection defense and the bounding logic) and the brokerage-safe prompt.
+- `api/.env.example` — clarified the AI keys now also power the public assistant and that both features degrade gracefully when unset.
+- `TASKS.md`, `DECISIONS.md` — recorded the task and the A-vs-B decision.
+
+### Verification (Truthfulness Rule applies) — all run this session
+- Command: `node --check` on server.js, ai-generator.js, routes/chat.js, routes/{api,public,admin}.js, middleware/{auth,rate-limits}.js, utils/chatAssistant.js → PASSED (all).
+- Command: `cd api && npm ci` → PASSED (added 177 packages, audited 178, **found 0 vulnerabilities**).
+- Command: `node tests/verify-security-fixes.test.js` → PASSED (52/52).
+- Command: `node tests/ai-generator-routing.test.js` → PASSED (12/12; the generalized `requestChat`/new `callProvider` did not change provider-resolution behavior).
+- Command: `node tests/chat-assistant.test.js` → PASSED (14/14).
+- Command: `bash scripts/preflight.sh` → PASSED (incl. new assistant smoke; HTTP 200 + fallback reply with no AI key).
+- Manual runtime (local server, no AI key) → no Origin **403**, bad Origin **403**, non-JSON **415**, empty messages **400**, system-role-only **400** (stripped → no user msg), system+user **200** (system stripped, runs), valid user **200** (fallback body), GET **404**.
+
+### Security Notes
+- No secrets read, printed, or committed. No production deploy, no schema/DB change.
+- Endpoint is public but defended in depth: same-origin + JSON guards (reused from the lead routes), per-IP rate limit, client-`system`-role stripping (prompt-injection defense), server-injected system prompt the client cannot override, and capped input/output to bound spend.
+- Safe-by-default: with no `AI_GATEWAY_API_KEY`/`OPENAI_API_KEY`, `/api/chat` returns a brokerage-safe fallback (no crash) — important because `main` auto-deploys to Railway. The endpoint stays a no-op cost-wise until Phil sets the key, matching the PR #90 admin-generator pattern.
+
+### Remaining Risks / Requires Human Decision
+1. **Phil approval + merge** — per AGENTS.md, Phil Malick is the sole merge authority. PR opened; NOT merged.
+2. **AI key in Railway** — the assistant only answers live once `AI_GATEWAY_API_KEY` (preferred) is set in the Railway `alert-laughter` project. Until then it serves the safe fallback.
+3. **No live listing context (by design)** — the assistant is advisory only; it is instructed not to invent specific inventory/prices and to send specifics to the listings page or Phil. Wiring a small read-only listings context is a possible follow-up (separate PR).
+4. **CSP** — the widget fetch is same-origin (`connectSrc 'self'`), so no CSP change was needed; the outbound AI call is server-side.
+
+### Recommended Next Task
+- Phil: review/approve the PR; if approved and merged, set `AI_GATEWAY_API_KEY` in Railway and smoke `POST /api/chat` on production with a same-origin request.
