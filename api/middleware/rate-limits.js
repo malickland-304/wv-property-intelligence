@@ -26,6 +26,15 @@ const generateDescRateLimit = rateLimit({
   message: { error: 'Too many generate requests. Please wait a moment.' },
 });
 
+// Public assistant chat (POST /api/chat). Each request can hit a paid AI
+// provider, so this is deliberately tight — enough for a back-and-forth
+// conversation, low enough to protect the bill from a single IP.
+const chatRateLimit = rateLimit({
+  windowMs: 60 * 1000, max: 15,
+  standardHeaders: true, legacyHeaders: false,
+  message: { error: 'Too many messages. Please wait a moment.' },
+});
+
 const apiWriteRateLimit = rateLimit({
   windowMs: 60 * 1000, max: 60,
   standardHeaders: true, legacyHeaders: false,
@@ -49,6 +58,7 @@ module.exports = {
   publicReadRateLimit,
   adminLoginRateLimit,
   generateDescRateLimit,
+  chatRateLimit,
   apiWriteRateLimit,
   uploadRateLimit,
   adminActionRateLimit,

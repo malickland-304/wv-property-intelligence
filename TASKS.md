@@ -13,6 +13,7 @@
 
 ## High Priority
 
+- [ ] **Public assistant backend (`POST /api/chat`)** — homepage "MalickLand Assistant" widget had no backend (404 in prod). Added a public, per-IP rate-limited, same-origin chat route reusing the PR #90 gateway-aware AI plumbing (`generateChatReply`); strict brokerage-safe system prompt; safe-by-default with no AI key. Acceptance: security suite 52/52, new chat suite 14/14, preflight green (incl. assistant smoke). **Claude Code** — PR open, awaiting Phil review (do not merge without approval); set `AI_GATEWAY_API_KEY` in Railway after merge to enable live replies.
 - [ ] **OpenHands executor activation** — provision fine-grained GitHub token; start executor; run first supervised task — waiting on developer action; Issue #66 is fixed and Issue #65 is closed, so create or pick a current task — **developer action**
 
 ---

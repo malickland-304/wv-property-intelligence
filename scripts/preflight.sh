@@ -83,6 +83,29 @@ curl -fsS "http://127.0.0.1:$PORT_TO_USE/properties/advent-dr-hampshire-wv" >/de
 echo "✓ Public property page OK"
 echo
 
+# Assistant runs with NO AI key here — it must degrade gracefully (HTTP 200 +
+# fallback reply), never 404/500. Sends a same-origin header so the request
+# clears requireLeadSameOrigin like a real browser POST.
+echo "== Assistant chat endpoint (safe-by-default, no AI key) =="
+CHAT_STATUS="$(curl -s -o "$TMP_DIR/chat.json" -w '%{http_code}' \
+  -X POST "http://127.0.0.1:$PORT_TO_USE/api/chat" \
+  -H "Content-Type: application/json" \
+  -H "Origin: http://127.0.0.1:$PORT_TO_USE" \
+  -d '{"messages":[{"role":"user","content":"Do you have land in Hampshire County?"}]}')"
+if [[ "$CHAT_STATUS" != "200" ]]; then
+  echo "✗ /api/chat returned HTTP $CHAT_STATUS (expected 200 fallback with no AI key)"
+  cat "$TMP_DIR/chat.json" 2>/dev/null || true
+  cat "$APP_LOG"
+  exit 1
+fi
+if ! grep -q '"reply"' "$TMP_DIR/chat.json"; then
+  echo "✗ /api/chat 200 but no reply field in body"
+  cat "$TMP_DIR/chat.json"
+  exit 1
+fi
+echo "✓ Assistant endpoint OK (graceful fallback)"
+echo
+
 echo "== Shutdown =="
 cleanup
 trap - EXIT
