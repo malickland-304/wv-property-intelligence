@@ -84,6 +84,7 @@ function aiConfigured(env = process.env) {
 // OpenAI models (direct, or gateway openai/*); for other gateway providers
 // (e.g. anthropic/*) rely on the prompt's "return ONLY valid JSON" instruction.
 function supportsJsonObjectFormat(model) {
+  if (!model || typeof model !== 'string') return false;
   return !model.includes('/') || model.startsWith('openai/');
 }
 
@@ -108,21 +109,31 @@ function requestChat(messages, model, endpoint) {
         let data = '';
         res.on('data', chunk => data += chunk);
         res.on('end', () => {
+          const status = res.statusCode;
+          let parsed = null;
+          try { parsed = data ? JSON.parse(data) : {}; } catch { /* non-JSON body (e.g. a 5xx HTML proxy page) */ }
+
+          // Attach statusCode even when the body is not JSON, so isRetryableError()
+          // can fail over on a 5xx/429 gateway error page.
+          if (status >= 400 || parsed?.error) {
+            const message = parsed?.error?.message || (data ? data.slice(0, 200) : `HTTP ${status}`);
+            const err = new Error(`AI API error (${status}): ${message}`);
+            err.statusCode = status;
+            err.openaiCode = parsed?.error?.code || null;
+            err.openaiType = parsed?.error?.type || null;
+            return reject(err);
+          }
+          if (!parsed) {
+            const err = new Error(`AI API error (${status}): non-JSON response`);
+            err.statusCode = status;
+            return reject(err);
+          }
+          const content = parsed.choices?.[0]?.message?.content;
+          if (!content) return reject(new Error('Empty response from AI provider'));
           try {
-            const parsed = data ? JSON.parse(data) : {};
-            if (res.statusCode >= 400 || parsed.error) {
-              const message = parsed?.error?.message || `HTTP ${res.statusCode}`;
-              const err = new Error(`AI API error (${res.statusCode}): ${message}`);
-              err.statusCode = res.statusCode;
-              err.openaiCode = parsed?.error?.code || null;
-              err.openaiType = parsed?.error?.type || null;
-              return reject(err);
-            }
-            const content = parsed.choices?.[0]?.message?.content;
-            if (!content) return reject(new Error('Empty response from AI provider'));
             resolve(JSON.parse(content));
           } catch (e) {
-            reject(new Error('Failed to parse AI response: ' + e.message));
+            reject(new Error('Failed to parse AI response content: ' + e.message));
           }
         });
       }

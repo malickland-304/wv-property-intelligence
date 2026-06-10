@@ -101,6 +101,18 @@ test('json_object response_format only for OpenAI-family models', () => {
   assert.strictEqual(supportsJsonObjectFormat('openai/gpt-5.4'), true);
   assert.strictEqual(supportsJsonObjectFormat('anthropic/claude-haiku-4.5'), false);
 });
+test('supportsJsonObjectFormat is defensive against bad model values', () => {
+  assert.strictEqual(supportsJsonObjectFormat(''), false);
+  assert.strictEqual(supportsJsonObjectFormat(null), false);
+  assert.strictEqual(supportsJsonObjectFormat(undefined), false);
+});
+
+// ── Whitespace / blank env handling ───────────────────────────────────────────
+test('blank or whitespace-only keys are treated as unset', () => {
+  assert.strictEqual(resolveAiProvider({ AI_GATEWAY_API_KEY: '   ' }), null);
+  assert.strictEqual(resolveAiProvider({ OPENAI_API_KEY: '' }), null);
+  assert.strictEqual(aiConfigured({ AI_GATEWAY_API_KEY: '  ', OPENAI_API_KEY: '' }), false);
+});
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failures.length) {
