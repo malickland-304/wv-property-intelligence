@@ -7,6 +7,7 @@ const fs      = require('fs');
 const { db }           = require('../db');
 const { PROJECT_ROOT, esc } = require('../helpers');
 const { publicReadRateLimit } = require('../middleware/rate-limits');
+const { publicListingsEnabled } = require('../featureFlags');
 
 const router = express.Router();
 const HOMEPAGE_DISCLOSURE = 'WV Real Estate Agency, LLC | Sheila Judy, Broker | 501 East Main Street, Romney, WV 26757 | (540) 246-1421';
@@ -46,7 +47,7 @@ router.get('/sitemap.xml', publicReadRateLimit, (_req, res) => {
   ];
 
   let propertyPages = [];
-  try {
+  if (publicListingsEnabled()) try {
     const props = db.prepare(
       "SELECT listing_slug, id, updated_at FROM properties WHERE status = 'active'"
     ).all();
@@ -60,7 +61,7 @@ router.get('/sitemap.xml', publicReadRateLimit, (_req, res) => {
 
   // County landing pages — only counties with active listings (avoids thin-content pages).
   let countyPages = [];
-  try {
+  if (publicListingsEnabled()) try {
     const counties = db.prepare(
       "SELECT DISTINCT c.name FROM counties c JOIN properties p ON p.county_id = c.id WHERE p.status = 'active'"
     ).all();
@@ -93,6 +94,9 @@ router.get('/', publicReadRateLimit, (_req, res, next) => {
   try {
     const indexHtml = path.join(PROJECT_ROOT, 'app', 'index.html');
     let html = fs.readFileSync(indexHtml, 'utf8');
+    if (!publicListingsEnabled()) {
+      html = html.replace('<html lang="en">', '<html lang="en" class="listings-off">');
+    }
 
     html = replaceHomepageContent(
       html,
@@ -127,6 +131,7 @@ router.get('/', publicReadRateLimit, (_req, res, next) => {
 });
 
 router.get(['/listing/:id', '/properties/:id'], publicReadRateLimit, (_req, res) => {
+  if (!publicListingsEnabled()) return res.redirect(302, '/');
   const listingHtml = path.join(PROJECT_ROOT, 'app', 'listing.html');
   const indexHtml   = path.join(PROJECT_ROOT, 'app', 'index.html');
   res.sendFile(fs.existsSync(listingHtml) ? listingHtml : indexHtml);
@@ -139,6 +144,7 @@ router.get('/advent-drive-land-hampshire-county-wv', publicReadRateLimit, (_req,
 // County landing pages: /wv/<county>-county → server-rendered page listing that county's
 // active properties. Slug is validated against the counties table; unknown → 404 handler.
 router.get('/wv/:slug', publicReadRateLimit, (req, res, next) => {
+  if (!publicListingsEnabled()) return res.redirect(302, '/');
   const name = String(req.params.slug || '')
     .toLowerCase()
     .replace(/-county$/, '')
@@ -160,6 +166,13 @@ router.get('/wv/:slug', publicReadRateLimit, (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// Public listings search page (/listings → static app/listings.html when enabled).
+// Hidden while listings are disabled.
+router.get('/listings', publicReadRateLimit, (_req, res, next) => {
+  if (!publicListingsEnabled()) return res.redirect(302, '/');
+  next();
 });
 
 module.exports = router;

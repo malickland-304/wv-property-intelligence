@@ -8,6 +8,7 @@ const { requireApiKey }   = require('../middleware/auth');
 const { contactsRateLimit, publicReadRateLimit, generateDescRateLimit, apiWriteRateLimit } = require('../middleware/rate-limits');
 const { sendContactEmail } = require('../google');
 const { isValidEmail, normalizeAcreage, slugify, VALID_PROP_TYPES, VALID_PROP_STATUSES } = require('../helpers');
+const { publicListingsEnabled } = require('../featureFlags');
 
 const router = express.Router();
 
@@ -19,6 +20,7 @@ router.get('/config', (_req, res) => {
   res.json({
     gaId:    process.env.GA_MEASUREMENT_ID  || null,
     pixelId: process.env.META_PIXEL_ID      || null,
+    listingsEnabled: publicListingsEnabled(),
   });
 });
 
@@ -29,6 +31,7 @@ router.get('/counties', publicReadRateLimit, (_req, res) => {
 
 // ── Properties ────────────────────────────────────────────
 function sendPropertyList(req, res) {
+  if (!publicListingsEnabled()) return res.json({ total: 0, page: 1, properties: [] });
   try {
     const { q='', county='', type='', minPrice='', maxPrice='', page=1, limit=12 } = req.query;
     const conditions = ["p.status = 'active'"];
@@ -54,6 +57,7 @@ function sendPropertyList(req, res) {
 }
 
 function sendPropertyDetail(req, res) {
+  if (!publicListingsEnabled()) return res.status(404).json({ error: 'Not found' });
   const row = db.prepare(`
     SELECT p.id, p.listing_slug, p.address, p.city, p.zip, p.price, p.property_type,
            p.bedrooms, p.bathrooms, p.sqft, p.acreage AS lot_acres,
