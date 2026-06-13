@@ -74,6 +74,47 @@ test('gateway takes precedence over a direct OpenAI key', () => {
   assert.strictEqual(p.mode, 'gateway');
   assert.strictEqual(p.apiKey, 'vck');
 });
+
+// ── Direct Anthropic (Claude without the gateway) ─────────────────────────────
+test('ANTHROPIC_API_KEY → anthropic host/path, haiku primary, sonnet fallback', () => {
+  const p = resolveAiProvider({ ANTHROPIC_API_KEY: 'sk-ant-test' });
+  assert.strictEqual(p.mode, 'anthropic');
+  assert.strictEqual(p.hostname, 'api.anthropic.com');
+  assert.strictEqual(p.path, '/v1/messages');
+  assert.strictEqual(p.apiKey, 'sk-ant-test');
+  assert.strictEqual(p.primaryModel, 'claude-haiku-4-5');
+  assert.strictEqual(p.fallbackModel, 'claude-sonnet-4-6');
+});
+test('ANTHROPIC_MODEL / ANTHROPIC_FALLBACK_MODEL overrides are honored', () => {
+  const p = resolveAiProvider({
+    ANTHROPIC_API_KEY: 'sk-ant-test',
+    ANTHROPIC_MODEL: 'claude-sonnet-4-6',
+    ANTHROPIC_FALLBACK_MODEL: 'claude-haiku-4-5'
+  });
+  assert.strictEqual(p.primaryModel, 'claude-sonnet-4-6');
+  assert.strictEqual(p.fallbackModel, 'claude-haiku-4-5');
+});
+test('anthropic identical primary and fallback collapses fallback to null', () => {
+  const p = resolveAiProvider({
+    ANTHROPIC_API_KEY: 'sk-ant-test',
+    ANTHROPIC_FALLBACK_MODEL: 'claude-haiku-4-5'
+  });
+  assert.strictEqual(p.fallbackModel, null);
+});
+test('gateway takes precedence over a direct Anthropic key', () => {
+  const p = resolveAiProvider({ AI_GATEWAY_API_KEY: 'vck', ANTHROPIC_API_KEY: 'sk-ant' });
+  assert.strictEqual(p.mode, 'gateway');
+});
+test('direct Anthropic takes precedence over a direct OpenAI key', () => {
+  const p = resolveAiProvider({ ANTHROPIC_API_KEY: 'sk-ant', OPENAI_API_KEY: 'sk' });
+  assert.strictEqual(p.mode, 'anthropic');
+  assert.strictEqual(p.apiKey, 'sk-ant');
+});
+test('json_object response_format is never sent for bare Claude model ids', () => {
+  // Direct Anthropic model ids have no "/" — must NOT be treated as OpenAI-family.
+  assert.strictEqual(supportsJsonObjectFormat('claude-haiku-4-5'), false);
+  assert.strictEqual(supportsJsonObjectFormat('claude-sonnet-4-6'), false);
+});
 test('AI_GATEWAY_MODEL / AI_GATEWAY_FALLBACK_MODEL overrides are honored', () => {
   const p = resolveAiProvider({
     AI_GATEWAY_API_KEY: 'vck',
