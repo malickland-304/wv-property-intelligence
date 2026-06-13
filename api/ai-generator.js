@@ -14,8 +14,10 @@
  *   - Landing page content
  *   - SMS blast
  *
- * Requires: AI_GATEWAY_API_KEY (preferred — routes via Vercel AI Gateway) or
- * OPENAI_API_KEY (direct) in environment
+ * Requires one of (in precedence order):
+ *   AI_GATEWAY_API_KEY  (Vercel AI Gateway — needs paid gateway credits for Claude)
+ *   ANTHROPIC_API_KEY   (direct Anthropic — Claude without the gateway)
+ *   OPENAI_API_KEY      (direct OpenAI)
  *
  * Usage:
  *   const { generateListingContent } = require('./ai-generator');
@@ -29,21 +31,25 @@ const path   = require('path');
 
 const PROJECT_ROOT = path.join(__dirname, '..');
 
-// ── AI provider calls — Vercel AI Gateway or direct OpenAI, no SDK ────────────────────────
+// ── AI provider calls — Vercel AI Gateway, direct Anthropic, or direct OpenAI, no SDK ─────
 
 const ENDPOINTS = {
-  gateway: { hostname: 'ai-gateway.vercel.sh', path: '/v1/chat/completions' },
-  openai:  { hostname: 'api.openai.com',       path: '/v1/chat/completions' }
+  gateway:   { hostname: 'ai-gateway.vercel.sh', path: '/v1/chat/completions' },
+  anthropic: { hostname: 'api.anthropic.com',    path: '/v1/messages' },
+  openai:    { hostname: 'api.openai.com',       path: '/v1/chat/completions' }
 };
 
-const DEFAULT_GATEWAY_MODEL          = 'openai/gpt-5.4';
-const DEFAULT_GATEWAY_FALLBACK_MODEL = 'anthropic/claude-haiku-4.5';
-const DEFAULT_OPENAI_MODEL           = 'gpt-4o';
+const DEFAULT_GATEWAY_MODEL            = 'openai/gpt-5.4';
+const DEFAULT_GATEWAY_FALLBACK_MODEL   = 'anthropic/claude-haiku-4.5';
+const DEFAULT_ANTHROPIC_MODEL          = 'claude-haiku-4-5';
+const DEFAULT_ANTHROPIC_FALLBACK_MODEL = 'claude-sonnet-4-6';
+const DEFAULT_OPENAI_MODEL             = 'gpt-4o';
+const ANTHROPIC_VERSION                = '2023-06-01';
 
 /**
  * Pick provider, endpoint, key, and models from the environment.
  * Pure (no I/O) so it is unit-testable. Returns null when nothing is configured.
- * The gateway takes precedence over a direct OpenAI key when both are present.
+ * Precedence: gateway → direct Anthropic → direct OpenAI.
  */
 function resolveAiProvider(env = process.env) {
   const gatewayKey = env.AI_GATEWAY_API_KEY?.trim();
@@ -54,6 +60,19 @@ function resolveAiProvider(env = process.env) {
       mode: 'gateway',
       ...ENDPOINTS.gateway,
       apiKey: gatewayKey,
+      primaryModel,
+      fallbackModel: fallbackModel === primaryModel ? null : fallbackModel
+    };
+  }
+
+  const anthropicKey = env.ANTHROPIC_API_KEY?.trim();
+  if (anthropicKey) {
+    const primaryModel  = env.ANTHROPIC_MODEL?.trim()          || DEFAULT_ANTHROPIC_MODEL;
+    const fallbackModel = env.ANTHROPIC_FALLBACK_MODEL?.trim() || DEFAULT_ANTHROPIC_FALLBACK_MODEL;
+    return {
+      mode: 'anthropic',
+      ...ENDPOINTS.anthropic,
+      apiKey: anthropicKey,
       primaryModel,
       fallbackModel: fallbackModel === primaryModel ? null : fallbackModel
     };
@@ -75,27 +94,104 @@ function resolveAiProvider(env = process.env) {
   return null;
 }
 
-/** True when any AI provider is configured (gateway or direct OpenAI). */
+/** True when any AI provider is configured (gateway, direct Anthropic, or direct OpenAI). */
 function aiConfigured(env = process.env) {
-  return Boolean(env.AI_GATEWAY_API_KEY?.trim() || env.OPENAI_API_KEY?.trim());
+  return Boolean(
+    env.AI_GATEWAY_API_KEY?.trim() ||
+    env.ANTHROPIC_API_KEY?.trim() ||
+    env.OPENAI_API_KEY?.trim()
+  );
 }
 
 // response_format:{type:'json_object'} is an OpenAI-family feature. Send it for
-// OpenAI models (direct, or gateway openai/*); for other gateway providers
-// (e.g. anthropic/*) rely on the prompt's "return ONLY valid JSON" instruction.
+// OpenAI models (direct gpt-*, or gateway openai/*); for Anthropic models
+// (direct claude-* or gateway anthropic/*) rely on the prompt's "return ONLY
+// valid JSON" instruction + parseJsonLoose(). Bare ids without a "/" are direct
+// OpenAI EXCEPT bare Claude ids, which the direct-Anthropic path now produces.
 function supportsJsonObjectFormat(model) {
   if (!model || typeof model !== 'string') return false;
+  if (/claude|anthropic/i.test(model)) return false;
   return !model.includes('/') || model.startsWith('openai/');
+}
+
+// Build the provider-specific HTTP headers + JSON body for one chat request.
+// OpenAI-family (direct OpenAI, or any gateway model) uses /v1/chat/completions
+// with Bearer auth and an inline system role. Anthropic uses /v1/messages with
+// x-api-key, the anthropic-version header, and a top-level `system` field
+// (role:'system' is NOT allowed inside the messages array there).
+function buildProviderRequest(mode, messages, model, apiKey, options) {
+  const { json, temperature, maxTokens } = options;
+
+  if (mode === 'anthropic') {
+    const systemText = messages
+      .filter((m) => m && m.role === 'system')
+      .map((m) => String(m.content || ''))
+      .join('\n\n')
+      .trim();
+    const turns = messages
+      .filter((m) => m && (m.role === 'user' || m.role === 'assistant'))
+      .map((m) => ({ role: m.role, content: String(m.content || '') }));
+    const payload = { model, max_tokens: maxTokens, temperature, messages: turns };
+    if (systemText) payload.system = systemText;
+    return {
+      headers: {
+        'Content-Type':      'application/json',
+        'x-api-key':         apiKey,
+        'anthropic-version': ANTHROPIC_VERSION
+      },
+      body: JSON.stringify(payload)
+    };
+  }
+
+  const payload = { model, messages, temperature, max_tokens: maxTokens };
+  if (json && supportsJsonObjectFormat(model)) payload.response_format = { type: 'json_object' };
+  return {
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': 'Bearer ' + apiKey
+    },
+    body: JSON.stringify(payload)
+  };
+}
+
+// Pull the assistant's text out of a provider response. Anthropic returns a
+// `content` array of typed blocks; OpenAI returns choices[].message.content.
+function extractResponseText(mode, parsed) {
+  if (mode === 'anthropic') {
+    if (!Array.isArray(parsed?.content)) return null;
+    const text = parsed.content
+      .filter((b) => b && b.type === 'text' && typeof b.text === 'string')
+      .map((b) => b.text)
+      .join('');
+    return text || null;
+  }
+  return parsed?.choices?.[0]?.message?.content || null;
+}
+
+// Tolerant JSON extraction for the structured listing generator. response_format
+// guarantees clean JSON on OpenAI, but Anthropic returns plain text that may be
+// wrapped in ```json fences or carry minor preamble — strip to the outermost
+// object before parsing.
+function parseJsonLoose(content) {
+  try { return JSON.parse(content); } catch { /* fall through to fence/braces strip */ }
+  let s = String(content).trim();
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) s = fence[1].trim();
+  const first = s.indexOf('{');
+  const last  = s.lastIndexOf('}');
+  if (first !== -1 && last > first) s = s.slice(first, last + 1);
+  return JSON.parse(s);
 }
 
 // options.json (default true) keeps the structured-JSON behavior the listing
 // generator relies on. Pass { json: false } for free-text chat completions
 // (the public assistant): no response_format, raw string content returned.
 function requestChat(messages, model, endpoint, options = {}) {
-  const { json = true, temperature = 0.7, maxTokens = 2500 } = options;
-  const payload = { model, messages, temperature, max_tokens: maxTokens };
-  if (json && supportsJsonObjectFormat(model)) payload.response_format = { type: 'json_object' };
-  const body = JSON.stringify(payload);
+  const { json = true, temperature = 0.7, maxTokens = 2500, timeoutMs = 45000 } = options;
+  const { headers, body } = buildProviderRequest(
+    endpoint.mode, messages, model, endpoint.apiKey,
+    { json, temperature, maxTokens }
+  );
 
   return new Promise((resolve, reject) => {
     const req = https.request(
@@ -103,11 +199,7 @@ function requestChat(messages, model, endpoint, options = {}) {
         hostname: endpoint.hostname,
         path: endpoint.path,
         method: 'POST',
-        headers: {
-          'Content-Type':   'application/json',
-          'Authorization':  'Bearer ' + endpoint.apiKey,
-          'Content-Length': Buffer.byteLength(body)
-        }
+        headers: { ...headers, 'Content-Length': Buffer.byteLength(body) }
       },
       (res) => {
         let data = '';
@@ -118,11 +210,14 @@ function requestChat(messages, model, endpoint, options = {}) {
           try { parsed = data ? JSON.parse(data) : {}; } catch { /* non-JSON body (e.g. a 5xx HTML proxy page) */ }
 
           // Attach statusCode even when the body is not JSON, so isRetryableError()
-          // can fail over on a 5xx/429 gateway error page.
+          // can fail over on a 5xx/429 error page.
           if (status >= 400 || parsed?.error) {
             const message = parsed?.error?.message || (data ? data.slice(0, 200) : `HTTP ${status}`);
             const err = new Error(`AI API error (${status}): ${message}`);
             err.statusCode = status;
+            // Provider error discriminators: OpenAI uses error.code/error.type;
+            // Anthropic uses only error.type (authentication_error, rate_limit_error,
+            // overloaded_error, not_found_error, invalid_request_error).
             err.openaiCode = parsed?.error?.code || null;
             err.openaiType = parsed?.error?.type || null;
             return reject(err);
@@ -132,18 +227,18 @@ function requestChat(messages, model, endpoint, options = {}) {
             err.statusCode = status;
             return reject(err);
           }
-          const content = parsed.choices?.[0]?.message?.content;
+          const content = extractResponseText(endpoint.mode, parsed);
           if (!content) return reject(new Error('Empty response from AI provider'));
           if (!json) return resolve(content);
           try {
-            resolve(JSON.parse(content));
+            resolve(parseJsonLoose(content));
           } catch (e) {
             reject(new Error('Failed to parse AI response content: ' + e.message));
           }
         });
       }
     );
-    req.setTimeout(30000, () => req.destroy(new Error('AI request timed out')));
+    req.setTimeout(timeoutMs, () => req.destroy(new Error('AI request timed out')));
     req.on('error', reject);
     req.write(body);
     req.end();
@@ -171,16 +266,19 @@ function isRetryableError(err) {
 async function callProvider(messages, options = {}) {
   const provider = resolveAiProvider(options.env);
   if (!provider) {
-    throw new Error('No AI provider configured — set AI_GATEWAY_API_KEY (preferred) or OPENAI_API_KEY');
+    throw new Error('No AI provider configured — set AI_GATEWAY_API_KEY (preferred), ANTHROPIC_API_KEY, or OPENAI_API_KEY');
   }
 
-  const endpoint = { hostname: provider.hostname, path: provider.path, apiKey: provider.apiKey };
+  const endpoint = { hostname: provider.hostname, path: provider.path, apiKey: provider.apiKey, mode: provider.mode };
 
   try {
     return await requestChat(messages, provider.primaryModel, endpoint, options);
   } catch (err) {
+    // Direct OpenAI keeps its legacy access-error-only failover; gateway and
+    // direct Anthropic also fail over on transient errors (429/5xx/overloaded/
+    // timeout) so the cheap primary (haiku) escalates to the secondary (sonnet).
     const shouldFallback = provider.fallbackModel &&
-      (provider.mode === 'gateway' ? isRetryableError(err) : isModelAccessError(err));
+      (provider.mode === 'openai' ? isModelAccessError(err) : isRetryableError(err));
     if (shouldFallback) {
       console.warn(`[AI] Primary model ${provider.primaryModel} failed (${err.message}); falling back to ${provider.fallbackModel}`);
       return requestChat(messages, provider.fallbackModel, endpoint, options);
