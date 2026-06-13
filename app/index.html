@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <style>html.listings-off #listings,html.listings-off #countyBrowse,html.listings-off a[href="/listings"],html.listings-off a[href="#listings"],html.listings-off a[href^="/wv/"],html.listings-off a[href="/37-advent"]{display:none!important}</style>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MalickLand | West Virginia Land, Homes & Property</title>
   <meta name="description" content="Find land, homes, farms, and rural property across all 55 West Virginia counties. AI-assisted property research, local expertise, responsive guidance." />
@@ -15,6 +16,7 @@
   <!-- Analytics + Meta Pixel — loaded from /api/config (GA_MEASUREMENT_ID, META_PIXEL_ID) -->
   <script>
     fetch('/api/config').then(r=>r.json()).then(cfg=>{
+      if (cfg.listingsEnabled === false) document.documentElement.classList.add('listings-off');
       // Google Analytics 4
       if (cfg.gaId) {
         var s = document.createElement('script');
@@ -1290,7 +1292,7 @@
 </section>
 
 <!-- COUNTY LINKS -->
-<section style="background:#f9f6f0;padding:1.5rem 2rem;border-top:1px solid #e5e7eb">
+<section id="countyBrowse" style="background:#f9f6f0;padding:1.5rem 2rem;border-top:1px solid #e5e7eb">
   <div style="max-width:1200px;margin:0 auto">
     <p style="text-align:center;font-size:.8rem;color:#6b7280;margin-bottom:.85rem;text-transform:uppercase;letter-spacing:.5px;font-weight:600">Browse by County</p>
     <div style="display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center">
