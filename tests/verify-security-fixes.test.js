@@ -411,6 +411,21 @@ test('public property-page routes use publicReadRateLimit in routes/public.js', 
     "Public property-page routes (/listing/:id, /properties/:id) are missing publicReadRateLimit in routes/public.js");
 });
 
+test('public navigation aliases avoid dead /contact, /about, and /search routes', () => {
+  assert(publicRoutesCode.includes("router.get('/contact', publicReadRateLimit"),
+    'GET /contact should be an explicit public route');
+  assert(publicRoutesCode.includes("router.get('/about', publicReadRateLimit"),
+    'GET /about should be an explicit public route');
+  assert(publicRoutesCode.includes("router.get('/search', publicReadRateLimit"),
+    'GET /search should be an explicit public route');
+  assert(publicRoutesCode.includes("res.redirect(302, '/#contact-form')"),
+    'GET /contact should redirect to the homepage contact form anchor');
+  assert(publicRoutesCode.includes("res.redirect(302, '/#about')"),
+    'GET /about should redirect to the homepage about anchor');
+  assert(publicRoutesCode.includes("return res.redirect(302, `/listings${query}`)"),
+    'GET /search should preserve query params when listings are enabled');
+});
+
 // ============================================================
 // Test Suite 7: Gmail Helper Integrity (api/google.js)
 // ============================================================

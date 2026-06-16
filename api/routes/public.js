@@ -141,6 +141,21 @@ router.get('/advent-drive-land-hampshire-county-wv', publicReadRateLimit, (_req,
   res.redirect(301, '/37-advent');
 });
 
+router.get('/contact', publicReadRateLimit, (_req, res) => {
+  res.redirect(302, '/#contact-form');
+});
+
+router.get('/about', publicReadRateLimit, (_req, res) => {
+  res.redirect(302, '/#about');
+});
+
+router.get('/search', publicReadRateLimit, (req, res) => {
+  if (!publicListingsEnabled()) return res.redirect(302, '/');
+  const queryStart = req.originalUrl.indexOf('?');
+  const query = queryStart === -1 ? '' : req.originalUrl.slice(queryStart);
+  return res.redirect(302, `/listings${query}`);
+});
+
 // County landing pages: /wv/<county>-county → server-rendered page listing that county's
 // active properties. Slug is validated against the counties table; unknown → 404 handler.
 router.get('/wv/:slug', publicReadRateLimit, (req, res, next) => {
