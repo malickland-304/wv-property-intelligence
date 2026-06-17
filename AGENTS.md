@@ -137,7 +137,7 @@ OpenHands operates in **supervised sandboxed mode only**. These are permanent co
 5. Gemini challenges if architecture/security significant → appended to WORK_LOG.md
 6. Conflict resolution: repository docs decide; safer path wins
 7. All CI checks pass → **Phil Malick** approves PR merge
-8. **Phil Malick** approves → **manual** deploy to the Hostinger VPS (SSH + `docker compose build && up`); merging does not auto-deploy
+8. **Phil Malick** approves → **manual** deploy to the Hostinger VPS (SSH + `docker compose build && docker compose up -d`); merging does not auto-deploy
 9. Claude or Codex verifies smoke → result appended to WORK_LOG.md
 ```
 

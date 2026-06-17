@@ -119,3 +119,17 @@
 **Migration impact / rollback:** The Railway service (`alert-laughter` / `wv-property-intelligence`) is no longer the live target (DNS bypasses it) and is on **standby** as the rollback path pending a decommission decision. `railway.json` and the legacy GitHub deployment environments are retained only for that twin.
 **Verification (2026-06-17, live):** `GET https://malickland.net/api/health` → 200 served by `31.97.58.203`; container `wv-property-intelligence` healthy; VPS `src` HEAD == `origin/main` (`b9d1198`); Traefik routers `Host(malickland.net) || Host(www.malickland.net)` → container `:3000`.
 **Files:** `README.md`, `ARCHITECTURE.md`, `CONTEXT.md`, `PROJECT_STATE.md`, `QA_CHECKLIST.md`, `SECURITY.md`, `CONTRIBUTING.md`, `AGENTS.md`, `docs/CANONICAL_MAP.md`, `docs/agent-handoff.md`, `TASKS.md`
+
+---
+
+## 2026-06-17 — Railway twin stopped + decommission begun (backup retained)
+
+**Problem:** After the VPS migration the Railway service (`alert-laughter` / `wv-property-intelligence`) was still alive (serverless), being written to, running a daily-backup cron, and holding its own data volume — ongoing cost, secret drift, and a recurring source of agent confusion. Leaving it running indefinitely was rejected (Codex).
+**Decision:** Decommission the Railway twin after a final, downloaded backup — verify data, back it up off-Railway, then stop the service. (Phil approved "full backup first, then stop.")
+**Verification / actions (2026-06-17, live):**
+- Codex audit + independent re-check: Railway `contacts`/`leads` counts and hashes == VPS (`contacts=1, leads=0`). No un-migrated leads.
+- Full `/data` volume backup downloaded and verified locally: DB + WAL + 7 daily DB backups + the `advent-dr-hampshire-wv` listing photos (46 files / 1.9 MB that were on the Railway volume but **empty** on the VPS local disk — they are Google-Drive-served on the live site). Stored privately at `~/railway-decommission-backup-2026-06-17/railway-data-volume-2026-06-17.tgz` (NOT in the repo). Retain 30–90 days.
+- Service **stopped**: all deployments REMOVED (`railway status` → no active deployment).
+**Deferred (cleanup):** disconnect the Railway service's GitHub auto-deploy trigger so a future `main` merge cannot revive it (dashboard); after the 30–90-day retention, hard-delete the service/volume; remove `railway.json` + the legacy GitHub deployment environments from the repo.
+**Rollback:** none needed — the VPS is canonical and verified; the downloaded backup + VPS copy fully cover the Railway data.
+**Files:** `DECISIONS.md` (this entry); `TASKS.md` (Railway-decommission task).

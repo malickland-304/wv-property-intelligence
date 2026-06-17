@@ -72,7 +72,7 @@ Purpose:
 3. Health is `/api/health`, not `/health`.
 4. Do not edit the Next.js `malickland.net` repo for production fixes unless a documented architecture decision changes the production stack.
 5. Do not run `wrangler deploy` for `listing-system/workers/` without explicit human approval and a recorded route-ownership decision.
-6. Before claiming production deployment, verify the **VPS** directly — `ssh root@31.97.58.203 'git -C /docker/wv-property-intelligence/src rev-parse --short HEAD'` and confirm the container is healthy — and/or run read-only live smoke checks. **Merging to `main` does NOT deploy**; deploy is a separate manual step (SSH + `docker compose build && up`).
+6. Before claiming production deployment, verify the **VPS** directly — `ssh root@31.97.58.203 'git -C /docker/wv-property-intelligence/src rev-parse --short HEAD'` and confirm the container is healthy — and/or run read-only live smoke checks. **Merging to `main` does NOT deploy**; deploy is a separate manual step (SSH + `docker compose build && docker compose up -d`).
 
 ## Known Follow-Up
 

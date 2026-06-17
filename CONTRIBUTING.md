@@ -114,4 +114,4 @@ When sources conflict, prefer the safer, more conservative path and document the
 
 - Append an entry to `WORK_LOG.md` summarizing what changed and why.
 - Only update `docs/agent-handoff.md` when deployment topology or runtime guardrails materially change; it remains a deployment-state reference only and may lag `main`.
-- Production runs on the Hostinger VPS (Docker + Traefik) and deploys are **manual** — merging to `main` does **not** deploy. Only Phil Malick approves production deploys, which are then applied by SSH (`docker compose build && up`). See `docs/CANONICAL_MAP.md`.
+- Production runs on the Hostinger VPS (Docker + Traefik) and deploys are **manual** — merging to `main` does **not** deploy. Only Phil Malick approves production deploys, which are then applied by SSH (`docker compose build && docker compose up -d`). See `docs/CANONICAL_MAP.md`.
