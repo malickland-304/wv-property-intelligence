@@ -216,20 +216,21 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
     const existing = db.prepare(
       "SELECT id FROM properties WHERE listing_slug='advent-dr-hampshire-wv' OR mls_number='WVHS2007468'"
     ).get();
-    const desc = '37 Advent Dr is a 2.52-acre, multi-lot Hampshire County property in the Elk Horn subdivision with existing structures and details buyers should verify. Includes lots 48, 49, 95, and 96 (parcel 14-09-012B-0096-0000) with a 2004 double wide, deck, foundation/additions, sheds, lean-tos, and carport. Potential fit as a fixer, hunting camp, recreational base, or rural retreat project, subject to buyer due diligence. Out of flood zone at ~1,592 ft elevation. MLS# WVHS2007468 | Listed at $219,900 | Contact Phil Malick (540) 246-1421.';
-    const mktg = 'Multi-lot rural property in Hampshire County. 37 Advent Dr offers 2.52 acres across four lots with existing structures already on site. Buyers should review condition, access, utilities, and intended use carefully while considering a fixer setup, hunting camp, weekend base, or rural retreat project. Not in a flood zone. Request details and verify all facts independently.';
+    const desc = '37 Advent Dr is a closed 2.52-acre, multi-lot Hampshire County property in the Elk Horn subdivision with existing structures and details buyers reviewed during due diligence. Includes lots 48, 49, 95, and 96 (parcel 14-09-012B-0096-0000) with a 2004 double wide, deck, foundation/additions, sheds, lean-tos, and carport. Out of flood zone at ~1,592 ft elevation. MLS# WVHS2007468 | Closed at $170,000 | Contact Phil Malick (540) 246-1421 for similar WV property searches.';
+    const mktg = 'Closed sale in Hampshire County. 37 Advent Dr offered 2.52 acres across four lots with existing structures already on site. Buyers reviewed condition, access, utilities, and intended use while considering a fixer setup, hunting camp, weekend base, or rural retreat project. Not in a flood zone. Contact Phil Malick for similar West Virginia land, house, and rural-property opportunities.';
     if (existing) {
       db.prepare(`
         UPDATE properties SET
           address='37 Advent Dr', city='Augusta', state='WV', zip='26704',
           county_id=?, listing_slug='advent-dr-hampshire-wv',
-          property_type='land', status='active', price=219900,
+          property_type='land', status='sold', price=170000,
           acreage=2.52, sqft=1568, bedrooms=3, bathrooms=2,
-          mls_number='WVHS2007468', listing_agent='Phil Malick',
+          mls_status='sold', mls_number='WVHS2007468', listing_agent='Phil Malick',
           listing_office='WV Real Estate Agency LLC',
           flood_zone='Not in flood zone',
           image_url='/assets/advent-1.jpg',
           property_description=?, marketing_description=?,
+          sold_at='2026-05-29',
           updated_at=datetime('now')
         WHERE id=?
       `).run(hampshire.id, desc, mktg, existing.id);
@@ -238,15 +239,15 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
       db.prepare(`
         INSERT INTO properties
           (id,county_id,address,city,state,zip,property_type,status,price,
-           acreage,sqft,bedrooms,bathrooms,mls_number,listing_agent,listing_office,
-           flood_zone,image_url,listing_slug,property_description,marketing_description)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+           acreage,sqft,bedrooms,bathrooms,mls_status,mls_number,listing_agent,listing_office,
+           flood_zone,image_url,listing_slug,property_description,marketing_description,sold_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `).run(
         newId, hampshire.id, '37 Advent Dr', 'Augusta', 'WV', '26704',
-        'land', 'active', 219900,
-        2.52, 1568, 3, 2, 'WVHS2007468', 'Phil Malick', 'WV Real Estate Agency LLC',
+        'land', 'sold', 170000,
+        2.52, 1568, 3, 2, 'sold', 'WVHS2007468', 'Phil Malick', 'WV Real Estate Agency LLC',
         'Not in flood zone', '/assets/advent-1.jpg',
-        'advent-dr-hampshire-wv', desc, mktg
+        'advent-dr-hampshire-wv', desc, mktg, '2026-05-29'
       );
     }
   }

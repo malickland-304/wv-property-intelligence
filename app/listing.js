@@ -56,7 +56,6 @@ async function loadProperty() {
     p.marketing_description ||
     p.property_description ||
     '';
-
   document.title = `${p.address || 'Property'} | Malickland`;
 
   content.innerHTML = `

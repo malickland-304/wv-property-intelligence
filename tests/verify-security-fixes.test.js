@@ -481,16 +481,46 @@ test('new leads track the first pending follow-up timestamp', () => {
     {
       id: 'prop-1',
       address: '37 Advent Dr',
-      city: 'Romney',
+      city: 'Augusta',
       county: 'Hampshire',
       state: 'WV',
-      zip: '26757',
+      zip: '26704',
       listing_slug: '37-advent',
     }
   );
   const schedule = buildLeadSchedule(lead);
   assert.equal(lead.next_follow_up_at, schedule[0]?.due_at,
     'Lead should point at the first pending follow-up until it is sent');
+});
+
+test('similar-property Advent leads use similar-option follow-up copy', () => {
+  const lead = buildPropertyLead(
+    {
+      name: 'Similar Buyer',
+      email: 'similar@example.com',
+      phone: '+13045551212',
+      leadType: 'similar_land_alert',
+      buyerType: 'Land / recreation',
+      cashOrFinancing: 'Cash',
+      timeline: 'Soon',
+      message: 'Find similar options',
+      source: '37-advent-closed-sale-page',
+    },
+    {
+      id: null,
+      address: '37 Advent Dr',
+      city: 'Augusta',
+      county: 'Hampshire',
+      state: 'WV',
+      zip: '26704',
+      listing_slug: '37-advent',
+    }
+  );
+  const schedule = buildLeadSchedule(lead);
+  assert(schedule[0].template_name.includes('similar'),
+    'Similar-property leads should use similar-property follow-up templates');
+  assert(!/walk it|property packet/i.test(schedule[0].body),
+    'Similar-property follow-up should not ask buyers to walk/request a packet for the closed sale');
 });
 
 // ============================================================

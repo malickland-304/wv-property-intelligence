@@ -632,3 +632,78 @@ Execute the agreed post-Phase-0 order: (1) docs PR correcting production truth t
 
 ### Recommended Next Task
 - Phil: save the new admin password; run `railway login` to unblock the twin audit. Then Codex verifies PR #98 → Phil merges → (optional) manual VPS deploy of docs → Railway standby/shutdown decision.
+
+---
+
+## 2026-06-17 — Codex (GPT-5)
+
+### Objective
+Record the 37 Advent Dr closed sale at `$170,000` and add Phil's `$299`
+transaction administration fee disclosure for real-estate brokerage
+transactions only, excluding standalone consulting/advisory services.
+
+### Changes Made
+- `api/db.js` — updated the 37 Advent seed/migration from active/listed at
+  `$219,900` to sold/closed at `$170,000`, with `mls_status='sold'` and
+  `sold_at='2026-05-29'`.
+- `app/37-advent.html` — converted the page from active-property CTAs to a
+  closed-sale page that routes visitors toward similar WV properties.
+- `app/index.html` and `app/listing.js` — added brokerage-only `$299`
+  transaction administration fee disclosure, explicitly excluding standalone
+  consulting/advisory services; listing detail pages show "Closed at" wording
+  for sold listings.
+- `api/utils/chatAssistant.js` and `api/ai-generator.js` — added the same
+  brokerage-only fee rule to generated/assistant copy guardrails.
+- `api/utils/validators.js` — corrected the 37 Advent lead address from Romney
+  to Augusta, WV 26704.
+- `app/admin.html` — replaced stale 37 Advent / `$219,900` example placeholders
+  with neutral examples.
+
+### Verification (Truthfulness Rule applies)
+- Command: `node --check api/db.js api/ai-generator.js api/utils/chatAssistant.js api/utils/validators.js api/routes/public.js` → PASSED.
+- Command: `node --check app/listing.js` → PASSED.
+- Command: `DATABASE_PATH=/private/tmp/wv-admin-fee-smoke-2.db node -e ...` → PASSED; seeded 37 Advent as `status=sold`, `price=170000`, `mls_status=sold`, `sold_at=2026-05-29`.
+- Command: `node tests/chat-assistant.test.js` → PASSED (14/14).
+- Command: `node tests/verify-security-fixes.test.js` → PASSED (53/53).
+- Command: `node tests/lead-notifications.test.js` → PASSED (6/6).
+- Command: `git diff --check` → PASSED.
+
+### Security Notes
+- No secrets read, printed, or committed.
+- No production deployment, live database mutation, Railway change, or VPS
+  environment-variable change performed.
+- `npm ci` was run in the isolated worktree to install test dependencies; npm
+  reported one high-severity audit finding in the existing dependency tree.
+
+### Remaining Risks / Requires Human Decision
+1. ✅ Resolved (Phil confirmed): close date is `2026-05-29`; the seed/migration, packet, and ledger now use it.
+2. Broker/legal review should confirm the exact `$299` fee disclosure wording
+   before public deployment.
+
+---
+
+## 2026-06-17 — Claude Code (Opus 4.8) — #101 takeover (Codex review fixes)
+
+### Objective
+Phil handed #101 to me. Resolve Codex's review threads on the Advent-close + $299-fee PR and drive it to a clean, mergeable state. Do not deploy.
+
+### Changes Made (on top of the Codex/Gemini commit)
+- `api/utils/validators.js` — closed-sale "Reference page" URL → `/37-advent` (served landing) instead of active-only `/properties/:id`.
+- `api/routes/leads.js` — `getPropertyBySlug` now matches `status IN ('active','sold')`, so sold-Advent leads keep the real `property_id` rather than the `id:null` fallback.
+- `scripts/smoke-prod.sh` — restored listing-API coverage via the **active** Advent Dr Lot (`advent-dr-lot-hampshire-wv`), plus `/api/health`, `/`, `/37-advent`.
+- `app/index.html` — `listings-off` CSS no longer hides `a[href="/37-advent"]`, so the closed-sale link stays reachable when public listings are off.
+- `listings/advent-dr-hampshire-wv/{data.json,README.md}` — packet source-of-truth → **sold / $170,000**, with `description`/`marketing_description` rewritten to closed-sale framing.
+- `api/db.js` + this ledger — **close date corrected to `2026-05-29`** (Phil confirmed; was `2026-06-17`).
+
+### Verification (Truthfulness Rule applies — actually run this session)
+- `node tests/verify-security-fixes.test.js` → PASSED (54).
+- `node tests/lead-notifications.test.js` → 6 passed; `email.test.js` → 10; `chat-assistant.test.js` → 14; `ai-generator-routing.test.js` → 18.
+- `bash scripts/preflight.sh` → PRE-FLIGHT PASSED.
+
+### Security / Compliance Notes
+- No secrets read/printed/committed. No deploy, no live-DB mutation, no Railway/VPS change. VPS unchanged at `b9d1198`.
+- $299 fee wording confirmed broker-approved by Phil; it must also appear in the real representation/closing/invoice paperwork, not only the website.
+
+### Remaining (deploy-time, not merge)
+1. Confirm the sale **price** ($170,000) before deploy (Phil corrected only the date).
+2. At deploy, UPDATE the live 37 Advent DB row — the `db.js` change is seed-only and does not touch the existing live record.

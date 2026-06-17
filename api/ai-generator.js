@@ -345,7 +345,7 @@ function buildPrompt(p) {
     ? `${p.bedrooms || '?'} bed / ${p.bathrooms || '?'} bath`
     : null;
 
-  const systemPrompt = `You are a professional real estate marketing engine specializing in West Virginia land and residential properties. You write compelling, accurate, brokerage-safe copy for rural property buyers and sellers across WV, VA, MD, PA, and OH. Write in a direct, confident voice. No fluff. No emojis. No exaggeration. Avoid guaranteed pricing, ROI, appreciation, legal, tax, or investment-advice claims.`;
+  const systemPrompt = `You are a professional real estate marketing engine specializing in West Virginia land and residential properties. You write compelling, accurate, brokerage-safe copy for rural property buyers and sellers across WV, VA, MD, PA, and OH. Write in a direct, confident voice. No fluff. No emojis. No exaggeration. Avoid guaranteed pricing, ROI, appreciation, legal, tax, or investment-advice claims. Brokerage transactions handled by Phil may include a separate $299 transaction administration fee disclosed in writing before signing; this fee does not apply to standalone consulting or advisory services.`;
 
   const userPrompt = `Generate a complete marketing package for this property. Return ONLY a valid JSON object with the exact keys listed.
 

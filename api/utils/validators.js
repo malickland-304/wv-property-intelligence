@@ -3,7 +3,7 @@
 const crypto = require('crypto');
 
 const ADVENT_LISTING_SLUG = '37-advent';
-const ADVENT_PROPERTY_ADDRESS = '37 Advent Dr, Romney, WV 26757';
+const ADVENT_PROPERTY_ADDRESS = '37 Advent Dr, Augusta, WV 26704';
 const DEFAULT_SITE_URL = 'https://malickland.net';
 
 const LEAD_TYPES = new Set(['property_packet', 'request_showing', 'similar_land_alert']);
@@ -104,10 +104,77 @@ function validateLeadPayload(payload, { requireEmail = true, requirePhone = true
 
 function buildLeadSchedule(lead, siteUrl = DEFAULT_SITE_URL) {
   const createdAt = new Date(lead.created_at || new Date().toISOString());
-  const propertyUrl = lead.property_slug
-    ? `${siteUrl.replace(/\/$/, '')}/properties/${lead.property_slug}`
-    : siteUrl.replace(/\/$/, '');
+  const base = siteUrl.replace(/\/$/, '');
+  // The Advent listing is a closed sale; its detail route (/properties/:id) is
+  // active-only, so point references to the served /37-advent landing page.
+  const propertyUrl = !lead.property_slug
+    ? base
+    : lead.property_slug === ADVENT_LISTING_SLUG
+      ? `${base}/37-advent`
+      : `${base}/properties/${lead.property_slug}`;
   const leadTypeName = leadTypeLabel(lead.lead_type).toLowerCase();
+  const wantsSimilarOptions = lead.lead_type === 'similar_land_alert';
+
+  if (wantsSimilarOptions) {
+    return [
+      {
+        step_code: 'day_0',
+        channel: 'email',
+        template_name: 'instant_similar_property_reply',
+        due_at: toIsoDate(createdAt),
+        subject: 'Similar West Virginia property options from Phil Malick',
+        body: [
+          `Hi ${lead.name},`,
+          '',
+          `Thanks for asking about similar options after reviewing ${lead.property_address}.`,
+          '',
+          'Phil will follow up with current West Virginia land, house, and rural-property options that match your timeline, budget, and intended use.',
+          '',
+          `Reference page: ${propertyUrl}`,
+          '',
+          'Best,',
+          'Phil Malick',
+          'MalickLand',
+        ].join('\n'),
+      },
+      {
+        step_code: 'day_1',
+        channel: 'email',
+        template_name: 'follow_up_similar_criteria',
+        due_at: toIsoDate(addDays(createdAt, 1)),
+        subject: 'What should Phil look for next?',
+        body: [
+          `Hi ${lead.name},`,
+          '',
+          'Quick follow-up on your similar-property request.',
+          '',
+          'Reply with the counties, acreage, structures, budget, and timeline you want Phil to keep in mind.',
+          '',
+          `Reference page: ${propertyUrl}`,
+          '',
+          'Best,',
+          'Phil Malick',
+        ].join('\n'),
+      },
+      {
+        step_code: 'day_3',
+        channel: 'email',
+        template_name: 'follow_up_similar_land',
+        due_at: toIsoDate(addDays(createdAt, 3)),
+        subject: 'Still looking for West Virginia property?',
+        body: [
+          `Hi ${lead.name},`,
+          '',
+          'If you are still looking, Phil can narrow current West Virginia options around your goals and send the best fits.',
+          '',
+          "Reply with what matters most and we'll narrow it down.",
+          '',
+          'Best,',
+          'Phil Malick',
+        ].join('\n'),
+      },
+    ];
+  }
 
   return [
     {
@@ -211,10 +278,10 @@ function build37AdventLead(payload) {
   return buildPropertyLead(payload, {
     id: null,
     address: '37 Advent Dr',
-    city: 'Romney',
+    city: 'Augusta',
     county: 'Hampshire',
     state: 'WV',
-    zip: '26757',
+    zip: '26704',
     listing_slug: ADVENT_LISTING_SLUG,
   });
 }

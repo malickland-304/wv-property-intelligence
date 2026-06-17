@@ -38,7 +38,7 @@ function getPropertyBySlug(db, slug) {
     SELECT p.id, p.address, p.city, p.state, p.zip, p.listing_slug, c.name AS county
     FROM properties p
     JOIN counties c ON c.id = p.county_id
-    WHERE (p.listing_slug = ? OR p.id = ?) AND p.status = 'active'
+    WHERE (p.listing_slug = ? OR p.id = ?) AND p.status IN ('active', 'sold')
   `).get(slug, slug);
 }
 
@@ -139,7 +139,9 @@ async function handleLeadCapture({ payload, property, db, appendFn }) {
     body: {
       ok: true,
       leadId: lead.lead_id,
-      message: 'Got it. Phil will follow up with the packet and next steps shortly.',
+      message: lead.lead_type === 'similar_land_alert'
+        ? 'Got it. Phil will follow up with similar property options shortly.'
+        : 'Got it. Phil will follow up with the packet and next steps shortly.',
       syncedToSheets: appendedToSheet,
       nextFollowUpAt: followUps[1]?.due_at || null,
     },
@@ -158,9 +160,9 @@ function createLeadsRouter({ db } = {}) {
     const property = getPropertyBySlug(db, 'advent-dr-hampshire-wv') || {
       id: null,
       address: '37 Advent Dr',
-      city: 'Romney',
+      city: 'Augusta',
       state: 'WV',
-      zip: '26757',
+      zip: '26704',
       county: 'Hampshire',
       listing_slug: ADVENT_LISTING_SLUG,
     };

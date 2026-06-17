@@ -74,12 +74,12 @@ echo "✓ Health OK"
 echo
 
 echo "== Property detail API =="
-curl -fsS "http://127.0.0.1:$PORT_TO_USE/api/properties/advent-dr-hampshire-wv" >/dev/null
+curl -fsS "http://127.0.0.1:$PORT_TO_USE/api/properties/advent-dr-lot-hampshire-wv" >/dev/null
 echo "✓ Property endpoint OK"
 echo
 
 echo "== Public property page =="
-curl -fsS "http://127.0.0.1:$PORT_TO_USE/properties/advent-dr-hampshire-wv" >/dev/null
+curl -fsS "http://127.0.0.1:$PORT_TO_USE/properties/advent-dr-lot-hampshire-wv" >/dev/null
 echo "✓ Public property page OK"
 echo
 
