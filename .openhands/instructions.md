@@ -67,8 +67,8 @@ Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `ci`
 | Action | Rule |
 |--------|------|
 | Push to `main` | ❌ Never — PR only |
-| Deploy to Railway | ❌ Never without explicit user approval |
-| Modify Railway environment variables | ❌ Never |
+| Deploy to production (Hostinger VPS or the dormant Railway twin) | ❌ Never without explicit user approval |
+| Modify production environment variables (VPS `.env` or the dormant Railway twin) | ❌ Never |
 | Print or log `SESSION_SECRET`, `ADMIN_PASSWORD`, API keys | ❌ Never |
 | Run `smoke-admin.sh` against production without approval | ❌ Never |
 | Mutate production data during any test | ❌ Never |
@@ -81,18 +81,18 @@ Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `ci`
 ## Production Architecture (Do Not Break)
 
 - **Runtime:** Node.js + Express 5, SQLite (`better-sqlite3`)
-- **Deploy:** Railway via Dockerfile — `main` branch auto-deploys
+- **Deploy:** Hostinger VPS — Docker + Traefik via `api/Dockerfile`; **manual** deploy (merge ≠ deploy). See `docs/CANONICAL_MAP.md`
 - **CSRF:** `csrf-csrf@3.2.2` (double-submit cookie), session-bound via `req.sessionID`
 - **Session:** `express-session` + `better-sqlite3-session-store`
 - **Auth:** Admin password via `ADMIN_PASSWORD` env var + session cookie
 - **CI Gate:** `.github/workflows/preflight.yml` runs `scripts/preflight.sh` on every PR and push to `main`
-- **Smoke:** `scripts/smoke-admin.sh` — authenticated CSRF round-trip (run against Railway after merge, not during CI)
+- **Smoke:** `scripts/smoke-admin.sh` — authenticated CSRF round-trip (run against production after a manual deploy, not during CI)
 
 ---
 
 ## Environment Variables (Never Touch in Code)
 
-These are set in Railway. Do not hardcode, echo, or modify:
+These are set in the production environment — the Hostinger VPS `.env` (`/docker/wv-property-intelligence/.env`). Do not hardcode, echo, or modify:
 - `SESSION_SECRET`
 - `ADMIN_PASSWORD`
 - `API_KEY`
@@ -114,7 +114,7 @@ node --check api/server.js
 # Full preflight gate (starts server, hits endpoints)
 bash scripts/preflight.sh
 
-# Authenticated smoke (requires ADMIN_PASSWORD, Railway target)
+# Authenticated smoke (requires ADMIN_PASSWORD, production target)
 ADMIN_PASSWORD=<pw> BASE_URL=https://malickland.net ./scripts/smoke-admin.sh
 
 # Audit

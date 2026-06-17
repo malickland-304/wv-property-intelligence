@@ -17,7 +17,7 @@ West Virginia real estate listing platform. Admin panel, public listing pages, p
 | Images | Local disk + Google Drive backup |
 | Email | Gmail API via OAuth2 |
 | AI | OpenAI GPT-4o (listing content generation) |
-| Deploy | Railway (Docker) |
+| Deploy | Hostinger VPS — Docker + Traefik (manual deploy) |
 
 ---
 
@@ -56,7 +56,7 @@ wv-property-intelligence/
 │   └── _template/          ← Folder structure reference
 ├── api/Dockerfile          ← Multi-stage Docker build
 ├── compose.yml             ← Local Docker Compose
-└── railway.json            ← Railway deploy config
+└── railway.json            ← legacy Railway config (dormant twin; prod runs on the Hostinger VPS)
 ```
 
 ---
@@ -149,11 +149,20 @@ Cost: ~$0.01–0.03 per listing. Access via **Admin → AI** button on any listi
 
 ---
 
-## Deploy (Railway)
+## Deploy (Hostinger VPS — Docker + Traefik)
 
-Push to `main` triggers an automated deploy. Railway uses `railway.json` and the multi-stage Docker build in `api/Dockerfile`.
+Production runs as a Docker container on Phil's Hostinger VPS (`srv1716268` / `31.97.58.203`), behind **Traefik** with Let's Encrypt TLS. **Deploys are manual** — merging to `main` does **not** update production. To deploy a reviewed, Phil-approved commit:
 
-For persistent data, create a Railway Volume, mount it at `/data`, and set `DATABASE_PATH=/data/wv_property.db`.
+```bash
+ssh root@31.97.58.203
+git -C /docker/wv-property-intelligence/src fetch origin
+git -C /docker/wv-property-intelligence/src checkout <sha>
+cd /docker/wv-property-intelligence && docker compose build && docker compose up -d
+```
+
+Persistent data lives on the Docker named volume `wv-property-intelligence_wv-data`, mounted at `/data` (`DATABASE_PATH=/data/wv_property.db`). Secrets are set in `/docker/wv-property-intelligence/.env` (not in the repo).
+
+> The old Railway service (`alert-laughter` / `wv-property-intelligence`) is no longer the live target — apex DNS points at the VPS. `railway.json` is retained only for the dormant twin, pending a decommission decision. See `docs/CANONICAL_MAP.md` for the full production map.
 
 ---
 

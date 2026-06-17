@@ -31,7 +31,7 @@ This policy covers the WV Property Intelligence platform, including:
 - Session, CSRF, and API-key authentication mechanisms
 - The SQLite database and any data it contains
 
-Out of scope: third-party services (Railway, Cloudflare, GitHub Actions), dependencies maintained by their own upstream projects.
+Out of scope: third-party platform infrastructure (Hostinger VPS host, the dormant Railway twin, Cloudflare DNS, GitHub Actions), dependencies maintained by their own upstream projects.
 
 ## Preferred Languages
 
@@ -39,15 +39,14 @@ Reports in **English** are preferred.
 
 ---
 
-## Operational Security — Railway CLI
+## Operational Security — Production Secrets
 
-The `railway variables` CLI command exposes **all environment variable values verbatim** in terminal output, including production secrets (`SESSION_SECRET`, `ADMIN_PASSWORD`, `API_KEY`, `RESEND_API_KEY`, `OPENAI_API_KEY`, Google OAuth tokens, and Twilio credentials).
+Production secrets live in the **Hostinger VPS** `.env` at `/docker/wv-property-intelligence/.env` (`SESSION_SECRET`, `ADMIN_PASSWORD`, `API_KEY`, `RESEND_API_KEY`, Google OAuth tokens, and any Twilio credentials).
 
-**Do not run `railway variables` in:**
-- Recorded or screen-shared terminal sessions
-- CI logs or GitHub Actions output
-- Any environment where terminal output may be captured or retained
+- **Never `cat`, `echo`, or otherwise print the `.env`** (or any single secret value) in recorded/screen-shared terminals, CI logs, or any environment where output may be captured or retained.
+- Manage secrets by editing the file over SSH (or the Hostinger panel), then restart the container (`docker compose up -d`) to apply.
+- Any agent that prints a production secret value must treat the session as potentially compromised and stop immediately per the AGENTS.md Autonomous Safety Stop Rule.
 
-**Use the Railway dashboard instead** (`app.railway.app`) to view or modify production environment variables. Dashboard access is authenticated and does not expose secrets in logs.
+### Dormant Railway twin
 
-This restriction applies to all agents and human operators with Railway access. Any agent that runs `railway variables` and captures its output must treat the session as potentially compromised and stop immediately per the AGENTS.md Autonomous Safety Stop Rule.
+The legacy Railway service (`alert-laughter` / `wv-property-intelligence`) is no longer the live target but may still hold a copy of these secrets until decommissioned. The `railway variables` CLI command prints **all** env values verbatim — do **not** run it in recorded/CI/captured terminals; use the Railway dashboard (`app.railway.app`) for any review. When rotating a production secret, also rotate or retire it on the Railway twin.

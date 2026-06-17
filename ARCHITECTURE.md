@@ -14,7 +14,7 @@
 
 | Layer | Choice | Rationale |
 |-------|--------|-----------|
-| Runtime | Node.js 20 LTS | Railway-compatible, long-term support |
+| Runtime | Node.js 20 LTS | Long-term support; runs in Docker on the production VPS |
 | Framework | Express 5 | Active development, async error handling |
 | Database | SQLite via `better-sqlite3` | Zero infrastructure overhead, sufficient for current scale, synchronous API simplifies code |
 | Session store | `better-sqlite3-session-store` | Collocated with main DB; no Redis needed |
@@ -27,7 +27,7 @@
 | Google APIs | Raw HTTPS (no `googleapis` SDK) | Fewer deps, smaller attack surface |
 | Images | `sharp` for compression | On-upload processing: 1200px/85q web, 1024px/80q MLS |
 | Frontend | Vanilla HTML/JS/CSS | No build step; zero bundler complexity |
-| Deploy | Railway + Docker (`api/Dockerfile`) | `main` branch auto-deploys via Railway webhook |
+| Deploy | Hostinger VPS — Docker + Traefik (`api/Dockerfile`) | **Manual** deploy (SSH + `docker compose build && up`); merging `main` does **not** auto-deploy |
 | CI | GitHub Actions | CodeQL, Semgrep, preflight.yml |
 
 ---
@@ -203,17 +203,29 @@ CSRF: double-submit cookie via `csrf-csrf`. Applied to all mutating `/admin/*` r
 
 ## Deployment Architecture
 
+Production runs on Phil's **Hostinger VPS** (`srv1716268` / `31.97.58.203`), not Railway. Deploys are **manual** — there is no auto-deploy on merge, no watchtower, and no CI deploy step (CI runs checks only).
+
 ```
-GitHub main branch
-    → Railway webhook → Docker build (api/Dockerfile)
-    → Container start: node server.js
-    → Railway persistent volume: DATABASE_PATH (/data/wv_property.db)
-    → Railway env vars: all secrets injected at runtime
+GitHub main branch  ──(merge ≠ deploy)──▶  (no automatic deploy)
+
+Manual deploy (operator, SSH):
+    git -C /docker/wv-property-intelligence/src fetch origin
+    git -C /docker/wv-property-intelligence/src checkout <sha>
+    → docker compose build (image wv-property-intelligence:vps, api/Dockerfile)
+    → docker compose up -d  → container `wv-property-intelligence`, node server.js, internal :3000
+    → Docker named volume wv-property-intelligence_wv-data → /data (DATABASE_PATH=/data/wv_property.db)
+    → secrets from /docker/wv-property-intelligence/.env
+
+Request path:
+    DNS (apex A → 31.97.58.203) → Traefik + Let's Encrypt (TLS)
+    → router Host(`malickland.net`) || Host(`www.malickland.net`) → container :3000
 ```
 
-- **Cloudflare** is the DNS/SSL/security layer in front of Railway — handles DNS, TLS termination, and edge-level protection (DDoS, bot filtering). It is not a deployment platform; the application runs on Railway.
+- **Cloudflare** provides DNS only (grey-cloud / DNS-only); it is **not** proxying or terminating TLS in front of the VPS. TLS is terminated by **Traefik** on the VPS via Let's Encrypt.
+- The compose file (`/docker/wv-property-intelligence/compose.yml`) lives on the VPS and also runs the test host `Host(wv-test.malickland.cloud)`.
+- The old **Railway** service (`alert-laughter` / `wv-property-intelligence`) is no longer the live target — DNS bypasses it. It is on standby pending a decommission decision; `railway.json` is retained only for that twin.
 - No application CDN, no load balancer, no Redis, no external database
-- Photos stored on Railway persistent volume at `listings/` path
+- ⚠️ **Photo persistence gap:** uploaded photos are written to the container's `listings/` path, which is **not** on a persistent volume in the current VPS compose (only `wv-data` → `/data` is). They do **not** survive a redeploy / `--force-recreate`. (Railway previously used a persistent volume for this.) Google Drive (`api/google.js`) is the intended durable media authority — confirm it is configured on the VPS, and/or add a volume/bind for `listings/`, before relying on local uploads surviving a deploy. Tracked in `TASKS.md`. (S3+CDN is the longer-term upgrade path.)
 - Single-process Node.js — no clustering
 
 ---

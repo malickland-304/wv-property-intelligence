@@ -107,3 +107,15 @@
 **Alternatives considered:** (B) remove the widget — rejected; throws away finished UX and the planned feature. Giving the model live DB/listing context — deferred to a follow-up to keep this change conservative and avoid fabrication risk.
 **Security impact:** Neutral-to-positive — new public endpoint, but defended in depth (same-origin + JSON guards reused from the lead routes, rate limit, prompt-injection stripping, server-controlled prompt, bounded I/O). No new dependencies.
 **Files:** `api/ai-generator.js`, `api/utils/chatAssistant.js`, `api/routes/chat.js`, `api/middleware/rate-limits.js`, `api/server.js`, `scripts/preflight.sh`, `tests/chat-assistant.test.js`, `api/.env.example`
+
+---
+
+## 2026-06-17 — Production migrated from Railway to Hostinger VPS (Docker + Traefik); deploy is manual
+
+**Problem:** The live site needed a consolidated, owner-controlled host alongside Phil's other services (OpenClaw, BloFin bots). Meanwhile the repo docs still described Railway as production with auto-deploy on merge, which misleads agents into assuming a merge ships to production.
+**Decision:** Production runs as a Docker container (`wv-property-intelligence:vps`, built from `api/Dockerfile`) on Phil's Hostinger VPS `srv1716268` (`31.97.58.203`), behind **Traefik** + Let's Encrypt. Apex DNS A → `31.97.58.203` (Cloudflare is DNS-only, not proxying/terminating TLS). Deploy is **manual**: SSH to the VPS, `git -C /docker/wv-property-intelligence/src fetch origin && git -C /docker/wv-property-intelligence/src checkout <sha>`, then `docker compose build && docker compose up -d`. There is **no** auto-deploy on merge (no webhook, no CI deploy step, no watchtower). Data persists on the Docker named volume `wv-property-intelligence_wv-data` (`/data`, `DATABASE_PATH=/data/wv_property.db`); secrets in `/docker/wv-property-intelligence/.env`.
+**Reasoning:** Single owner-controlled box co-located with Phil's other infra, no platform lock-in; the manual deploy keeps an explicit human gate on production for a solo-maintainer site.
+**Alternatives considered:** Stay on Railway — rejected (consolidation + coupling); add auto-deploy on the VPS (watchtower/CI) — deferred, manual deploy preferred for now as the human gate.
+**Migration impact / rollback:** The Railway service (`alert-laughter` / `wv-property-intelligence`) is no longer the live target (DNS bypasses it) and is on **standby** as the rollback path pending a decommission decision. `railway.json` and the legacy GitHub deployment environments are retained only for that twin.
+**Verification (2026-06-17, live):** `GET https://malickland.net/api/health` → 200 served by `31.97.58.203`; container `wv-property-intelligence` healthy; VPS `src` HEAD == `origin/main` (`b9d1198`); Traefik routers `Host(malickland.net) || Host(www.malickland.net)` → container `:3000`.
+**Files:** `README.md`, `ARCHITECTURE.md`, `CONTEXT.md`, `PROJECT_STATE.md`, `QA_CHECKLIST.md`, `SECURITY.md`, `CONTRIBUTING.md`, `AGENTS.md`, `docs/CANONICAL_MAP.md`, `docs/agent-handoff.md`, `TASKS.md`
