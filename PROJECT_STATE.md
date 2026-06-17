@@ -1,6 +1,6 @@
 # PROJECT_STATE.md — Malickland 2.0
 
-> **Last verified:** 2026-06-04 (canonical branch `main` @ `a479bfb`; PR #86 merged after PR #84)
+> **Last verified:** 2026-06-17 (canonical branch `main` @ `b9d1198`; PR #97 merged; live prod = Hostinger VPS, src @ `b9d1198`, container healthy)
 > **Authority:** Product completeness and repo workspace truth. Use `docs/CANONICAL_MAP.md` for repo/domain/stack disambiguation. Deployment runbooks and guardrails remain in `docs/agent-handoff.md`.
 
 ---
@@ -11,8 +11,9 @@
 |------|--------|
 | **Active repo** | `/Users/yhyh7/Projects/wv-property-intelligence` |
 | **Remote** | `https://github.com/malickland-304/wv-property-intelligence.git` |
-| **Production branch** | `origin/main` @ `a479bfb` (PR #86 merged 2026-06-04) |
-| **Last merged PR** | #86 codex governance and compliance copy — merged into `main` after PR #84 |
+| **Production branch** | `origin/main` @ `b9d1198` (PR #97 merged 2026-06-17) |
+| **Last merged PR** | #97 wire Resend for lead notifications (Ticket 0.3) |
+| **Live deploy target** | **Hostinger VPS** `srv1716268` / `31.97.58.203` (Docker + Traefik); deploy is **manual** — merge ≠ deploy. Not Railway. See `docs/CANONICAL_MAP.md` |
 
 PR #76 is merged and live; PR #77 is merged on top. Compare future work against `origin/main`, not a stale local `main`.
 
@@ -52,7 +53,7 @@ Open pull requests: **0**. Open issue count must be re-checked live in GitHub be
 | Item | Status |
 |------|--------|
 | Live URL | https://malickland.net |
-| Railway deploy / live smoke | ✅ Latest confirmed live read-only smoke remains 2026-05-31 after PR #76: `/api/health`, `/listings`, `/37-advent`, legacy Advent redirect |
+| VPS deploy / live smoke | ✅ Live `GET /api/health` → 200 served by `31.97.58.203` (Hostinger VPS, container `wv-property-intelligence:vps`, src @ `b9d1198`) verified 2026-06-17. Deploy is **manual** (SSH + `docker compose build && up`) — not Railway |
 | Health endpoint | **`GET /api/health`** — not `/health` (mounted in `api/routes/api.js`) |
 | npm audit | ✅ 0 vulnerabilities (verified on fix branch 2026-05-31) |
 | Security test suite | ✅ **52/52** locally on 2026-06-04 (`node tests/verify-security-fixes.test.js`) |
@@ -62,7 +63,7 @@ Open pull requests: **0**. Open issue count must be re-checked live in GitHub be
 | Governance files | ✅ `README.md`, `CONTRIBUTING.md`, `.github/CODEOWNERS`, issue templates, and PR template present |
 | GitHub security queues | ✅ Open code-scanning alerts: 0; Dependabot alerts: 0; secret-scanning alerts: 0 (2026-05-31 API audit) |
 | Remote branches | ✅ Only protected `main` remains on `origin` after stale branch cleanup (2026-05-31) |
-| GitHub environments | Railway deployment statuses use `alert-laughter / production`; `production` and `copilot` environments exist but are not deployment-gating for Railway |
+| GitHub environments | Legacy Railway deployment statuses (`alert-laughter / production`) and the `production`/`copilot` environments are **not** gating and no longer reflect the live target (prod is the Hostinger VPS) — clean up with the Railway decommission task |
 
 ---
 
@@ -71,7 +72,7 @@ Open pull requests: **0**. Open issue count must be re-checked live in GitHub be
 | Layer | Choice |
 |-------|--------|
 | **This repo** | Node.js 20 / **Express 5** monolith, **SQLite** (`better-sqlite3`), **vanilla HTML** in `app/` (no frontend build) |
-| **Deploy** | **Railway** + Docker (`api/Dockerfile`), `main` auto-deploys |
+| **Deploy** | **Hostinger VPS** — Docker + Traefik (`api/Dockerfile`); **manual** deploy (merge ≠ deploy). Not Railway |
 | **Not this product** | The separate **malickland.net Next.js** tree under Documents — different codebase; do not conflate env or deploy |
 | **Not used** | **Supabase**, PostgreSQL, Vercel app router, etc. |
 
@@ -104,7 +105,7 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 | SMS | Twilio — `api/services/twilioService.js` (twilio pkg NOT in package.json — feature disabled) |
 | AI | OpenAI GPT-4o via HTTPS — `api/ai-generator.js` |
 | Google | Drive + Gmail via `api/google.js` (raw HTTPS, no googleapis SDK) |
-| Deploy | Railway + Docker (`api/Dockerfile`), branch `main` auto-deploys |
+| Deploy | Hostinger VPS — Docker + Traefik (`api/Dockerfile`); manual deploy (merge ≠ deploy) |
 
 ---
 

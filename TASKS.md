@@ -13,7 +13,8 @@
 
 ## High Priority
 
-- [ ] **Public assistant backend (`POST /api/chat`)** — homepage "MalickLand Assistant" widget had no backend (404 in prod). Added a public, per-IP rate-limited, same-origin chat route reusing the PR #90 gateway-aware AI plumbing (`generateChatReply`); strict brokerage-safe system prompt; safe-by-default with no AI key. Acceptance: security suite 52/52, new chat suite 14/14, preflight green (incl. assistant smoke). **Claude Code** — PR open, awaiting Phil review (do not merge without approval); set `AI_GATEWAY_API_KEY` in Railway after merge to enable live replies.
+- [ ] **Decommission / standby decision for the Railway twin** — production migrated to the Hostinger VPS (see `DECISIONS.md` 2026-06-17); the old Railway service (`alert-laughter` / `wv-property-intelligence`) is no longer the live target (DNS bypasses it). Audit its DB for any pre-migration leads worth exporting (needs `railway login` — token currently expired), then decide standby-vs-shutdown. On shutdown: remove `railway.json`, clean up the legacy GitHub deployment environments, and rotate/retire its copy of production secrets. — depends on `railway login` (Phil) — **Claude Code / Phil**
+- [ ] **Public assistant backend (`POST /api/chat`)** — homepage "MalickLand Assistant" widget had no backend (404 in prod). Added a public, per-IP rate-limited, same-origin chat route reusing the PR #90 gateway-aware AI plumbing (`generateChatReply`); strict brokerage-safe system prompt; safe-by-default with no AI key. Acceptance: security suite 52/52, new chat suite 14/14, preflight green (incl. assistant smoke). **Claude Code** — configure the AI key in the VPS `.env` (not Railway) to enable live replies.
 - [ ] **OpenHands executor activation** — provision fine-grained GitHub token; start executor; run first supervised task — waiting on developer action; Issue #66 is fixed and Issue #65 is closed, so create or pick a current task — **developer action**
 
 ---

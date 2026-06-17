@@ -63,13 +63,17 @@
 
 ---
 
-## Pre-Deploy Checklist (Railway Production)
+## Pre-Deploy Checklist (Hostinger VPS — Manual Deploy)
 
-- [ ] All required CI checks green on GitHub
-- [ ] Smoke test passed locally (`bash scripts/smoke-prod.sh <BASE_URL>`)
-- [ ] No new secrets introduced in code
-- [ ] Rollback plan: note prior Railway deployment ID
-- [ ] Human explicitly approved deploy
+> Production runs on the Hostinger VPS (`31.97.58.203`), Docker + Traefik. Deploy is **manual** — merging to `main` does **not** update production. Deploy a specific reviewed, Phil-approved commit.
+
+- [ ] All required CI checks green on GitHub for the target commit
+- [ ] Smoke test passed (`bash scripts/smoke-prod.sh <BASE_URL>` — read-only)
+- [ ] No new secrets in code; any new env vars added to the VPS `.env` (`/docker/wv-property-intelligence/.env`)
+- [ ] Rollback plan: record the current live SHA before deploying — `ssh root@31.97.58.203 'git -C /docker/wv-property-intelligence/src rev-parse --short HEAD'`
+- [ ] Human (Phil) explicitly approved deploy
+- [ ] Deploy: SSH → `git -C /docker/wv-property-intelligence/src fetch && checkout <sha>` → `cd /docker/wv-property-intelligence && docker compose build && docker compose up -d`
+- [ ] Post-deploy verify: container healthy + live `GET /api/health` → 200
 
 ---
 
@@ -80,5 +84,5 @@ Do NOT declare production-ready unless ALL of the following are true:
 - [ ] Preflight script passes
 - [ ] npm audit shows 0 critical/high vulnerabilities
 - [ ] No known unresolved security issues
-- [ ] Environment variables documented and confirmed in Railway
+- [ ] Environment variables documented and confirmed in the VPS `.env` (`/docker/wv-property-intelligence/.env`)
 - [ ] `docs/agent-handoff.md` reflects current production state

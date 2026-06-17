@@ -34,7 +34,7 @@ A production real estate platform with:
 | Images | Local disk (`listings/{slug}/photos/`) + optional Google Drive backup |
 | Email | Gmail API via OAuth2 refresh token (no SDK) |
 | AI | OpenAI GPT-4o via HTTPS (no SDK) |
-| Deploy | Railway + Docker (multi-stage, `api/Dockerfile`) |
+| Deploy | Hostinger VPS — Docker + Traefik (multi-stage `api/Dockerfile`), manual deploy |
 | Frontend | Vanilla JS, no build step |
 
 ---

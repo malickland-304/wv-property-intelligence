@@ -1,16 +1,18 @@
 # CANONICAL_MAP.md — MalickLand Production Map
 
-> Last verified: 2026-05-31 by Codex using local git state plus read-only DNS/curl probes.
+> Last verified: 2026-06-17 (live SSH to the VPS + DNS + read-only curl probes).
 > Use this file to prevent repo, domain, and stack confusion before touching MalickLand production work.
 
 ## Canonical Truth
 
 | Layer | Current truth | Evidence |
 |-------|---------------|----------|
-| Live domain | `https://malickland.net` | DNS resolves to `66.33.22.228`; responses are served by Railway |
-| Production stack | Express 5 monolith: `api/` JSON + `app/` static HTML | `railway.toml`, `api/Dockerfile`, `api/server.js`, live `/api/health` |
+| Live domain | `https://malickland.net` | apex A → `31.97.58.203` (Hostinger VPS); `GET /api/health` → 200 served by that IP (verified 2026-06-17). `www` CNAME → `srv1716268.hstgr.cloud` → same IP |
+| Live deploy target | **Hostinger VPS** `srv1716268` / `31.97.58.203` | Docker container `wv-property-intelligence` (image `:vps`, `api/Dockerfile`, internal `:3000`) behind **Traefik** + Let's Encrypt; compose at `/docker/wv-property-intelligence/compose.yml`; data on named volume `wv-property-intelligence_wv-data` → `/data`. **Manual deploy** (merge ≠ deploy). **Not Railway.** |
+| Production stack | Express 5 monolith: `api/` JSON + `app/` static HTML | `api/Dockerfile`, `compose.yml`, `api/server.js`, live `/api/health` |
 | Production repo | `malickland-304/wv-property-intelligence` | `origin` in `/Users/yhyh7/Projects/wv-property-intelligence` |
-| Production branch | `origin/main` | `origin/main` at `b34e2fb` on 2026-05-31 (PR #77 merged after PR #76) |
+| Production branch | `origin/main` | `origin/main` at `b9d1198` on 2026-06-17 (PR #97); live VPS `src` checkout at the same SHA |
+| Legacy / not live | Railway service `alert-laughter` / `wv-property-intelligence` | No longer the live target — DNS bypasses it. On standby pending decommission decision; `railway.json` retained only for this twin |
 | Canonical local checkout | `/Users/yhyh7/Projects/wv-property-intelligence` | Use this checkout only; run `git fetch origin --prune` and compare against `origin/main` before work |
 | Health URL | `https://malickland.net/api/health` | Live probe returned 200 JSON on 2026-05-31 |
 | Not production | `malickland-304/malickland.net` | Separate dirty Next.js checkout under Documents; live site is not serving Next.js routes |
@@ -61,7 +63,7 @@ Purpose:
 | `/Users/yhyh7/Documents/GitHub/wv-property-intelligence` | Stale clone from earlier consolidation work |
 | `/Users/yhyh7/Documents/Documents - Philip's MacBook Pro - 4/GitHub/malickland.net` | Separate Next.js experiment/prototype, not current production |
 | `/Users/yhyh7/Projects/wv-realestate` | Empty/dead checkout at last verification |
-| `listing-system/workers/` | Experimental Worker path that would conflict with Railway apex routes if deployed blindly |
+| `listing-system/workers/` | Experimental Worker path that would conflict with the VPS/Traefik apex routes if deployed blindly |
 
 ## Guardrails
 
@@ -70,7 +72,7 @@ Purpose:
 3. Health is `/api/health`, not `/health`.
 4. Do not edit the Next.js `malickland.net` repo for production fixes unless a documented architecture decision changes the production stack.
 5. Do not run `wrangler deploy` for `listing-system/workers/` without explicit human approval and a recorded route-ownership decision.
-6. Before claiming production deployment, verify Railway or run read-only live smoke checks.
+6. Before claiming production deployment, verify the **VPS** directly — `ssh root@31.97.58.203 'git -C /docker/wv-property-intelligence/src rev-parse --short HEAD'` and confirm the container is healthy — and/or run read-only live smoke checks. **Merging to `main` does NOT deploy**; deploy is a separate manual step (SSH + `docker compose build && up`).
 
 ## Known Follow-Up
 

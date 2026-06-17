@@ -47,7 +47,7 @@ Stable foundations (do not redesign without the above):
 - SQLite via `better-sqlite3` (no PostgreSQL migration unless Phase 1 spec requires it)
 - `csrf-csrf` v3 double-submit CSRF protection
 - `express-session` + Bearer API key auth model
-- Railway + Docker deployment topology
+- Hostinger VPS + Docker + Traefik deployment topology (manual deploy; migrated off Railway — see `DECISIONS.md` 2026-06-17)
 - Vanilla HTML/JS/CSS frontend (no build step)
 
 ---
@@ -111,10 +111,10 @@ OpenHands operates in **supervised sandboxed mode only**. These are permanent co
 
 ### Forbidden (hard stops — no exceptions)
 - ❌ Merge pull requests
-- ❌ Deploy to Railway or any production environment
+- ❌ Deploy to any production environment (Hostinger VPS or the dormant Railway twin)
 - ❌ Access or read production secrets (`SESSION_SECRET`, `ADMIN_PASSWORD`, `API_KEY`, `DATABASE_PATH`, `OPENAI_API_KEY`, `GOOGLE_*`, `RESEND_API_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `LEAD_ALERT_TO_NUMBER`)
 - ❌ Push directly to `main`
-- ❌ Modify Railway environment variables
+- ❌ Modify production environment variables (the VPS `.env`, or the dormant Railway twin)
 - ❌ Run smoke tests against production (`malickland.net`) without explicit human approval
 - ❌ Mutate production database
 - ❌ Print or log any secret values
@@ -137,7 +137,7 @@ OpenHands operates in **supervised sandboxed mode only**. These are permanent co
 5. Gemini challenges if architecture/security significant → appended to WORK_LOG.md
 6. Conflict resolution: repository docs decide; safer path wins
 7. All CI checks pass → **Phil Malick** approves PR merge
-8. **Phil Malick** approves → Railway deploy
+8. **Phil Malick** approves → **manual** deploy to the Hostinger VPS (SSH + `docker compose build && up`); merging does not auto-deploy
 9. Claude or Codex verifies smoke → result appended to WORK_LOG.md
 ```
 
@@ -199,7 +199,7 @@ bash scripts/preflight.sh
 
 ## Environment Variables (Never Touch in Code)
 
-Set in Railway. Do not hardcode, echo, print, or modify:
+Set in the production environment — the Hostinger VPS `.env` at `/docker/wv-property-intelligence/.env` (the dormant Railway twin also holds a copy). Do not hardcode, echo, print, or modify:
 
 **Core (required):**
 - `SESSION_SECRET`
