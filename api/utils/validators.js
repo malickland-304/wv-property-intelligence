@@ -211,10 +211,10 @@ function build37AdventLead(payload) {
   return buildPropertyLead(payload, {
     id: null,
     address: '37 Advent Dr',
-    city: 'Romney',
+    city: 'Augusta',
     county: 'Hampshire',
     state: 'WV',
-    zip: '26757',
+    zip: '26704',
     listing_slug: ADVENT_LISTING_SLUG,
   });
 }
