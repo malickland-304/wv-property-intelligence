@@ -139,7 +139,9 @@ async function handleLeadCapture({ payload, property, db, appendFn }) {
     body: {
       ok: true,
       leadId: lead.lead_id,
-      message: 'Got it. Phil will follow up with the packet and next steps shortly.',
+      message: lead.lead_type === 'similar_land_alert'
+        ? 'Got it. Phil will follow up with similar property options shortly.'
+        : 'Got it. Phil will follow up with the packet and next steps shortly.',
       syncedToSheets: appendedToSheet,
       nextFollowUpAt: followUps[1]?.due_at || null,
     },
@@ -158,9 +160,9 @@ function createLeadsRouter({ db } = {}) {
     const property = getPropertyBySlug(db, 'advent-dr-hampshire-wv') || {
       id: null,
       address: '37 Advent Dr',
-      city: 'Romney',
+      city: 'Augusta',
       state: 'WV',
-      zip: '26757',
+      zip: '26704',
       county: 'Hampshire',
       listing_slug: ADVENT_LISTING_SLUG,
     };

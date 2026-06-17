@@ -108,6 +108,68 @@ function buildLeadSchedule(lead, siteUrl = DEFAULT_SITE_URL) {
     ? `${siteUrl.replace(/\/$/, '')}/properties/${lead.property_slug}`
     : siteUrl.replace(/\/$/, '');
   const leadTypeName = leadTypeLabel(lead.lead_type).toLowerCase();
+  const wantsSimilarOptions = lead.lead_type === 'similar_land_alert';
+
+  if (wantsSimilarOptions) {
+    return [
+      {
+        step_code: 'day_0',
+        channel: 'email',
+        template_name: 'instant_similar_property_reply',
+        due_at: toIsoDate(createdAt),
+        subject: 'Similar West Virginia property options from Phil Malick',
+        body: [
+          `Hi ${lead.name},`,
+          '',
+          `Thanks for asking about similar options after reviewing ${lead.property_address}.`,
+          '',
+          'Phil will follow up with current West Virginia land, house, and rural-property options that match your timeline, budget, and intended use.',
+          '',
+          `Reference page: ${propertyUrl}`,
+          '',
+          'Best,',
+          'Phil Malick',
+          'MalickLand',
+        ].join('\n'),
+      },
+      {
+        step_code: 'day_1',
+        channel: 'email',
+        template_name: 'follow_up_similar_criteria',
+        due_at: toIsoDate(addDays(createdAt, 1)),
+        subject: 'What should Phil look for next?',
+        body: [
+          `Hi ${lead.name},`,
+          '',
+          'Quick follow-up on your similar-property request.',
+          '',
+          'Reply with the counties, acreage, structures, budget, and timeline you want Phil to keep in mind.',
+          '',
+          `Reference page: ${propertyUrl}`,
+          '',
+          'Best,',
+          'Phil Malick',
+        ].join('\n'),
+      },
+      {
+        step_code: 'day_3',
+        channel: 'email',
+        template_name: 'follow_up_similar_land',
+        due_at: toIsoDate(addDays(createdAt, 3)),
+        subject: 'Still looking for West Virginia property?',
+        body: [
+          `Hi ${lead.name},`,
+          '',
+          'If you are still looking, Phil can narrow current West Virginia options around your goals and send the best fits.',
+          '',
+          "Reply with what matters most and we'll narrow it down.",
+          '',
+          'Best,',
+          'Phil Malick',
+        ].join('\n'),
+      },
+    ];
+  }
 
   return [
     {
