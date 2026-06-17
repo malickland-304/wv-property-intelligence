@@ -116,11 +116,11 @@ router.post('/contacts', contactsRateLimit, (req, res) => {
   sendContactEmail({ name, email, phone, message: combinedMessage, source }, property)
     .then((sent) => {
       if (!sent) {
-        console.warn(`[Contacts] Lead #${result.lastInsertRowid} <${email}> CAPTURED but NOT notified — email provider unconfigured or send failed.`);
+        console.warn(`[Contacts] Lead #${result.lastInsertRowid} CAPTURED but NOT notified — email provider unconfigured or send failed.`);
       }
     })
     .catch((err) => {
-      console.error(`[Contacts] Lead #${result.lastInsertRowid} <${email}> notification error:`, err && err.message ? err.message : err);
+      console.error(`[Contacts] Lead #${result.lastInsertRowid} notification error:`, err && err.message ? err.message : err);
     });
 
   res.status(201).json({ id: result.lastInsertRowid });
