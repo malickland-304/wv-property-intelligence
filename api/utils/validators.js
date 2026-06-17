@@ -3,7 +3,7 @@
 const crypto = require('crypto');
 
 const ADVENT_LISTING_SLUG = '37-advent';
-const ADVENT_PROPERTY_ADDRESS = '37 Advent Dr, Romney, WV 26757';
+const ADVENT_PROPERTY_ADDRESS = '37 Advent Dr, Augusta, WV 26704';
 const DEFAULT_SITE_URL = 'https://malickland.net';
 
 const LEAD_TYPES = new Set(['property_packet', 'request_showing', 'similar_land_alert']);

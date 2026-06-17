@@ -56,6 +56,7 @@ async function loadProperty() {
     p.marketing_description ||
     p.property_description ||
     '';
+  const isSold = String(p.status || '').toLowerCase() === 'sold';
 
   document.title = `${p.address || 'Property'} | Malickland`;
 
@@ -68,7 +69,7 @@ async function loadProperty() {
         <span class="detail-badge type">${escapeHtml(p.property_type || '')}</span>
       </div>
       <div class="detail-header">
-        <h1 class="detail-price">${price != null ? price : 'Contact for price'}</h1>
+        <h1 class="detail-price">${isSold && price != null ? 'Closed at ' + price : (price != null ? price : 'Contact for price')}</h1>
         <p class="detail-address">${escapeHtml(p.address || '')}${p.city ? ', ' + escapeHtml(p.city) : ''}${p.zip ? ' ' + escapeHtml(p.zip) : ''}</p>
         <p class="detail-county">${escapeHtml(p.county || '')} County · ${escapeHtml(p.status || '')}</p>
         <div class="detail-chips">
@@ -92,6 +93,7 @@ async function loadProperty() {
           ${p.listing_office ? `<dt>Office</dt><dd>${escapeHtml(p.listing_office)}</dd>` : ''}
         </dl>
         ${desc ? `<div class="detail-prose">${escapeHtml(desc).replace(/\n/g, '<br />')}</div>` : ''}
+        <p class="detail-disclosure">Brokerage transactions handled by Phil may include a separate $299 transaction administration fee, disclosed in writing before signing. This fee does not apply to standalone consulting or advisory services.</p>
       </section>
       <section class="detail-panel detail-inquiry">
         <h2>Inquire</h2>

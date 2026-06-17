@@ -632,3 +632,51 @@ Execute the agreed post-Phase-0 order: (1) docs PR correcting production truth t
 
 ### Recommended Next Task
 - Phil: save the new admin password; run `railway login` to unblock the twin audit. Then Codex verifies PR #98 → Phil merges → (optional) manual VPS deploy of docs → Railway standby/shutdown decision.
+
+---
+
+## 2026-06-17 — Codex (GPT-5)
+
+### Objective
+Record the 37 Advent Dr closed sale at `$170,000` and add Phil's `$299`
+transaction administration fee disclosure for real-estate brokerage
+transactions only, excluding standalone consulting/advisory services.
+
+### Changes Made
+- `api/db.js` — updated the 37 Advent seed/migration from active/listed at
+  `$219,900` to sold/closed at `$170,000`, with `mls_status='sold'` and
+  `sold_at='2026-06-17'`.
+- `app/37-advent.html` — converted the page from active-property CTAs to a
+  closed-sale page that routes visitors toward similar WV properties.
+- `app/index.html` and `app/listing.js` — added brokerage-only `$299`
+  transaction administration fee disclosure, explicitly excluding standalone
+  consulting/advisory services; listing detail pages show "Closed at" wording
+  for sold listings.
+- `api/utils/chatAssistant.js` and `api/ai-generator.js` — added the same
+  brokerage-only fee rule to generated/assistant copy guardrails.
+- `api/utils/validators.js` — corrected the 37 Advent lead address from Romney
+  to Augusta, WV 26704.
+- `app/admin.html` — replaced stale 37 Advent / `$219,900` example placeholders
+  with neutral examples.
+
+### Verification (Truthfulness Rule applies)
+- Command: `node --check api/db.js api/ai-generator.js api/utils/chatAssistant.js api/utils/validators.js api/routes/public.js` → PASSED.
+- Command: `node --check app/listing.js` → PASSED.
+- Command: `DATABASE_PATH=/private/tmp/wv-admin-fee-smoke-2.db node -e ...` → PASSED; seeded 37 Advent as `status=sold`, `price=170000`, `mls_status=sold`, `sold_at=2026-06-17`.
+- Command: `node tests/chat-assistant.test.js` → PASSED (14/14).
+- Command: `node tests/verify-security-fixes.test.js` → PASSED (53/53).
+- Command: `node tests/lead-notifications.test.js` → PASSED (6/6).
+- Command: `git diff --check` → PASSED.
+
+### Security Notes
+- No secrets read, printed, or committed.
+- No production deployment, live database mutation, Railway change, or VPS
+  environment-variable change performed.
+- `npm ci` was run in the isolated worktree to install test dependencies; npm
+  reported one high-severity audit finding in the existing dependency tree.
+
+### Remaining Risks / Requires Human Decision
+1. Confirm whether `sold_at='2026-06-17'` should be the official closed date or
+   whether the settlement date should be adjusted before merge.
+2. Broker/legal review should confirm the exact `$299` fee disclosure wording
+   before public deployment.
