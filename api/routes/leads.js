@@ -38,7 +38,7 @@ function getPropertyBySlug(db, slug) {
     SELECT p.id, p.address, p.city, p.state, p.zip, p.listing_slug, c.name AS county
     FROM properties p
     JOIN counties c ON c.id = p.county_id
-    WHERE (p.listing_slug = ? OR p.id = ?) AND p.status = 'active'
+    WHERE (p.listing_slug = ? OR p.id = ?) AND p.status IN ('active', 'sold')
   `).get(slug, slug);
 }
 
