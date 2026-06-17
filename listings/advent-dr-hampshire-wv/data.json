@@ -1,15 +1,17 @@
 {
   "id": "advent-dr-hampshire-wv",
   "listing_slug": "advent-dr-hampshire-wv",
-  "status": "active",
-  "mls_status": "draft",
+  "status": "sold",
+  "sold_at": "2026-05-29",
+  "sold_price": 170000,
+  "mls_status": "sold",
   "mls_number": null,
   "address": "37 Advent Dr",
   "city": "Augusta",
   "area_note": "Augusta / Delray, WV",
   "state": "WV",
   "county": "Hampshire",
-  "price": 219900,
+  "price": 170000,
   "acreage": 2.52,
   "lot_size": "Lots 48, 49, 95, 96",
   "parcel_id": "14-09-012B-0096-0000",
@@ -25,7 +27,7 @@
     "quick_sale": 199900,
     "balanced": 214900,
     "high_entry": 229900,
-    "current_list_price": 219900
+    "current_list_price": 170000
   },
   "structures": {
     "dwelling": "2004 double wide",

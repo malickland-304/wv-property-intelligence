@@ -230,7 +230,7 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
           flood_zone='Not in flood zone',
           image_url='/assets/advent-1.jpg',
           property_description=?, marketing_description=?,
-          sold_at='2026-06-17',
+          sold_at='2026-05-29',
           updated_at=datetime('now')
         WHERE id=?
       `).run(hampshire.id, desc, mktg, existing.id);
@@ -247,7 +247,7 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
         'land', 'sold', 170000,
         2.52, 1568, 3, 2, 'sold', 'WVHS2007468', 'Phil Malick', 'WV Real Estate Agency LLC',
         'Not in flood zone', '/assets/advent-1.jpg',
-        'advent-dr-hampshire-wv', desc, mktg, '2026-06-17'
+        'advent-dr-hampshire-wv', desc, mktg, '2026-05-29'
       );
     }
   }

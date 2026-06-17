@@ -104,9 +104,14 @@ function validateLeadPayload(payload, { requireEmail = true, requirePhone = true
 
 function buildLeadSchedule(lead, siteUrl = DEFAULT_SITE_URL) {
   const createdAt = new Date(lead.created_at || new Date().toISOString());
-  const propertyUrl = lead.property_slug
-    ? `${siteUrl.replace(/\/$/, '')}/properties/${lead.property_slug}`
-    : siteUrl.replace(/\/$/, '');
+  const base = siteUrl.replace(/\/$/, '');
+  // The Advent listing is a closed sale; its detail route (/properties/:id) is
+  // active-only, so point references to the served /37-advent landing page.
+  const propertyUrl = !lead.property_slug
+    ? base
+    : lead.property_slug === ADVENT_LISTING_SLUG
+      ? `${base}/37-advent`
+      : `${base}/properties/${lead.property_slug}`;
   const leadTypeName = leadTypeLabel(lead.lead_type).toLowerCase();
   const wantsSimilarOptions = lead.lead_type === 'similar_land_alert';
 
