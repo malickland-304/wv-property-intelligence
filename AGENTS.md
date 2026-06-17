@@ -272,29 +272,66 @@ Every agent session that makes changes must append an entry to `WORK_LOG.md`. Th
 
 ---
 
-## External Assistant / Codex Handoff Protocol
+## Codex Gatekeeper Protocol (PR Readiness)
 
-Codex (and any external reviewer that cannot attach to the Cursor account) gets all context **through the repository**, not through Cursor session state:
+Adopted 2026-06-17 after PR #97 review thrash. **Codex is the independent readiness gatekeeper. GitHub and the live VPS are the only final sources of truth.**
 
-- Paste relevant Cursor/agent output directly into the external assistant's chat when needed.
-- Share or attach the files the implementing agent created or changed.
-- Point the assistant at the same GitHub repo and branch so it can inspect committed or uncommitted changes locally. The canonical local checkout and remote are recorded in `PROJECT_STATE.md` and `docs/CANONICAL_MAP.md`.
-- Keep plans, rules, and decisions in tracked files (`.cursor/rules/`, `docs/`, and the root `*.md` coordination docs) so they survive across assistants — see the Repository Authority Rule above for which file owns which state.
+The implementing agent (Claude Code or any other) **may not** call a PR "ready" from its own summary. Review bots (Codex / Gemini / Sourcery) re-review **asynchronously**, so a point-in-time "CLEAN" goes stale; and an all-green-CI PR can still be `BLOCKED` by unresolved threads. READY is declared only after Codex independently verifies the live GitHub + deployment state.
 
-Every time an implementing agent finishes a chunk of work, hand off:
+A PR is **READY** only when ALL of these hold (Codex-verified, live):
 
-- The **branch** worked on (`git branch --show-current`).
-- The **files touched** (`git status` / `git diff --name-only`).
-- **What changed and why** (link the relevant `*.md` doc or commit message).
+- Required checks green (`statusCheckRollup`)
+- `mergeStateStatus` clean / `mergeable`
+- Unresolved, non-outdated review threads = **0**
+- Head SHA matches the expected commit
+- No production deploy has happened unless Phil approved it (deploy is **manual** — merge ≠ deploy; see `docs/CANONICAL_MAP.md`)
 
-Quick commands to copy/paste for a handoff:
+### Claude Handoff Format
+
+When an implementing agent finishes a chunk of work, hand off using exactly this format:
+
+```text
+CLAUDE HANDOFF
+PR: <url or number>
+Head SHA: <sha>
+What changed: <brief description>
+What was tested: <tests actually run + results>
+Known unresolved: <known issues / open threads>
+Do not claim ready until Codex verifies:
+- gh pr view
+- gh pr checks
+- reviewThreads unresolved=0
+- VPS SHA unchanged unless deploy approved
+```
+
+### Codex Verification Response
+
+Codex independently verifies against GitHub/VPS and replies **only** with this format:
+
+```text
+VERDICT: READY / NOT READY
+
+Blocking facts:
+- <failing checks, unresolved threads, merge-state, SHA mismatch, ...>
+
+Verified:
+- checks
+- threads
+- merge state
+- head SHA
+- VPS SHA
+```
+
+### Live-verify commands
 
 ```bash
-git branch --show-current        # current branch
-git status                       # uncommitted changes
-git diff --name-only             # changed file paths
-git log --oneline -10            # recent commits
+gh pr view <n> --json headRefOid,mergeStateStatus,mergeable,statusCheckRollup
+gh pr checks <n>
+# unresolved threads (GraphQL): reviewThreads where isResolved==false AND isOutdated==false
+ssh root@31.97.58.203 'git -C /docker/wv-property-intelligence/src rev-parse --short HEAD'   # live deploy SHA
 ```
+
+Drive the review loop to convergence by reading bot threads **directly off the PR** (do not rely on a human to relay them), and re-verify live immediately before declaring readiness — cite the commit SHA. Context lives in the repository (PRs + tracked `*.md` docs), not in any single agent's session state.
 
 ---
 
