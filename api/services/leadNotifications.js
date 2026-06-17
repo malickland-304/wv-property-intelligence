@@ -55,6 +55,7 @@ async function sendLeadAutoReplyEmail(lead, followUps = []) {
     to: lead.email,
     subject: immediate.subject,
     text: immediate.body,
+    replyTo: getNotificationEmail() || undefined, // buyer replies reach Phil, not noreply@
   });
 }
 
