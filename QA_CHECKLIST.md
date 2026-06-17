@@ -74,6 +74,7 @@
 - [ ] Human (Phil) explicitly approved deploy
 - [ ] Deploy: SSH → `git -C /docker/wv-property-intelligence/src fetch && checkout <sha>` → `cd /docker/wv-property-intelligence && docker compose build && docker compose up -d`
 - [ ] Post-deploy verify: container healthy + live `GET /api/health` → 200
+- [ ] If lead/email code or Resend env changed: run the **lead-pipeline smoke** (`docs/SMOKE_CHECKLIST.md`) — capture → Resend notify → delivered, then delete the test row
 
 ---
 

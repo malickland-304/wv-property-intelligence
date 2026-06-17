@@ -137,6 +137,6 @@ See `AGENTS.md` for full operating rules, forbidden actions, and workflow.
 - **Google APIs:** `api/google.js` uses Node `https` directly — the `googleapis` npm package is NOT a dependency.
 - **Routes:** `/api/properties` and `/api/listings` are alias routes for the same handler. `/properties/:slug` and `/listing/:slug` are both active.
 - **Deploy:** Hostinger VPS (`31.97.58.203`) — Docker + Traefik via `api/Dockerfile`; **manual** deploy (merge ≠ deploy). See `docs/CANONICAL_MAP.md`.
-- **Smoke scripts:** `scripts/preflight.sh`, `scripts/smoke-admin.sh`, `scripts/smoke-prod.sh`, `scripts/check-env.sh`
+- **Smoke scripts:** `scripts/preflight.sh`, `scripts/smoke-admin.sh`, `scripts/smoke-prod.sh` (read-only), `scripts/check-env.sh`. For the lead capture→email path use the manual **`docs/SMOKE_CHECKLIST.md`** (it mutates prod: creates a row + sends a real email).
 - **Lead capture:** `/api/leads` is mounted; the Google Sheets adapter is local-safe when sheet credentials are absent
 - **CI:** `.github/workflows/preflight.yml` runs `preflight.sh` on all PRs and pushes to `main`.
