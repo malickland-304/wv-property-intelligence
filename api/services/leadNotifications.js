@@ -13,7 +13,7 @@ function isLeadEmailConfigured() {
 
 async function sendLeadNotificationEmail(lead) {
   const to = getNotificationEmail();
-  if (!to || !isEmailConfigured()) return false;
+  if (!to || !isEmailConfigured() || !lead) return false;
 
   const bodyText = [
     `New ${leadTypeLabel(lead.lead_type)} lead`,
@@ -46,7 +46,7 @@ async function sendLeadNotificationEmail(lead) {
 }
 
 async function sendLeadAutoReplyEmail(lead, followUps = []) {
-  if (!lead.email || !isEmailConfigured()) return false;
+  if (!lead || !lead.email || !isEmailConfigured()) return false;
 
   const immediate = followUps[0];
   if (!immediate) return false;

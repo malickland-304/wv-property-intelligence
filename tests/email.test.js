@@ -49,6 +49,13 @@ const { sendLeadNotification, sendMail, isEmailConfigured } = require('../api/se
     assert.strictEqual(await sendLeadNotification({}, null), false);
   });
 
+  await check('sendLeadNotification() does not throw on NULL contact', async () => {
+    process.env.NOTIFICATION_EMAIL = 'phil@example.com'; // passes the recipient gate
+    const r = await sendLeadNotification(null, null);     // RESEND_API_KEY unset → sendMail false
+    delete process.env.NOTIFICATION_EMAIL;
+    assert.strictEqual(r, false);
+  });
+
   if (failed) {
     console.error(`✗ email.test.js: ${failed} failed, ${passed} passed`);
     failures.forEach((f) => console.error('  - ' + f));

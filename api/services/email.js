@@ -82,13 +82,13 @@ async function sendMail({ to, subject, html, text, replyTo } = {}) {
     console.log('[Resend] email sent →', to);
     return true;
   } catch (err) {
-    console.error('[Resend] send failed:', err.message);
+    console.error('[Resend] send failed:', err && err.message ? err.message : err);
     return false;
   }
 }
 
 // ── Lead notification (HTML, sent to NOTIFICATION_EMAIL) ───
-function buildLeadHtml(contact, property) {
+function buildLeadHtml(contact = {}, property) {
   const propLine = property
     ? `<tr><td><b>Property</b></td><td>${esc(property.address)}${property.city ? ', ' + esc(property.city) : ''}${property.county ? ' — ' + esc(property.county) + ' County' : ''}</td></tr>`
     : '';
@@ -132,10 +132,11 @@ async function sendLeadNotification(contact, property) {
     console.warn('[email] sendLeadNotification skipped: NOTIFICATION_EMAIL not configured');
     return false;
   }
+  const safeContact = contact || {};
   const propLabel = property ? ` — ${property.address || property.id}` : '';
-  const subject = `\u{1F3E1} New Lead: ${contact.name}${propLabel}`;
-  const html = buildLeadHtml(contact, property);
-  return sendMail({ to, subject, html, replyTo: contact.email || undefined });
+  const subject = `\u{1F3E1} New Lead: ${safeContact.name || 'Unknown'}${propLabel}`;
+  const html = buildLeadHtml(safeContact, property);
+  return sendMail({ to, subject, html, replyTo: safeContact.email || undefined });
 }
 
 module.exports = { sendLeadNotification, sendMail, isEmailConfigured };

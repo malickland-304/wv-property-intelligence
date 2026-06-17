@@ -55,6 +55,21 @@ const {
     assert.strictEqual(r, false);
   });
 
+  await check('sendLeadNotificationEmail() handles NULL lead without throwing', async () => {
+    process.env.RESEND_API_KEY = 'test-key-not-used';
+    process.env.NOTIFICATION_EMAIL = 'phil@example.com';
+    const r = await sendLeadNotificationEmail(null); // !lead guard → false, no network
+    delete process.env.RESEND_API_KEY; delete process.env.NOTIFICATION_EMAIL;
+    assert.strictEqual(r, false);
+  });
+
+  await check('sendLeadAutoReplyEmail() handles NULL lead without throwing', async () => {
+    process.env.RESEND_API_KEY = 'test-key-not-used';
+    const r = await sendLeadAutoReplyEmail(null, [{ subject: 's', body: 'b' }]);
+    delete process.env.RESEND_API_KEY;
+    assert.strictEqual(r, false);
+  });
+
   if (failed) {
     console.error(`✗ lead-notifications.test.js: ${failed} failed, ${passed} passed`);
     failures.forEach((f) => console.error('  - ' + f));
