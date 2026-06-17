@@ -15,7 +15,7 @@ const assert = require('assert');
 delete process.env.RESEND_API_KEY;
 delete process.env.NOTIFICATION_EMAIL;
 
-const { sendLeadNotification, sendMail, isEmailConfigured } = require('../api/services/email');
+const { sendLeadNotification, sendMail, isEmailConfigured, isValidEmail } = require('../api/services/email');
 
 (async () => {
   let passed = 0;
@@ -54,6 +54,23 @@ const { sendLeadNotification, sendMail, isEmailConfigured } = require('../api/se
     const r = await sendLeadNotification(null, null);     // RESEND_API_KEY unset → sendMail false
     delete process.env.NOTIFICATION_EMAIL;
     assert.strictEqual(r, false);
+  });
+
+  await check('isValidEmail accepts a normal address', () => {
+    assert.strictEqual(isValidEmail('phil@malickland.net'), true);
+  });
+  await check('isValidEmail rejects mailto-delimiter injection', () => {
+    assert.strictEqual(isValidEmail('a@b.com?subject=x'), false);
+    assert.strictEqual(isValidEmail('a@b.com&cc=x@y.com'), false);
+  });
+  await check('isValidEmail rejects spaces / quotes / no-TLD', () => {
+    assert.strictEqual(isValidEmail('a b@c.com'), false);
+    assert.strictEqual(isValidEmail('a"@b.com'), false);
+    assert.strictEqual(isValidEmail('a@b'), false);
+  });
+  await check('isValidEmail rejects non-strings', () => {
+    assert.strictEqual(isValidEmail(null), false);
+    assert.strictEqual(isValidEmail(undefined), false);
   });
 
   if (failed) {
