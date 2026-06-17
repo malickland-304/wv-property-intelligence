@@ -27,7 +27,7 @@
 | Google APIs | Raw HTTPS (no `googleapis` SDK) | Fewer deps, smaller attack surface |
 | Images | `sharp` for compression | On-upload processing: 1200px/85q web, 1024px/80q MLS |
 | Frontend | Vanilla HTML/JS/CSS | No build step; zero bundler complexity |
-| Deploy | Hostinger VPS — Docker + Traefik (`api/Dockerfile`) | **Manual** deploy (SSH + `docker compose build && up`); merging `main` does **not** auto-deploy |
+| Deploy | Hostinger VPS — Docker + Traefik (`api/Dockerfile`) | **Manual** deploy (SSH + `docker compose build && docker compose up -d`); merging `main` does **not** auto-deploy |
 | CI | GitHub Actions | CodeQL, Semgrep, preflight.yml |
 
 ---

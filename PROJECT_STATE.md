@@ -53,7 +53,7 @@ Open pull requests: **0**. Open issue count must be re-checked live in GitHub be
 | Item | Status |
 |------|--------|
 | Live URL | https://malickland.net |
-| VPS deploy / live smoke | ✅ Live `GET /api/health` → 200 served by `31.97.58.203` (Hostinger VPS, container `wv-property-intelligence:vps`, src @ `b9d1198`) verified 2026-06-17. Deploy is **manual** (SSH + `docker compose build && up`) — not Railway |
+| VPS deploy / live smoke | ✅ Live `GET /api/health` → 200 served by `31.97.58.203` (Hostinger VPS, container `wv-property-intelligence:vps`, src @ `b9d1198`) verified 2026-06-17. Deploy is **manual** (SSH + `docker compose build && docker compose up -d`) — not Railway |
 | Health endpoint | **`GET /api/health`** — not `/health` (mounted in `api/routes/api.js`) |
 | npm audit | ✅ 0 vulnerabilities (verified on fix branch 2026-05-31) |
 | Security test suite | ✅ **52/52** locally on 2026-06-04 (`node tests/verify-security-fixes.test.js`) |

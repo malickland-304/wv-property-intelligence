@@ -79,5 +79,5 @@ curl -sS -i -X POST https://malickland.net/api/contacts \
 ## Notes
 
 - **Quota/cost:** Resend free tier is 3,000/mo and 100/day — far above lead volume; a few smoke sends are negligible, but don't loop them.
-- **Rollback:** if a deploy broke the pipeline, re-checkout the prior SHA on the VPS and `docker compose build && up` (see `docs/CANONICAL_MAP.md` → manual deploy / rollback).
+- **Rollback:** if a deploy broke the pipeline, re-checkout the prior SHA on the VPS and `docker compose build && docker compose up -d` (see `docs/CANONICAL_MAP.md` → manual deploy / rollback).
 - **Truthfulness:** record only steps actually run, with their real output (AGENTS.md Verification Truthfulness Rule). Append the result to `WORK_LOG.md`.
