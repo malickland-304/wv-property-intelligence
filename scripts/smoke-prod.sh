@@ -17,7 +17,8 @@ curl -fsS "$BASE/37-advent" >/dev/null
 # When listings are OFF (the current production default), the listing detail API
 # intentionally returns 404 and the public listing page redirects, so the smoke
 # must respect the live flag instead of hard-failing on those routes.
-LISTINGS_ENABLED=$(curl -fsS "$BASE/api/config" \
+CONFIG_RESP=$(curl -fsS "$BASE/api/config")
+LISTINGS_ENABLED=$(echo "$CONFIG_RESP" \
   | grep -oE '"listingsEnabled"[[:space:]]*:[[:space:]]*(true|false)' \
   | grep -oE '(true|false)$' || true)
 
@@ -38,5 +39,6 @@ elif [ "$LISTINGS_ENABLED" = "false" ]; then
   echo "Production smoke passed (listings DISABLED; listing routes correctly gated)"
 else
   echo "FAIL: could not read listingsEnabled from $BASE/api/config" >&2
+  echo "Response was: ${CONFIG_RESP:-<empty>}" >&2
   exit 1
 fi
