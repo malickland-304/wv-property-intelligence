@@ -157,7 +157,7 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 
 | Bug | Severity | Notes |
 |-----|----------|-------|
-| leads.js missing deps | High | Not mounted; would crash if mounted |
+| ~~leads.js missing deps~~ | Resolved | `/api/leads` mounted with local-safe adapters (DECISIONS.md 2026-06-01) — no longer a bug |
 | Stale or wrong Cursor workspace | Ops | Cursor sessions have used `openclaw-system` and stale Documents/GitHub checkouts; reopen Cursor at `/Users/yhyh7/Projects/wv-property-intelligence` and verify `workspace_roots` before production work |
 
 ---
@@ -173,7 +173,7 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 ## Architecture notes
 
 - Routes: `server.js` → `routes/admin.js`, `routes/api.js` (`/api/health`), `routes/public.js`
-- `routes/leads.js` exists but unmounted
+- `routes/leads.js` is mounted at `/api/leads` (JSON + same-origin guards)
 - Services: `email.js`, `twilioService.js`, `leadFollowupWorker.js`, `leadNotifications.js`
 - Utils: `validators.js`, `propertyMarketing.js`, `sqliteSessionStore.js`
 - DB: `db.js` — SQLite with migrations

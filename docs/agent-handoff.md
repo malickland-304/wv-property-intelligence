@@ -18,7 +18,7 @@
 |------|--------|
 | HEAD (main) | See `PROJECT_STATE.md` — verify with `git rev-parse origin/main` before work |
 | Live deploy target | ✅ **Hostinger VPS** `srv1716268` / `31.97.58.203` — Docker container `wv-property-intelligence:vps` behind Traefik+LE; src @ `b9d1198`, container healthy (verified 2026-06-17). **Not Railway.** |
-| Deploy method | ⚠️ **Manual** — `ssh root@31.97.58.203`, `git -C /docker/wv-property-intelligence/src fetch && checkout <sha>`, then `docker compose build && docker compose up -d`. Merging to `main` does **not** deploy (no webhook / CI deploy / watchtower) |
+| Deploy method | ⚠️ **Manual** — `ssh root@31.97.58.203`, `git -C /docker/wv-property-intelligence/src fetch origin && git -C /docker/wv-property-intelligence/src checkout <sha>`, then `docker compose build && docker compose up -d`. Merging to `main` does **not** deploy (no webhook / CI deploy / watchtower) |
 | Authenticated smoke | ✅ PASSED (7/7) — 2026-05-27 |
 | Production smoke path | ✅ `scripts/smoke-prod.sh` is read-only (`GET` health + property page checks only) |
 | npm audit | 0 vulnerabilities (main) |

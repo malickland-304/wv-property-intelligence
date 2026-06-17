@@ -68,7 +68,7 @@ Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `ci`
 |--------|------|
 | Push to `main` | ❌ Never — PR only |
 | Deploy to production (Hostinger VPS or the dormant Railway twin) | ❌ Never without explicit user approval |
-| Modify production environment variables (VPS `.env`) | ❌ Never |
+| Modify production environment variables (VPS `.env` or the dormant Railway twin) | ❌ Never |
 | Print or log `SESSION_SECRET`, `ADMIN_PASSWORD`, API keys | ❌ Never |
 | Run `smoke-admin.sh` against production without approval | ❌ Never |
 | Mutate production data during any test | ❌ Never |

@@ -42,13 +42,20 @@ curl -sS -i -X POST https://malickland.net/api/contacts \
 ```
 - [ ] Response is `201` (a `400/403` means a guard rejected it — check `Content-Type` and `Origin`/`Referer`).
 
+**Option C — property leads path** (exercise when `api/routes/leads.js` or `api/services/leadNotifications.js` changed): submit an inquiry on the live **/37-advent** page — its form POSTs to `POST /api/leads/37-advent` (the other route is `POST /api/leads/property/:slug`). Same JSON + same-origin guards as `/api/contacts`; these write to the **`leads`** table (cleaned up in §4). Use the browser form rather than a hand-built curl so the request body matches the route's expected fields.
+
 ## 2. Confirm capture (persistence)
 
-- [ ] Read back via the API-key-protected read route (no DB access needed):
+> Do **not** `GET /api/contacts` to verify — it returns *every* lead's name/email/phone (real PII) in one response, and it requires `Authorization: Bearer $API_KEY` (not `X-API-Key`). Verify only the test row, by count, inside the container:
+
+- [ ] Test row landed (prints counts, not PII):
   ```bash
-  curl -sS https://malickland.net/api/contacts -H "X-API-Key: $API_KEY" | tail
+  ssh root@31.97.58.203 'docker exec -w /workspace/api wv-property-intelligence \
+    node -e "const db=require(\"better-sqlite3\")(process.env.DATABASE_PATH); \
+    console.log(\"contacts:\", db.prepare(\"SELECT COUNT(*) c FROM contacts WHERE email LIKE ?\").get(\"smoketest+%@example.com\").c, \
+    \"| leads:\", db.prepare(\"SELECT COUNT(*) c FROM leads WHERE email LIKE ?\").get(\"smoketest+%@example.com\").c);"'
   ```
-  (supply `$API_KEY` from the VPS `.env` at runtime; do not echo it). The test row should be present with the expected `email` and `source`.
+  Expect `contacts: 1` (Option A/B) and/or `leads: 1` (Option C).
 
 ## 3. Confirm notification (delivery)
 
@@ -60,14 +67,14 @@ curl -sS -i -X POST https://malickland.net/api/contacts \
 
 ## 4. Clean up (required)
 
-- [ ] Delete the test `contacts` row so it does not pollute real leads. Inside the container, from the app working directory, via a `better-sqlite3` one-liner (or `sqlite3` if installed):
+- [ ] Delete the test rows from **both** tables (Option A/B write to `contacts`; Option C writes to `leads`) so they don't pollute real leads:
   ```bash
   ssh root@31.97.58.203 'docker exec -w /workspace/api wv-property-intelligence \
     node -e "const db=require(\"better-sqlite3\")(process.env.DATABASE_PATH); \
-    console.log(db.prepare(\"DELETE FROM contacts WHERE email LIKE ?\").run(\"smoketest+%@example.com\"));"'
+    console.log(\"contacts deleted:\", db.prepare(\"DELETE FROM contacts WHERE email LIKE ?\").run(\"smoketest+%@example.com\").changes, \
+    \"| leads deleted:\", db.prepare(\"DELETE FROM leads WHERE email LIKE ?\").run(\"smoketest+%@example.com\").changes);"'
   ```
-  (Confirm the app's working directory with `docker inspect` if `/workspace/api` does not resolve.)
-- [ ] Re-run the step-2 read to confirm the test row is gone.
+- [ ] Re-run the step-2 count to confirm both are `0`.
 
 ## Notes
 

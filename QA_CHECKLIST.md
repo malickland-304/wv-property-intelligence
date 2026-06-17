@@ -68,13 +68,13 @@
 > Production runs on the Hostinger VPS (`31.97.58.203`), Docker + Traefik. Deploy is **manual** — merging to `main` does **not** update production. Deploy a specific reviewed, Phil-approved commit.
 
 - [ ] All required CI checks green on GitHub for the target commit
-- [ ] Smoke test passed (`bash scripts/smoke-prod.sh <BASE_URL>` — read-only)
 - [ ] No new secrets in code; any new env vars added to the VPS `.env` (`/docker/wv-property-intelligence/.env`)
 - [ ] Rollback plan: record the current live SHA before deploying — `ssh root@31.97.58.203 'git -C /docker/wv-property-intelligence/src rev-parse --short HEAD'`
 - [ ] Human (Phil) explicitly approved deploy
-- [ ] Deploy: SSH → `git -C /docker/wv-property-intelligence/src fetch && checkout <sha>` → `cd /docker/wv-property-intelligence && docker compose build && docker compose up -d`
+- [ ] Deploy: SSH → `git -C /docker/wv-property-intelligence/src fetch origin && git -C /docker/wv-property-intelligence/src checkout <sha>` → `cd /docker/wv-property-intelligence && docker compose build && docker compose up -d`
 - [ ] Post-deploy verify: container healthy + live `GET /api/health` → 200
-- [ ] If lead/email code or Resend env changed: run the **lead-pipeline smoke** (`docs/SMOKE_CHECKLIST.md`) — capture → Resend notify → delivered, then delete the test row
+- [ ] **Post-deploy route smoke — validates the NEW SHA** (not the old live one): `bash scripts/smoke-prod.sh https://malickland.net` (read-only) — confirms `/listings`, property pages, and legacy redirects still serve on the just-deployed commit
+- [ ] If lead/email code or Resend env changed: run the **lead-pipeline smoke** (`docs/SMOKE_CHECKLIST.md`) — capture → Resend notify → delivered, then delete the test row(s)
 
 ---
 
