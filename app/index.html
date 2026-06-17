@@ -1533,13 +1533,21 @@ document.getElementById('leadModal').addEventListener('click', function(e) {
 async function submitForm(form, successId) {
   const data = {};
   new FormData(form).forEach((v, k) => data[k] = v);
+  const btn = form.querySelector('[type="submit"]');
+  const btnLabel = btn ? btn.textContent : null;
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
   try {
-    await fetch('/api/contacts', {
+    const r = await fetch('/api/contacts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
-  } catch(e) {}
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
+    alert("Sorry — something went wrong sending that. Please call Phil at (540) 246-1421 or email phil@malickland.net.");
+    return;
+  }
   pixelEvent('Lead', { content_name: 'contact_form' });
   if (window.gtag) gtag('event', 'generate_lead');
   form.style.display = 'none';
@@ -1857,13 +1865,18 @@ async function submitChatLead(btn) {
   btn.disabled = true; btn.textContent = 'Sending…';
   const summary = aiMessages.filter(m=>m.role==='user').map(m=>m.content).join(' | ');
   try {
-    await fetch('/api/contacts', {
+    const r = await fetch('/api/contacts', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ name, email, phone, message: 'Chat: ' + summary, source: 'website_chat' })
     });
-    pixelEvent('Lead', { content_name: 'ai_chat' });
-    if (window.gtag) gtag('event', 'generate_lead');
-  } catch(e) {}
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Send to Phil →';
+    alert("Sorry — that didn't go through. Please call Phil at (540) 246-1421 or email phil@malickland.net.");
+    return;
+  }
+  pixelEvent('Lead', { content_name: 'ai_chat' });
+  if (window.gtag) gtag('event', 'generate_lead');
   document.getElementById('chatBody').innerHTML = `<div class="chat-done">✅ Phil will follow up as soon as practical.<br/><br/>Call anytime: <a href="tel:+15402461421" style="color:var(--green);font-weight:700">(540) 246-1421</a></div>`;
 }
 </script>

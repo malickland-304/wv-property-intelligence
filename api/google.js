@@ -72,13 +72,13 @@ async function sendContactEmail(contact, property) {
   const { GOOGLE_GMAIL_USER, NOTIFICATION_EMAIL } = process.env;
   if (!GOOGLE_GMAIL_USER || !NOTIFICATION_EMAIL) {
     console.warn('[Gmail] sendContactEmail skipped: GOOGLE_GMAIL_USER or NOTIFICATION_EMAIL not configured');
-    return;
+    return false;
   }
 
   const token = await getAccessToken().catch(() => null);
   if (!token) {
     console.warn('[Gmail] sendContactEmail skipped: OAuth token unavailable — check GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN');
-    return;
+    return false;
   }
 
   try {
@@ -131,11 +131,13 @@ async function sendContactEmail(contact, property) {
 
     if (res.status === 200) {
       console.log(`[Gmail] Inquiry notification sent to ${NOTIFICATION_EMAIL}`);
+      return true;
     } else {
       throw new Error('Gmail send failed: ' + JSON.stringify(res.body));
     }
   } catch (err) {
     console.error('[Gmail] Failed to send inquiry email:', err.message);
+    return false;
   }
 }
 

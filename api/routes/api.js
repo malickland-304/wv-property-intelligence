@@ -113,7 +113,15 @@ router.post('/contacts', contactsRateLimit, (req, res) => {
                   FROM properties p LEFT JOIN counties c ON c.id=p.county_id
                   WHERE p.id=?`).get(property_id)
     : null;
-  sendContactEmail({ name, email, phone, message: combinedMessage, source }, property).catch(() => {});
+  sendContactEmail({ name, email, phone, message: combinedMessage, source }, property)
+    .then((sent) => {
+      if (!sent) {
+        console.warn(`[Contacts] Lead #${result.lastInsertRowid} CAPTURED but NOT notified — email provider unconfigured or send failed.`);
+      }
+    })
+    .catch((err) => {
+      console.error(`[Contacts] Lead #${result.lastInsertRowid} notification error:`, err && err.message ? err.message : err);
+    });
 
   res.status(201).json({ id: result.lastInsertRowid });
 });
