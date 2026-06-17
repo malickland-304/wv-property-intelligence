@@ -47,7 +47,7 @@ Stable foundations (do not redesign without the above):
 - SQLite via `better-sqlite3` (no PostgreSQL migration unless Phase 1 spec requires it)
 - `csrf-csrf` v3 double-submit CSRF protection
 - `express-session` + Bearer API key auth model
-- Railway + Docker deployment topology
+- Hostinger VPS + Docker Compose + Traefik deployment topology
 - Vanilla HTML/JS/CSS frontend (no build step)
 
 ---
@@ -85,8 +85,8 @@ Never report: "tests pass", "build succeeds", "no vulnerabilities" unless the co
 
 | Agent | Role | Allowed | Forbidden |
 |-------|------|---------|-----------|
-| **Claude Code** | Implementation | Branch work, code changes, PRs, documentation | Direct main push, deploy, printing secrets, self-authorized architecture changes |
-| **Codex** | Audit + Phil-authorized implementation | Code review, security skepticism, CI forensics, readiness verdicts; small scoped repo edits only when Phil explicitly authorizes implementation in the current task | Direct main push, deploys, printing secrets, self-authorized architecture/schema changes |
+| **Claude Code** | Implementation | Branch work, code changes, PRs, documentation, evidence collection | Direct main push, deploy, printing secrets, self-declared READY verdicts, self-authorized architecture changes |
+| **Codex** | Independent gatekeeper + Phil-authorized implementation | Code review, security skepticism, CI forensics, GitHub/VPS readiness verdicts; small scoped repo edits only when Phil explicitly authorizes implementation in the current task | Direct main push, deploys, printing secrets, self-authorized architecture/schema changes |
 | **Gemini** | Architecture Challenger | Architecture critique, threat modeling, vendor analysis | Touching code in active PRs |
 | **ChatGPT** | Spec / Orchestration | Task definition, phase specs, API contracts | Architecture decisions without DECISIONS.md entry |
 | **OpenHands** | Supervised Worker | Sandboxed implementation, branch edits, opening PRs | See restrictions below |
@@ -111,10 +111,10 @@ OpenHands operates in **supervised sandboxed mode only**. These are permanent co
 
 ### Forbidden (hard stops — no exceptions)
 - ❌ Merge pull requests
-- ❌ Deploy to Railway or any production environment
+- ❌ Deploy to any production environment
 - ❌ Access or read production secrets (`SESSION_SECRET`, `ADMIN_PASSWORD`, `API_KEY`, `DATABASE_PATH`, `OPENAI_API_KEY`, `GOOGLE_*`, `RESEND_API_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `LEAD_ALERT_TO_NUMBER`)
 - ❌ Push directly to `main`
-- ❌ Modify Railway environment variables
+- ❌ Modify Railway or VPS environment variables
 - ❌ Run smoke tests against production (`malickland.net`) without explicit human approval
 - ❌ Mutate production database
 - ❌ Print or log any secret values
@@ -137,8 +137,9 @@ OpenHands operates in **supervised sandboxed mode only**. These are permanent co
 5. Gemini challenges if architecture/security significant → appended to WORK_LOG.md
 6. Conflict resolution: repository docs decide; safer path wins
 7. All CI checks pass → **Phil Malick** approves PR merge
-8. **Phil Malick** approves → Railway deploy
-9. Claude or Codex verifies smoke → result appended to WORK_LOG.md
+8. **Phil Malick** approves production deploy → manual VPS deploy
+9. Codex verifies GitHub/VPS state or reviews Claude's evidence before READY is treated as final
+10. Claude or Codex verifies smoke → result appended to WORK_LOG.md
 ```
 
 No step may be skipped. No agent may self-authorize a step beyond their role.
@@ -199,7 +200,7 @@ bash scripts/preflight.sh
 
 ## Environment Variables (Never Touch in Code)
 
-Set in Railway. Do not hardcode, echo, print, or modify:
+Set in the production environment (`/docker/wv-property-intelligence/.env` on the VPS). Do not hardcode, echo, print, or modify without explicit Phil approval:
 
 **Core (required):**
 - `SESSION_SECRET`
@@ -210,14 +211,14 @@ Set in Railway. Do not hardcode, echo, print, or modify:
 **OpenAI:**
 - `OPENAI_API_KEY`
 
-**Google (Drive + Gmail):**
+**Google (Drive; Gmail is legacy only):**
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 - `GOOGLE_REFRESH_TOKEN`
 - `GOOGLE_DRIVE_FOLDER_ID`
 - `GOOGLE_GMAIL_USER`
 
-**Email (Resend — primary path):**
+**Email (Resend — lead notification path):**
 - `RESEND_API_KEY`
 - `FROM_EMAIL`
 - `NOTIFICATION_EMAIL`
@@ -272,29 +273,52 @@ Every agent session that makes changes must append an entry to `WORK_LOG.md`. Th
 
 ---
 
-## External Assistant / Codex Handoff Protocol
+## External Assistant / Codex Gatekeeper Protocol
 
-Codex (and any external reviewer that cannot attach to the Cursor account) gets all context **through the repository**, not through Cursor session state:
+Codex is the independent readiness gatekeeper. GitHub and live VPS state are the only final sources of truth for merge/deploy readiness.
 
-- Paste relevant Cursor/agent output directly into the external assistant's chat when needed.
-- Share or attach the files the implementing agent created or changed.
-- Point the assistant at the same GitHub repo and branch so it can inspect committed or uncommitted changes locally. The canonical local checkout and remote are recorded in `PROJECT_STATE.md` and `docs/CANONICAL_MAP.md`.
-- Keep plans, rules, and decisions in tracked files (`.cursor/rules/`, `docs/`, and the root `*.md` coordination docs) so they survive across assistants — see the Repository Authority Rule above for which file owns which state.
+Claude Code and other implementing agents produce evidence; they do not self-declare a PR or deploy READY. A PR is READY only after Codex independently verifies live GitHub state and, when relevant, live VPS state.
 
-Every time an implementing agent finishes a chunk of work, hand off:
+### Implementer handoff format
 
-- The **branch** worked on (`git branch --show-current`).
-- The **files touched** (`git status` / `git diff --name-only`).
-- **What changed and why** (link the relevant `*.md` doc or commit message).
-
-Quick commands to copy/paste for a handoff:
-
-```bash
-git branch --show-current        # current branch
-git status                       # uncommitted changes
-git diff --name-only             # changed file paths
-git log --oneline -10            # recent commits
+```text
+CLAUDE HANDOFF
+PR:
+Head SHA:
+What changed:
+What was tested:
+Known unresolved:
+Do not claim ready until Codex verifies:
+- gh pr view ... head SHA / mergeStateStatus / mergeable
+- gh pr checks ...
+- reviewThreads unresolved non-outdated == 0
+- VPS SHA unchanged unless deploy approved
 ```
+
+### Codex verification response
+
+Codex independently verifies against GitHub/VPS and replies:
+
+```text
+VERDICT: READY / NOT READY
+
+Blocking facts:
+- ...
+
+Verified:
+- PR head SHA
+- check rollup
+- merge state
+- unresolved review-thread count
+- VPS SHA/container health when relevant
+```
+
+### Required truth checks
+
+- Green CI alone is not READY; unresolved review threads can still block merge.
+- A point-in-time CLEAN result can become stale after asynchronous bot re-review.
+- Production deploy proof must include the live VPS SHA and container health, not just a merge commit.
+- No deploy or production env change happens without Phil's explicit approval in the current task.
 
 ---
 
@@ -310,6 +334,7 @@ Active development repo: **`/Users/yhyh7/Projects/wv-property-intelligence`**. W
 4. Read `docs/CANONICAL_MAP.md` before malickland.net infrastructure or deployment work.
 5. Never run `wrangler deploy` for `listing-system/workers/` without explicit human approval and a recorded route-ownership decision.
 6. `malickland.cloud` is not `malickland.net`; treat OpenClaw/trading work as a separate project.
+7. Railway is a legacy twin with a separate DB; audit it before standby/shutdown, but do not treat it as current production.
 
 ---
 

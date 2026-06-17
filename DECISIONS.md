@@ -49,7 +49,7 @@
 
 **Problem:** Datastore selection for a single-server low-traffic real estate site.
 **Decision:** SQLite via `better-sqlite3`. No PostgreSQL migration planned until Phase 1+ requires it.
-**Reasoning:** Zero infrastructure overhead, synchronous API (simpler code), adequate for current scale, Railway-compatible with persistent volume.
+**Reasoning:** Zero infrastructure overhead, synchronous API (simpler code), adequate for current scale, Docker-volume compatible on the VPS.
 **Alternatives:** PostgreSQL (Neon, Railway Postgres) — planned for Phase 1+ if concurrent writes become bottleneck.
 **Files:** `api/db.js`, `database/schema.sql`
 
@@ -101,9 +101,28 @@
 
 **Problem:** The homepage "MalickLand Assistant" chat widget POSTs to `/api/chat`, but no such route existed on `main`, so the button 404'd in production. Two paths: (A) build the backend, or (B) remove/hide the widget.
 **Decision:** Build the backend (option A). Add a public, per-IP rate-limited, same-origin `POST /api/chat` that reuses the gateway-aware AI plumbing from PR #90 (`resolveAiProvider` + the generalized `requestChat`, surfaced as `generateChatReply`). It routes through the Vercel AI Gateway when `AI_GATEWAY_API_KEY` is set (model `openai/gpt-5.4`, failover `anthropic/claude-haiku-4.5`) and falls back to direct OpenAI otherwise.
-**Reasoning:** The widget is a complete, polished frontend (greeting → Q&A → lead handoff → analytics), and the gateway plumbing was merged specifically to be reused — the backend was the known follow-up to PR #90. Removing a finished feature is the wasteful path. The route is safe-by-default (graceful fallback when no AI key) so it cannot break the Railway auto-deploy.
+**Reasoning:** The widget is a complete, polished frontend (greeting → Q&A → lead handoff → analytics), and the gateway plumbing was merged specifically to be reused — the backend was the known follow-up to PR #90. Removing a finished feature is the wasteful path. The route is safe-by-default (graceful fallback when no AI key) so it cannot break the deployed app when no provider is configured.
 **Brokerage-safety:** A strict server-injected system prompt forbids ROI/appreciation/legal/tax/financing claims and inventing listings/prices; valuations are routed to a CMA from Phil. The client cannot override it — `sanitizeChatMessages()` strips any client-supplied `system` role. This aligns with the WV first-screen disclosure posture and mirrors `buildPrompt` in `ai-generator.js`.
-**Cost control:** Per-IP rate limit (15/min), trimmed history (≤10 turns / ≤6000 chars), capped output (~500 tokens). The endpoint is a no-op cost-wise until `AI_GATEWAY_API_KEY` is set in Railway.
+**Cost control:** Per-IP rate limit (15/min), trimmed history (≤10 turns / ≤6000 chars), capped output (~500 tokens). The endpoint is a no-op cost-wise until `AI_GATEWAY_API_KEY` is set in the production environment.
 **Alternatives considered:** (B) remove the widget — rejected; throws away finished UX and the planned feature. Giving the model live DB/listing context — deferred to a follow-up to keep this change conservative and avoid fabrication risk.
 **Security impact:** Neutral-to-positive — new public endpoint, but defended in depth (same-origin + JSON guards reused from the lead routes, rate limit, prompt-injection stripping, server-controlled prompt, bounded I/O). No new dependencies.
 **Files:** `api/ai-generator.js`, `api/utils/chatAssistant.js`, `api/routes/chat.js`, `api/middleware/rate-limits.js`, `api/server.js`, `scripts/preflight.sh`, `tests/chat-assistant.test.js`, `api/.env.example`
+
+---
+
+## 2026-06-17 — Production truth is VPS/Traefik; Railway is a legacy twin
+
+**Problem:** Repository docs still described Railway as production even after `malickland.net` had moved to a Hostinger VPS. Agents were planning Railway fixes and greenfield VPS work from stale docs, causing confusion and risking production mistakes.
+**Decision:** The canonical production target is the Hostinger VPS at `31.97.58.203`, running Docker Compose behind Traefik. `main` does not auto-deploy; production deploys are manual and require Phil approval plus a Codex GitHub/VPS gate check. Railway remains a legacy twin with a separate database and must be audited before standby or shutdown.
+**Reasoning:** Live DNS, curl, Docker, Git, and Resend delivery checks verified the VPS as current production. Keeping Railway language as production truth is more dangerous than treating it as a legacy audit target.
+**Alternatives:** Continue documenting Railway as production — rejected because it contradicts live runtime truth. Delete all Railway references immediately — rejected because the Railway twin still needs an audit before shutdown.
+**Files:** `README.md`, `ARCHITECTURE.md`, `PROJECT_STATE.md`, `docs/CANONICAL_MAP.md`, `docs/agent-handoff.md`, `docs/RAILWAY_TWIN_AUDIT.md`
+
+---
+
+## 2026-06-17 — Codex owns READY verdicts
+
+**Problem:** Implementing agents reported PRs as ready from point-in-time checks while asynchronous review bots could still add or reopen blocking review threads.
+**Decision:** Implementing agents produce evidence and handoffs. Codex independently verifies GitHub and VPS state and owns the READY / NOT READY verdict. Green CI alone is not ready; zero unresolved non-outdated review threads, correct head SHA, merge state, and VPS state must be checked live.
+**Reasoning:** This reduces handoff churn and makes GitHub plus VPS runtime truth the shared coordination layer.
+**Files:** `AGENTS.md`

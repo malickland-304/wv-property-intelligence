@@ -1,6 +1,6 @@
 # MalickLand — WV Property Intelligence
 
-West Virginia real estate listing platform. Admin panel, public listing pages, photo uploads, AI marketing content, and Google Drive/Gmail integration.
+West Virginia real estate listing platform. Admin panel, public listing pages, photo uploads, AI marketing content, Google Drive backup, and Resend lead notifications.
 
 **Live site:** [malickland.net](https://malickland.net)
 
@@ -15,9 +15,9 @@ West Virginia real estate listing platform. Admin panel, public listing pages, p
 | Database | SQLite via better-sqlite3 |
 | Auth | Session-based (admin panel) + API key (REST) |
 | Images | Local disk + Google Drive backup |
-| Email | Gmail API via OAuth2 |
+| Email | Resend transactional email |
 | AI | OpenAI GPT-4o (listing content generation) |
-| Deploy | Railway (Docker) |
+| Deploy | Hostinger VPS (`31.97.58.203`) + Docker Compose + Traefik |
 
 ---
 
@@ -29,7 +29,7 @@ wv-property-intelligence/
 │   ├── server.js           ← Entry point, middleware, static routes
 │   ├── db.js               ← SQLite connection, schema, migrations, seeding
 │   ├── helpers.js          ← Shared utilities (esc, slugify, etc.)
-│   ├── google.js           ← Gmail + Drive integration (no SDK)
+│   ├── google.js           ← Google Drive integration (no SDK); Gmail code is legacy
 │   ├── ai-generator.js     ← OpenAI listing content engine
 │   ├── db-migrate-ai.js    ← One-time migration script (ai_content columns)
 │   ├── middleware/
@@ -56,7 +56,7 @@ wv-property-intelligence/
 │   └── _template/          ← Folder structure reference
 ├── api/Dockerfile          ← Multi-stage Docker build
 ├── compose.yml             ← Local Docker Compose
-└── railway.json            ← Railway deploy config
+└── railway.json            ← Legacy Railway config (Railway twin remains for audit only)
 ```
 
 ---
@@ -92,7 +92,7 @@ Required to run:
 - `ADMIN_PASSWORD` — admin panel password
 
 Optional integrations:
-- **Gmail notifications:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `GOOGLE_GMAIL_USER`, `NOTIFICATION_EMAIL`
+- **Resend notifications:** `RESEND_API_KEY`, `FROM_EMAIL`, `NOTIFICATION_EMAIL`
 - **Drive photo backup:** `GOOGLE_DRIVE_FOLDER_ID`
 - **AI content generation:** `OPENAI_API_KEY` (optional `OPENAI_MODEL`)
 - **REST API auth:** `API_KEY`
@@ -135,7 +135,7 @@ All require session auth (`/admin/login`).
 | `GET /admin/report/:id` | Comps + due diligence |
 | `GET /admin/ai/:id` | AI content viewer |
 | `POST /admin/ai/:id` | Generate/regenerate AI content |
-| `GET /admin/integrations` | Gmail + Drive status |
+| `GET /admin/integrations` | Integration status |
 
 ---
 
@@ -149,11 +149,13 @@ Cost: ~$0.01–0.03 per listing. Access via **Admin → AI** button on any listi
 
 ---
 
-## Deploy (Railway)
+## Deploy (VPS)
 
-Push to `main` triggers an automated deploy. Railway uses `railway.json` and the multi-stage Docker build in `api/Dockerfile`.
+Production currently runs on the Hostinger VPS at `31.97.58.203` in Docker Compose behind Traefik. The live source checkout is `/docker/wv-property-intelligence/src`; the Compose project reads `/docker/wv-property-intelligence/.env`, builds `api/Dockerfile`, and persists SQLite data on the `wv-property-intelligence_wv-data` Docker volume mounted at `/data`.
 
-For persistent data, create a Railway Volume, mount it at `/data`, and set `DATABASE_PATH=/data/wv_property.db`.
+Merging to `main` does not by itself deploy to the VPS. Production deploys require explicit Phil approval, a final Codex GitHub/VPS gate check, and a manual VPS deploy.
+
+Railway is still reachable as a separate legacy twin and must be audited for any un-migrated leads before shutdown. Do not treat Railway as production truth for `malickland.net`.
 
 ---
 

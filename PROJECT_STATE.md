@@ -1,6 +1,6 @@
 # PROJECT_STATE.md — Malickland 2.0
 
-> **Last verified:** 2026-06-04 (canonical branch `main` @ `a479bfb`; PR #86 merged after PR #84)
+> **Last verified:** 2026-06-17 (canonical branch `main` @ `b9d1198`; PR #97 merged and deployed to VPS)
 > **Authority:** Product completeness and repo workspace truth. Use `docs/CANONICAL_MAP.md` for repo/domain/stack disambiguation. Deployment runbooks and guardrails remain in `docs/agent-handoff.md`.
 
 ---
@@ -11,8 +11,8 @@
 |------|--------|
 | **Active repo** | `/Users/yhyh7/Projects/wv-property-intelligence` |
 | **Remote** | `https://github.com/malickland-304/wv-property-intelligence.git` |
-| **Production branch** | `origin/main` @ `a479bfb` (PR #86 merged 2026-06-04) |
-| **Last merged PR** | #86 codex governance and compliance copy — merged into `main` after PR #84 |
+| **Production branch** | `origin/main` @ `b9d1198` (PR #97 merged 2026-06-17) |
+| **Last merged PR** | #97 Resend lead notifications — merged into `main` after #96 honesty fix |
 
 PR #76 is merged and live; PR #77 is merged on top. Compare future work against `origin/main`, not a stale local `main`.
 
@@ -30,7 +30,7 @@ Local `main` checkout may lag `origin/main`; always `git fetch origin` and compa
 
 ## GitHub / PR status (2026-06-04)
 
-Open pull requests: **0**. Open issue count must be re-checked live in GitHub before acting; this document is not the live issue tracker.
+Open pull requests must be re-checked live in GitHub before acting; this document is not the live issue tracker.
 
 | PR | Status |
 |----|--------|
@@ -42,6 +42,8 @@ Open pull requests: **0**. Open issue count must be re-checked live in GitHub be
 | **#76** (public navigation links fix) | ✅ Merged — `dc8cc53` on `origin/main` (2026-05-31); production smoke passed |
 | **#84** (lead hardening review followups) | ✅ Merged — `48c891d` on `origin/main` (2026-06-01); all required PR checks green before merge |
 | **#86** (governance and compliance copy) | ✅ Merged — `a479bfb` on `origin/main` (2026-06-04) |
+| **#96** (lead pipeline honesty) | ✅ Merged — frontend no longer reports success on failed contact POST |
+| **#97** (Resend lead notifications) | ✅ Merged — `b9d1198` on `origin/main` (2026-06-17); deployed to VPS and end-to-end lead delivery verified |
 | **#77** (Cursor workspace guardrails) | ✅ Merged — `b34e2fb` on `origin/main` (2026-05-31) |
 | **#78** (post-PR76 docs refresh) | ✅ Merged — `0908cd4` on `origin/main` (2026-05-31) |
 
@@ -52,7 +54,7 @@ Open pull requests: **0**. Open issue count must be re-checked live in GitHub be
 | Item | Status |
 |------|--------|
 | Live URL | https://malickland.net |
-| Railway deploy / live smoke | ✅ Latest confirmed live read-only smoke remains 2026-05-31 after PR #76: `/api/health`, `/listings`, `/37-advent`, legacy Advent redirect |
+| Production host / live smoke | ✅ Hostinger VPS `31.97.58.203` behind Traefik; latest confirmed live smoke 2026-06-17: `/api/health` 200 and homepage 200 |
 | Health endpoint | **`GET /api/health`** — not `/health` (mounted in `api/routes/api.js`) |
 | npm audit | ✅ 0 vulnerabilities (verified on fix branch 2026-05-31) |
 | Security test suite | ✅ **52/52** locally on 2026-06-04 (`node tests/verify-security-fixes.test.js`) |
@@ -62,7 +64,7 @@ Open pull requests: **0**. Open issue count must be re-checked live in GitHub be
 | Governance files | ✅ `README.md`, `CONTRIBUTING.md`, `.github/CODEOWNERS`, issue templates, and PR template present |
 | GitHub security queues | ✅ Open code-scanning alerts: 0; Dependabot alerts: 0; secret-scanning alerts: 0 (2026-05-31 API audit) |
 | Remote branches | ✅ Only protected `main` remains on `origin` after stale branch cleanup (2026-05-31) |
-| GitHub environments | Railway deployment statuses use `alert-laughter / production`; `production` and `copilot` environments exist but are not deployment-gating for Railway |
+| GitHub environments | GitHub checks gate merges; VPS deploy is manual and requires Phil approval plus Codex verification |
 
 ---
 
@@ -71,7 +73,7 @@ Open pull requests: **0**. Open issue count must be re-checked live in GitHub be
 | Layer | Choice |
 |-------|--------|
 | **This repo** | Node.js 20 / **Express 5** monolith, **SQLite** (`better-sqlite3`), **vanilla HTML** in `app/` (no frontend build) |
-| **Deploy** | **Railway** + Docker (`api/Dockerfile`), `main` auto-deploys |
+| **Deploy** | **Hostinger VPS** + Docker Compose + Traefik; `main` does not auto-deploy |
 | **Not this product** | The separate **malickland.net Next.js** tree under Documents — different codebase; do not conflate env or deploy |
 | **Not used** | **Supabase**, PostgreSQL, Vercel app router, etc. |
 
@@ -100,11 +102,11 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 | Frontend | Vanilla HTML/JS/CSS (no build step) |
 | Auth | `express-session` (admin) + Bearer API key (REST) |
 | CSRF | `csrf-csrf` v3 (double-submit cookie) |
-| Email | Resend (primary) or Gmail OAuth (fallback) — `api/services/email.js` |
+| Email | Resend single-provider path — `api/services/email.js`; Gmail is not used for lead alerts |
 | SMS | Twilio — `api/services/twilioService.js` (twilio pkg NOT in package.json — feature disabled) |
 | AI | OpenAI GPT-4o via HTTPS — `api/ai-generator.js` |
-| Google | Drive + Gmail via `api/google.js` (raw HTTPS, no googleapis SDK) |
-| Deploy | Railway + Docker (`api/Dockerfile`), branch `main` auto-deploys |
+| Google | Drive via `api/google.js` (raw HTTPS, no googleapis SDK); Gmail remains legacy code only |
+| Deploy | Hostinger VPS + Docker Compose + Traefik; manual deploy after approved merge |
 
 ---
 
@@ -116,7 +118,7 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 - ✅ Admin panel: listing CRUD, photo uploads (with sharp compression), due-diligence notes
 - ✅ AI marketing content generation (GPT-4o, per-listing)
 - ✅ Google Drive photo backup
-- ✅ Gmail contact notification
+- ✅ Resend contact and lead notification
 - ✅ Sitemap + robots.txt
 - ✅ Rate limiting on all public endpoints
 - ✅ CSRF protection on all admin mutating routes
@@ -127,12 +129,13 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 
 ## Incomplete / broken
 
-### 🟡 Follow-up — External lead integrations
+### 🟡 Follow-up — External lead integrations and cleanup
 
 - `api/routes/leads.js` is mounted in `server.js`
 - Public lead/contact POSTs require JSON plus same-origin request headers
 - `api/services/googleSheets.js` is a no-op adapter until real Sheets append support is implemented
 - `twilio` is still optional and not in `package.json`; SMS alerts remain disabled unless that dependency and env are added
+- Railway still serves a legacy twin with a separate DB. Audit it for buried leads before shutdown or standby documentation.
 
 ### 🟢 Test suite — fixed on `main` (PR #73 governance merge)
 
@@ -142,7 +145,7 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 
 ### 🟡 MEDIUM — Services layer undocumented
 
-- `api/services/email.js` (Resend/Gmail), `twilioService.js`, `leadFollowupWorker.js` exist but are thinly documented in env-var lists
+- `api/services/email.js` (Resend), `twilioService.js`, `leadFollowupWorker.js` exist but are thinly documented in env-var lists
 - Env vars: `RESEND_API_KEY`, `FROM_EMAIL`, `NOTIFICATION_EMAIL`, `TWILIO_*`, `LEAD_ALERT_TO_NUMBER` — see `AGENTS.md`
 
 ### 🟢 LOW — OpenHands runtime not activated
@@ -156,7 +159,7 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 
 | Bug | Severity | Notes |
 |-----|----------|-------|
-| leads.js missing deps | High | Not mounted; would crash if mounted |
+| Railway twin separate DB | Medium | Legacy Railway origin remains up and must be audited before standby/shutdown |
 | Stale or wrong Cursor workspace | Ops | Cursor sessions have used `openclaw-system` and stale Documents/GitHub checkouts; reopen Cursor at `/Users/yhyh7/Projects/wv-property-intelligence` and verify `workspace_roots` before production work |
 
 ---
@@ -172,7 +175,7 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 ## Architecture notes
 
 - Routes: `server.js` → `routes/admin.js`, `routes/api.js` (`/api/health`), `routes/public.js`
-- `routes/leads.js` exists but unmounted
+- `routes/leads.js` is mounted behind JSON and same-origin guards
 - Services: `email.js`, `twilioService.js`, `leadFollowupWorker.js`, `leadNotifications.js`
 - Utils: `validators.js`, `propertyMarketing.js`, `sqliteSessionStore.js`
 - DB: `db.js` — SQLite with migrations
@@ -182,7 +185,7 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 
 ## Product roadmap (approved, per AGENTS.md)
 
-- **Phase 0** (current): OpenHands executor validation
+- **Phase 0**: Lead capture and Resend notifications live on VPS (complete 2026-06-17); cleanup/docs in progress
 - **Phase 1**: Document Registry skeleton (SQLite tables) — spec required first
 - **Phase 2**: AI Review Queue
 - **Phase 3**: Drive event automation

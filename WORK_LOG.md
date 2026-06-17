@@ -599,3 +599,41 @@ button 404'd in production. Implemented option (A): a public, rate-limited, same
 
 ### Recommended Next Task
 - Phil: review/approve the PR; if approved and merged, set `AI_GATEWAY_API_KEY` in Railway and smoke `POST /api/chat` on production with a same-origin request.
+
+---
+
+## 2026-06-17 — Codex (GPT-5)
+
+### Objective
+Document the post-Phase-0 production truth and coordination protocol after lead
+notifications were fixed and verified on the Hostinger VPS.
+
+### Changes Made
+- `README.md`, `ARCHITECTURE.md`, `PROJECT_STATE.md`, `docs/CANONICAL_MAP.md`,
+  and `docs/agent-handoff.md` now describe current production as Hostinger VPS
+  `31.97.58.203` running Docker Compose behind Traefik, with Railway retained
+  only as a legacy twin that needs a data audit before standby or shutdown.
+- `AGENTS.md` now records the Codex gatekeeper protocol: implementing agents
+  produce evidence, Codex owns READY / NOT READY verdicts, and production deploy
+  proof requires GitHub plus live VPS verification.
+- `docs/LEAD_PIPELINE_SMOKE.md` added a manual smoke checklist for contact/lead
+  capture, Resend delivery, and safe production proof.
+- `docs/RAILWAY_TWIN_AUDIT.md` added a read-only audit plan for comparing the
+  legacy Railway twin's DB against the VPS before any shutdown decision.
+- `CONTRIBUTING.md`, `TASKS.md`, `DECISIONS.md`, and `SECURITY.md` were updated
+  where stale Railway-production language would mislead future agents.
+
+### Verification (Truthfulness Rule applies)
+- Command: `rg -n "Railway|railway|Gmail|gmail|Resend|VPS|Traefik|auto-deploy|auto deploy|Cloudflare Pages" README.md AGENTS.md ARCHITECTURE.md PROJECT_STATE.md CONTRIBUTING.md TASKS.md DECISIONS.md SECURITY.md docs` → RUN; remaining Railway/Gmail hits are either legacy/historical references or explicit future work.
+- Command: `git diff --check` → PASSED.
+- Command: `rg -n "Cloudflare Pages|Railway deploy|Railway deployment|main auto-deploy|auto-deploys to Railway|Railway as production|Gmail notification|Gmail lead|Gmail \\+ Drive|alert-laughter|AI key in Railway|set .* in Railway|production = Railway" README.md AGENTS.md ARCHITECTURE.md PROJECT_STATE.md CONTRIBUTING.md TASKS.md DECISIONS.md SECURITY.md WORK_LOG.md docs` → RUN; current docs hits are intentional legacy/audit references; remaining stale hits are historical `WORK_LOG.md` entries superseded by this entry.
+
+### Security Notes
+- No production deployment, production data mutation, schema migration, secret readout, or environment variable change performed.
+- No Railway CLI mutation or VPS command was run in this docs-only session.
+
+### Remaining Risks / Requires Human Decision
+1. Railway twin audit still requires authenticated Railway access and Phil's
+   explicit decision on standby vs shutdown after counts are compared.
+2. Lead-pipeline smoke cleanup steps that delete any test rows require explicit
+   Phil approval before mutation.

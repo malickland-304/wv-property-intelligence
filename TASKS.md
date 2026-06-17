@@ -13,7 +13,7 @@
 
 ## High Priority
 
-- [ ] **Public assistant backend (`POST /api/chat`)** — homepage "MalickLand Assistant" widget had no backend (404 in prod). Added a public, per-IP rate-limited, same-origin chat route reusing the PR #90 gateway-aware AI plumbing (`generateChatReply`); strict brokerage-safe system prompt; safe-by-default with no AI key. Acceptance: security suite 52/52, new chat suite 14/14, preflight green (incl. assistant smoke). **Claude Code** — PR open, awaiting Phil review (do not merge without approval); set `AI_GATEWAY_API_KEY` in Railway after merge to enable live replies.
+- [ ] **Public assistant backend (`POST /api/chat`)** — homepage "MalickLand Assistant" widget had no backend (404 in prod). Added a public, per-IP rate-limited, same-origin chat route reusing the PR #90 gateway-aware AI plumbing (`generateChatReply`); strict brokerage-safe system prompt; safe-by-default with no AI key. Acceptance: security suite 52/52, new chat suite 14/14, preflight green (incl. assistant smoke). **Claude Code** — PR open, awaiting Phil review (do not merge without approval); set `AI_GATEWAY_API_KEY` in the VPS environment after merge/deploy approval to enable live replies.
 - [ ] **OpenHands executor activation** — provision fine-grained GitHub token; start executor; run first supervised task — waiting on developer action; Issue #66 is fixed and Issue #65 is closed, so create or pick a current task — **developer action**
 
 ---
@@ -59,6 +59,8 @@
 - [x] GitHub environments audited — Railway deployments report to `alert-laughter / production`; unused `production`/`copilot` environments documented as non-gating — 2026-05-31
 - [x] Issue #85 governance follow-up — added `CONTRIBUTING.md`, `.github/CODEOWNERS`, manual stale-work cadence, and non-mutating smoke guidance — 2026-06-04
 - [x] `docs/agent-handoff.md` refresh — corrected merged PR state, lead-route status, and maintenance notes — 2026-06-04
+- [ ] **Railway twin audit** — legacy Railway origin still serves a separate DB; audit contacts/leads before standby-or-shutdown decision — see `docs/RAILWAY_TWIN_AUDIT.md`
+- [ ] **Lead pipeline smoke checklist** — use `docs/LEAD_PIPELINE_SMOKE.md` after lead deploys or delivery incidents
 - [x] `brace-expansion` patched, `cookie` transitive vuln contained
 - [x] Create PROJECT_STATE.md, TASKS.md, DECISIONS.md, QA_CHECKLIST.md — 2026-05-27 (Claude Code)
 - [x] Create ARCHITECTURE.md, WORK_LOG.md — 2026-05-27 (Claude Code)

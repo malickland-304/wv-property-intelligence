@@ -1,18 +1,21 @@
 # CANONICAL_MAP.md — MalickLand Production Map
 
-> Last verified: 2026-05-31 by Codex using local git state plus read-only DNS/curl probes.
+> Last verified: 2026-06-17 by Codex using read-only DNS/curl, GitHub, and VPS probes.
 > Use this file to prevent repo, domain, and stack confusion before touching MalickLand production work.
 
 ## Canonical Truth
 
 | Layer | Current truth | Evidence |
 |-------|---------------|----------|
-| Live domain | `https://malickland.net` | DNS resolves to `66.33.22.228`; responses are served by Railway |
-| Production stack | Express 5 monolith: `api/` JSON + `app/` static HTML | `railway.toml`, `api/Dockerfile`, `api/server.js`, live `/api/health` |
+| Live domain | `https://malickland.net` | DNS resolves to `31.97.58.203`; responses are served by the Hostinger VPS |
+| Production stack | Express 5 monolith: `api/` JSON + `app/` static HTML, Docker Compose, Traefik, Let's Encrypt | `/docker/wv-property-intelligence/compose.yml`, `api/Dockerfile`, `api/server.js`, live `/api/health` |
 | Production repo | `malickland-304/wv-property-intelligence` | `origin` in `/Users/yhyh7/Projects/wv-property-intelligence` |
-| Production branch | `origin/main` | `origin/main` at `b34e2fb` on 2026-05-31 (PR #77 merged after PR #76) |
+| Production branch | `origin/main` | `origin/main` at `b9d1198` on 2026-06-17 (PR #97 merged) |
 | Canonical local checkout | `/Users/yhyh7/Projects/wv-property-intelligence` | Use this checkout only; run `git fetch origin --prune` and compare against `origin/main` before work |
-| Health URL | `https://malickland.net/api/health` | Live probe returned 200 JSON on 2026-05-31 |
+| Health URL | `https://malickland.net/api/health` | Live probe returned 200 JSON on 2026-06-17 |
+| Production data | SQLite on Docker volume `wv-property-intelligence_wv-data` mounted at `/data` | VPS container `wv-property-intelligence` |
+| Lead notifications | Resend from `noreply@updates.malickland.net` to `phil@malickland.net` | PR #97, VPS startup `Resend configured: true`, Resend delivery logs confirmed delivered test messages |
+| Legacy twin | Railway origin `https://wv-property-intelligence-production.up.railway.app` | Separate DB; audit before standby/shutdown decision |
 | Not production | `malickland-304/malickland.net` | Separate dirty Next.js checkout under Documents; live site is not serving Next.js routes |
 | Not deployed | `listing-system/workers/` | Cloudflare Worker config is experimental/template-level and must not be deployed to apex without an architecture decision |
 | Separate project | `malickland.cloud` | OpenClaw/trading infrastructure; not the MalickLand real estate website |
@@ -61,7 +64,7 @@ Purpose:
 | `/Users/yhyh7/Documents/GitHub/wv-property-intelligence` | Stale clone from earlier consolidation work |
 | `/Users/yhyh7/Documents/Documents - Philip's MacBook Pro - 4/GitHub/malickland.net` | Separate Next.js experiment/prototype, not current production |
 | `/Users/yhyh7/Projects/wv-realestate` | Empty/dead checkout at last verification |
-| `listing-system/workers/` | Experimental Worker path that would conflict with Railway apex routes if deployed blindly |
+| `listing-system/workers/` | Experimental Worker path that would conflict with VPS/Traefik apex routes if deployed blindly |
 
 ## Guardrails
 
@@ -70,8 +73,10 @@ Purpose:
 3. Health is `/api/health`, not `/health`.
 4. Do not edit the Next.js `malickland.net` repo for production fixes unless a documented architecture decision changes the production stack.
 5. Do not run `wrangler deploy` for `listing-system/workers/` without explicit human approval and a recorded route-ownership decision.
-6. Before claiming production deployment, verify Railway or run read-only live smoke checks.
+6. Before claiming production deployment, verify GitHub `origin/main`, live VPS SHA, container health, and read-only live smoke checks.
 
 ## Known Follow-Up
 
-The homepage links `/wv/hampshire-county`, `/wv/hardy-county`, and other county routes, but no matching static pages or Express route currently exists. Track this separately from the public navigation repair.
+Known follow-ups:
+- Audit the Railway twin database for any leads not present on the VPS before deciding standby vs shutdown.
+- Keep `docs/LEAD_PIPELINE_SMOKE.md` current with the manual post-deploy lead verification path.

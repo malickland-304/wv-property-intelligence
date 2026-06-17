@@ -1,6 +1,6 @@
 # ARCHITECTURE.md — Malickland 2.0
 > Agents must not substantially redesign any section without satisfying the Architectural Stability Rule in AGENTS.md.
-> Last verified: 2026-05-27
+> Last verified: 2026-06-17
 
 ---
 
@@ -14,20 +14,20 @@
 
 | Layer | Choice | Rationale |
 |-------|--------|-----------|
-| Runtime | Node.js 20 LTS | Railway-compatible, long-term support |
+| Runtime | Node.js 20 LTS | Long-term support; runs in Docker on VPS |
 | Framework | Express 5 | Active development, async error handling |
 | Database | SQLite via `better-sqlite3` | Zero infrastructure overhead, sufficient for current scale, synchronous API simplifies code |
 | Session store | `better-sqlite3-session-store` | Collocated with main DB; no Redis needed |
 | Auth | `express-session` (admin) + Bearer API key (REST) | Session for interactive admin; API key for programmatic access |
 | CSRF | `csrf-csrf` v3 (double-submit cookie) | Replaced deprecated `csurf`; session-bound via `req.sessionID` |
 | Security | `helmet`, `cors`, `express-rate-limit` | Defense in depth |
-| Email | Resend API (primary) / Gmail OAuth2 (fallback) | Resend: zero OAuth setup; Gmail: existing integration |
+| Email | Resend API | Single transactional provider for lead notifications |
 | SMS | Twilio (optional, feature-flagged) | `twilio` pkg NOT in package.json; feature disabled until leads system complete |
 | AI | OpenAI GPT-4o via raw HTTPS | No SDK — reduces dep surface |
 | Google APIs | Raw HTTPS (no `googleapis` SDK) | Fewer deps, smaller attack surface |
 | Images | `sharp` for compression | On-upload processing: 1200px/85q web, 1024px/80q MLS |
 | Frontend | Vanilla HTML/JS/CSS | No build step; zero bundler complexity |
-| Deploy | Railway + Docker (`api/Dockerfile`) | `main` branch auto-deploys via Railway webhook |
+| Deploy | Hostinger VPS + Docker Compose + Traefik | Manual deploy from `main` after approval and Codex gate |
 | CI | GitHub Actions | CodeQL, Semgrep, preflight.yml |
 
 ---
@@ -40,7 +40,7 @@ wv-property-intelligence/
 │   ├── server.js               ← Entry point: middleware composition + route mounting
 │   ├── db.js                   ← SQLite connection, CREATE TABLE, migrations, seed
 │   ├── helpers.js              ← normalizeAcreage, isSafePathComponent, safeListingPath, slugify, esc
-│   ├── google.js               ← Gmail (send) + Drive (upload) via raw HTTPS
+│   ├── google.js               ← Drive upload via raw HTTPS; Gmail code is legacy only
 │   ├── ai-generator.js         ← GPT-4o content generation, per-listing cache
 │   ├── db-migrate-ai.js        ← DB migration script for AI columns
 │   ├── Dockerfile              ← Multi-stage build
@@ -53,9 +53,9 @@ wv-property-intelligence/
 │   │   ├── admin.js            ← All /admin/* routes (624 LOC)
 │   │   ├── api.js              ← All /api/* routes (227 LOC)
 │   │   ├── public.js           ← robots.txt, sitemap.xml, /listing/:id, /properties/:id
-│   │   └── leads.js            ← Lead capture routes (NOT MOUNTED — missing deps)
+│   │   └── leads.js            ← Lead capture routes
 │   ├── services/
-│   │   ├── email.js            ← Transactional email (Resend primary, Gmail fallback)
+│   │   ├── email.js            ← Transactional email (Resend)
 │   │   ├── leadNotifications.js ← Lead alert + auto-reply email
 │   │   ├── leadFollowupWorker.js ← Lead follow-up scheduling
 │   │   └── twilioService.js    ← SMS alerts (disabled — twilio not in package.json)
@@ -205,15 +205,19 @@ CSRF: double-submit cookie via `csrf-csrf`. Applied to all mutating `/admin/*` r
 
 ```
 GitHub main branch
-    → Railway webhook → Docker build (api/Dockerfile)
-    → Container start: node server.js
-    → Railway persistent volume: DATABASE_PATH (/data/wv_property.db)
-    → Railway env vars: all secrets injected at runtime
+    → Phil approval + Codex GitHub/VPS gate
+    → manual VPS deploy from /docker/wv-property-intelligence/src
+    → Docker Compose build using api/Dockerfile
+    → Traefik routes malickland.net/www.malickland.net to container port 3000
+    → Docker volume wv-property-intelligence_wv-data mounted at /data
+    → env_file /docker/wv-property-intelligence/.env injects runtime secrets
 ```
 
-- **Cloudflare** is the DNS/SSL/security layer in front of Railway — handles DNS, TLS termination, and edge-level protection (DDoS, bot filtering). It is not a deployment platform; the application runs on Railway.
+- **Traefik** terminates TLS via Let's Encrypt and routes the live apex on the VPS.
+- **Cloudflare** manages DNS, including Resend DNS records for `updates.malickland.net`.
+- **Railway** still serves a legacy twin with a separate database. It is not current production truth and must be audited before shutdown.
 - No application CDN, no load balancer, no Redis, no external database
-- Photos stored on Railway persistent volume at `listings/` path
+- Photos and SQLite data are persisted on the VPS Docker volume at `/data`
 - Single-process Node.js — no clustering
 
 ---

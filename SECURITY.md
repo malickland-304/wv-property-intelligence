@@ -39,7 +39,7 @@ Reports in **English** are preferred.
 
 ---
 
-## Operational Security — Railway CLI
+## Operational Security — Railway CLI (Legacy Twin)
 
 The `railway variables` CLI command exposes **all environment variable values verbatim** in terminal output, including production secrets (`SESSION_SECRET`, `ADMIN_PASSWORD`, `API_KEY`, `RESEND_API_KEY`, `OPENAI_API_KEY`, Google OAuth tokens, and Twilio credentials).
 
@@ -48,6 +48,6 @@ The `railway variables` CLI command exposes **all environment variable values ve
 - CI logs or GitHub Actions output
 - Any environment where terminal output may be captured or retained
 
-**Use the Railway dashboard instead** (`app.railway.app`) to view or modify production environment variables. Dashboard access is authenticated and does not expose secrets in logs.
+**Use the Railway dashboard instead** (`app.railway.app`) for the legacy Railway twin audit. Dashboard access is authenticated and does not expose secrets in logs.
 
 This restriction applies to all agents and human operators with Railway access. Any agent that runs `railway variables` and captures its output must treat the session as potentially compromised and stop immediately per the AGENTS.md Autonomous Safety Stop Rule.
