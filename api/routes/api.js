@@ -6,7 +6,7 @@ const crypto  = require('crypto');
 const { db }              = require('../db');
 const { requireApiKey }   = require('../middleware/auth');
 const { contactsRateLimit, publicReadRateLimit, generateDescRateLimit, apiWriteRateLimit } = require('../middleware/rate-limits');
-const { sendContactEmail } = require('../google');
+const { sendLeadNotification } = require('../services/email');
 const { isValidEmail, normalizeAcreage, slugify, VALID_PROP_TYPES, VALID_PROP_STATUSES } = require('../helpers');
 const { publicListingsEnabled } = require('../featureFlags');
 
@@ -113,7 +113,7 @@ router.post('/contacts', contactsRateLimit, (req, res) => {
                   FROM properties p LEFT JOIN counties c ON c.id=p.county_id
                   WHERE p.id=?`).get(property_id)
     : null;
-  sendContactEmail({ name, email, phone, message: combinedMessage, source }, property)
+  sendLeadNotification({ name, email, phone, message: combinedMessage, source }, property)
     .then((sent) => {
       if (!sent) {
         console.warn(`[Contacts] Lead #${result.lastInsertRowid} CAPTURED but NOT notified — email provider unconfigured or send failed.`);

@@ -1,6 +1,6 @@
 'use strict';
 
-const { hasGmailConfig, sendTextEmail } = require('../google');
+const { isEmailConfigured, sendMail } = require('./email');
 const { leadTypeLabel } = require('../utils/validators');
 
 function getNotificationEmail() {
@@ -8,12 +8,12 @@ function getNotificationEmail() {
 }
 
 function isLeadEmailConfigured() {
-  return Boolean(getNotificationEmail() && hasGmailConfig());
+  return Boolean(getNotificationEmail() && isEmailConfigured());
 }
 
 async function sendLeadNotificationEmail(lead) {
   const to = getNotificationEmail();
-  if (!to || !hasGmailConfig()) return false;
+  if (!to || !isEmailConfigured() || !lead) return false;
 
   const bodyText = [
     `New ${leadTypeLabel(lead.lead_type)} lead`,
@@ -37,24 +37,25 @@ async function sendLeadNotificationEmail(lead) {
     lead.message || '(no message)',
   ].join('\n');
 
-  return sendTextEmail({
+  return sendMail({
     to,
     subject: `New ${leadTypeLabel(lead.lead_type)} lead: ${lead.name}`,
-    bodyText,
+    text: bodyText,
     replyTo: lead.email || undefined,
   });
 }
 
 async function sendLeadAutoReplyEmail(lead, followUps = []) {
-  if (!lead.email || !hasGmailConfig()) return false;
+  if (!lead || !lead.email || !isEmailConfigured()) return false;
 
   const immediate = followUps[0];
   if (!immediate) return false;
 
-  return sendTextEmail({
+  return sendMail({
     to: lead.email,
     subject: immediate.subject,
-    bodyText: immediate.body,
+    text: immediate.body,
+    replyTo: getNotificationEmail() || undefined, // buyer replies reach Phil, not noreply@
   });
 }
 
