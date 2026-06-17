@@ -599,3 +599,36 @@ button 404'd in production. Implemented option (A): a public, rate-limited, same
 
 ### Recommended Next Task
 - Phil: review/approve the PR; if approved and merged, set `AI_GATEWAY_API_KEY` in Railway and smoke `POST /api/chat` on production with a same-origin request.
+
+---
+
+## 2026-06-17 — Claude Code (Opus 4.8)
+
+### Objective
+Execute the agreed post-Phase-0 order: (1) docs PR correcting production truth to the Hostinger VPS, (2) add the Codex gatekeeper protocol to AGENTS.md, (3) add a manual lead-pipeline smoke checklist, (4) Railway twin audit, (5) rotate the weak VPS `ADMIN_PASSWORD`.
+
+### Changes Made
+- **PR #98** (`docs/vps-production-truth`) — docs-only, 3 commits:
+  - production-truth truth-up across README, ARCHITECTURE, CONTEXT, PROJECT_STATE, QA_CHECKLIST, AGENTS, CONTRIBUTING, SECURITY, `docs/CANONICAL_MAP.md`, `docs/agent-handoff.md`, `.openhands/instructions.md` — Railway → Hostinger VPS (Docker+Traefik); deploy is **MANUAL** (merge ≠ deploy). Appended a 2026-06-17 migration entry to `DECISIONS.md` (rollback = Railway twin on standby); added a Railway decommission task to `TASKS.md`.
+  - `AGENTS.md` — replaced the stale "External Assistant / Codex Handoff Protocol" with the **Codex gatekeeper protocol** (READY criteria, CLAUDE HANDOFF + Codex VERDICT formats, live-verify commands incl. VPS deploy-SHA).
+  - new `docs/SMOKE_CHECKLIST.md` (lead capture → Resend → delivered, with required test-row cleanup); referenced from QA_CHECKLIST + agent-handoff.
+- **Prod ops (VPS — not a repo change):** rotated the weak `ADMIN_PASSWORD` in `/docker/wv-property-intelligence/.env` (28-char random alnum) + `docker compose up -d --force-recreate`. Backup `.env.bak-adminpw-20260617` (perms 600) retained for rollback. New password delivered to Phil out-of-band (not recorded here).
+
+### Verification (Truthfulness Rule applies)
+- Live prod (SSH + DNS + curl, 2026-06-17): `GET /api/health` → 200 served by `31.97.58.203`; container `wv-property-intelligence:vps` healthy; VPS `src` HEAD == `origin/main` == `b9d1198`; Traefik routers `Host(malickland.net)||Host(www.malickland.net)` → `:3000`; apex A → `31.97.58.203`; volume `wv-property-intelligence_wv-data` → `/data`.
+- Smoke-checklist routes/env/log strings checked against source (`api/routes/api.js`, `api/services/email.js`, `api/server.js`).
+- PR #98 checks: **9/9 PASS** (CodeQL, CodeQL-JS, Semgrep, Sourcery, verify, check, CodeScan, validate-api-docs, Analyze-actions); `mergeable`; `mergeStateStatus=BLOCKED` (awaiting Codex VERDICT + Phil approval). NOT merged.
+- ADMIN_PASSWORD rotation: after force-recreate → container healthy ~9s, `/api/health` 200; live `POST /admin/login` new password → **302** (success), wrong password → **200/Incorrect** (negative control). Auto-rollback guard armed (restore backup on non-302) — not triggered.
+
+### Security Notes
+- No secret values printed or committed. `.env` not echoed; only key presence/length checked. New admin password handed to Phil directly, not stored in the repo or this ledger.
+- No code changed → the docs PR cannot affect runtime. Only prod change = the approved, reversible ADMIN_PASSWORD rotation.
+- Per `SECURITY.md`, the Railway twin still holds a copy of the OLD weak `ADMIN_PASSWORD` — retire/rotate it as part of the Railway decommission.
+
+### Remaining Risks / Requires Human Decision
+1. **PR #98** — awaiting Codex `VERDICT: READY` + Phil merge. Docs-only; no deploy intended (VPS stays `b9d1198`).
+2. **Railway twin audit (Task 4)** — blocked on `railway login` (CLI token expired). Phil runs `railway login`; then audit the old DB for pre-migration leads → standby-vs-shutdown.
+3. **Backup hygiene** — `.env.bak-adminpw-20260617` (old weak password, root-only) — delete once Phil confirms the new password is saved/working.
+
+### Recommended Next Task
+- Phil: save the new admin password; run `railway login` to unblock the twin audit. Then Codex verifies PR #98 → Phil merges → (optional) manual VPS deploy of docs → Railway standby/shutdown decision.
