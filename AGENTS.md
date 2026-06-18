@@ -249,6 +249,7 @@ Set in the production environment — the Hostinger VPS `.env` at `/docker/wv-pr
 - `ADMIN_PASSWORD`
 - `API_KEY`
 - `DATABASE_PATH`
+- `LISTINGS_ROOT`
 
 **OpenAI:**
 - `OPENAI_API_KEY`

@@ -213,7 +213,7 @@ Manual deploy (operator, SSH):
     git -C /docker/wv-property-intelligence/src checkout <sha>
     → docker compose build (image wv-property-intelligence:vps, api/Dockerfile)
     → docker compose up -d  → container `wv-property-intelligence`, node server.js, internal :3000
-    → Docker named volume wv-property-intelligence_wv-data → /data (DATABASE_PATH=/data/wv_property.db)
+    → Docker named volume wv-property-intelligence_wv-data → /data (DATABASE_PATH=/data/wv_property.db, LISTINGS_ROOT=/data/listings)
     → secrets from /docker/wv-property-intelligence/.env
 
 Request path:
@@ -225,7 +225,7 @@ Request path:
 - The compose file (`/docker/wv-property-intelligence/compose.yml`) lives on the VPS and also runs the test host `Host(wv-test.malickland.cloud)`.
 - The old **Railway** service (`alert-laughter` / `wv-property-intelligence`) is no longer the live target — DNS bypasses it. It is on standby pending a decommission decision; `railway.json` is retained only for that twin.
 - No application CDN, no load balancer, no Redis, no external database
-- ⚠️ **Photo persistence gap:** uploaded photos are written to the container's `listings/` path, which is **not** on a persistent volume in the current VPS compose (only `wv-data` → `/data` is). They do **not** survive a redeploy / `--force-recreate`. (Railway previously used a persistent volume for this.) Google Drive (`api/google.js`) is the intended durable media authority — confirm it is configured on the VPS, and/or add a volume/bind for `listings/`, before relying on local uploads surviving a deploy. Tracked in `TASKS.md`. (S3+CDN is the longer-term upgrade path.)
+- Uploaded photos use `LISTINGS_ROOT` (default: repo `listings/`). On the VPS, set `LISTINGS_ROOT=/data/listings` so admin uploads are stored on the existing persistent Docker volume and continue serving through `/images/*`. Google Drive (`api/google.js`) remains the off-box media backup path; S3+CDN is the longer-term upgrade path.
 - Single-process Node.js — no clustering
 
 ---

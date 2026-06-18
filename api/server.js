@@ -19,6 +19,7 @@ const apiRoutes    = require('./routes/api');
 const createLeadsRouter = require('./routes/leads');
 const createChatRouter = require('./routes/chat');
 const publicRoutes = require('./routes/public');
+const { LISTINGS_ROOT } = require('./helpers');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -145,7 +146,7 @@ const adminSession = session({
     secure:   process.env.NODE_ENV === 'production',
   },
 });
-app.use('/images', express.static(path.join(PROJECT_ROOT, 'listings')));
+app.use('/images', express.static(LISTINGS_ROOT));
 
 // CSRF: doubleCsrfProtection (csrf-csrf) guards all non-login admin routes.
 // cookieParser scoped here only — not applied globally.

@@ -160,7 +160,7 @@ git -C /docker/wv-property-intelligence/src checkout <sha>
 cd /docker/wv-property-intelligence && docker compose build && docker compose up -d
 ```
 
-Persistent data lives on the Docker named volume `wv-property-intelligence_wv-data`, mounted at `/data` (`DATABASE_PATH=/data/wv_property.db`). Secrets are set in `/docker/wv-property-intelligence/.env` (not in the repo).
+Persistent data lives on the Docker named volume `wv-property-intelligence_wv-data`, mounted at `/data`. Set both `DATABASE_PATH=/data/wv_property.db` and `LISTINGS_ROOT=/data/listings` in `/docker/wv-property-intelligence/.env` so admin photo uploads survive rebuilds and `docker compose up -d --force-recreate`. Secrets are set in that `.env` file, not in the repo.
 
 > The old Railway service (`alert-laughter` / `wv-property-intelligence`) is no longer the live target — apex DNS points at the VPS. `railway.json` is retained only for the dormant twin, pending a decommission decision. See `docs/CANONICAL_MAP.md` for the full production map.
 
