@@ -764,3 +764,31 @@ Apply the State Ledger Rule (#104): verify the one actionable open gate — the 
 1. Funnel packet publish (Squarespace `/start`, PDF lead-magnet, welcome emails) — owner Phil.
 2. Optional alternate marketing/footer wording from Sheila — only if different from the current live-aligned block (not blocking).
 3. Railway hard-delete + `railway.json` removal after the 30-90 day retention window — owner Phil.
+
+---
+
+## 2026-06-18 — Codex (GPT-5) — Agent triage protocol
+
+### Objective
+Turn the anti-loop framework into an executable triage path so Phil does not have to copy/paste status between agents.
+
+### Changes Made
+- `scripts/agent-triage.sh` — added a read-only command that prints resolved facts, open gates, local git state, open GitHub PRs, live production health, and the question rule.
+- `docs/AGENT_TRIAGE_PROTOCOL.md` — added the durable cross-agent triage protocol and Squarespace authentication boundary.
+- `AGENTS.md` — made the triage command mandatory before asking Phil to relay another agent's status.
+- `PROJECT_STATE.md` — added the triage entrypoint to the state ledger.
+- `TASKS.md` — marked the agent triage protocol complete.
+
+### Verification (Truthfulness Rule applies)
+- Command: `git diff --check` → Result: PASSED.
+- Command: `bash -n scripts/agent-triage.sh` → Result: PASSED.
+- Command: `bash scripts/agent-triage.sh` → Result: PASSED; printed resolved facts/open gates, local git state, GitHub open PRs (0 after #106 merged), and live production `/api/health` + `/api/config`.
+
+### Security Notes
+- The triage script is read-only and uses public GitHub API reads plus public production health/config endpoints. It does not read secrets, mutate GitHub, mutate production, or deploy.
+
+### Remaining Risks
+- This protocol cannot make Claude and Codex share private chat state directly. It prevents relay loops by forcing agents to read durable repo/GitHub/live state first.
+
+### Recommended Next Task
+Open a small PR against current `origin/main` so every future agent has the executable triage entrypoint.
