@@ -1535,6 +1535,21 @@ document.getElementById('leadModal').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
 });
 
+// ---- HTML SAFETY ----
+function esc(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function jsArg(str) {
+  return esc(JSON.stringify(String(str == null ? '' : str)));
+}
+
 // ---- FORM SUBMISSION ----
 async function submitForm(form, successId) {
   const data = {};
@@ -1586,7 +1601,7 @@ function featureBadges(featStr) {
   if (!badges.length) return '';
   return `<div class="card-features">${badges.map(f => {
     const icon = Object.entries(FEATURE_ICONS).find(([k]) => f.toLowerCase().includes(k.toLowerCase()));
-    return `<span class="card-feat">${icon ? icon[1]+' ' : ''}${f}</span>`;
+    return `<span class="card-feat">${icon ? icon[1]+' ' : ''}${esc(f)}</span>`;
   }).join('')}</div>`;
 }
 
@@ -1611,35 +1626,41 @@ async function loadListings() {
     }
     grid.innerHTML = props.slice(0, 6).map(p => {
       const isLand = p.property_type === 'land';
+      const address = esc(p.address);
+      const city = esc(p.city);
+      const county = esc(p.county);
       const imgHtml = p.image_url
-        ? `<img src="${p.image_url}" alt="${p.address}" loading="lazy" />`
+        ? `<img src="${esc(p.image_url)}" alt="${address}" loading="lazy" />`
         : `<span style="font-size:3.5rem">${isLand ? '🌲' : '🏡'}</span>`;
       const price = p.price ? `$${Number(p.price).toLocaleString()}` : 'Contact for Price';
       // Land: acreage first; Home: beds/sqft first
       let primaryDetail = '';
       let secondaryLine = '';
       if (isLand) {
-        primaryDetail = p.lot_acres ? `<strong>${p.lot_acres} acres</strong>` : '';
+        primaryDetail = p.lot_acres ? `<strong>${esc(p.lot_acres)} acres</strong>` : '';
         if (p.price && p.lot_acres) secondaryLine = `<div class="card-ppa">$${Math.round(p.price/p.lot_acres).toLocaleString()}/acre</div>`;
       } else {
-        primaryDetail = [p.bedrooms ? `${p.bedrooms} bd` : '', p.bathrooms ? `${p.bathrooms} ba` : '', p.sqft ? `${Number(p.sqft).toLocaleString()} sqft` : ''].filter(Boolean).join(' · ');
+        primaryDetail = [
+          p.bedrooms ? `${esc(p.bedrooms)} bd` : '',
+          p.bathrooms ? `${esc(p.bathrooms)} ba` : '',
+          p.sqft ? `${Number(p.sqft).toLocaleString()} sqft` : ''
+        ].filter(Boolean).join(' · ');
       }
-      const detailSlug = p.listing_slug || p.id;
       return `
       <div class="card">
         <div class="card-img">
           ${imgHtml}
-          <span class="card-county">${p.county || ''} County</span>
+          <span class="card-county">${county} County</span>
         </div>
         <div class="card-body">
-          <div class="card-type">${isLand ? '🌲 Land' : '🏡 '+((p.property_type||'Home').replace(/-/g,' '))}</div>
-          <div class="card-address">${p.address}${p.city ? ', ' + p.city : ''}</div>
-          <div class="card-price">${price}</div>
+          <div class="card-type">${isLand ? '🌲 Land' : '🏡 '+esc((p.property_type||'Home').replace(/-/g,' '))}</div>
+          <div class="card-address">${address}${city ? ', ' + city : ''}</div>
+          <div class="card-price">${esc(price)}</div>
           ${primaryDetail ? `<div class="card-details">${primaryDetail}</div>` : ''}
           ${secondaryLine}
           ${featureBadges(p.features)}
-          ${p.driveTimes ? `<div style="font-size:.75rem;color:#6b7280;margin-bottom:.6rem">🚗 ${p.driveTimes.dc} to DC · ${p.driveTimes.balt} to Baltimore</div>` : ''}
-          <a href="#" class="card-btn" onclick="event.preventDefault();showPropertyModal('${p.id}')">View Details →</a>
+          ${p.driveTimes ? `<div style="font-size:.75rem;color:#6b7280;margin-bottom:.6rem">🚗 ${esc(p.driveTimes.dc)} to DC · ${esc(p.driveTimes.balt)} to Baltimore</div>` : ''}
+          <a href="#" class="card-btn" onclick="event.preventDefault();showPropertyModal(${jsArg(p.id)})">View Details →</a>
         </div>
       </div>`;
     }).join('');
@@ -1663,53 +1684,72 @@ async function showPropertyModal(id) {
   overlay.style.display = 'flex';
 
   try {
-    const p = await fetch(`/api/properties/${id}`).then(r => r.json());
+    const p = await fetch(`/api/properties/${encodeURIComponent(id)}`).then(r => r.json());
     pixelEvent('ViewContent', { content_type: 'property', content_ids: [id], value: p.price, currency: 'USD' });
     if (window.gtag) gtag('event', 'view_item', { item_id: id, price: p.price });
     const addr = encodeURIComponent(`${p.address}${p.city?', '+p.city:''}, WV${p.zip?' '+p.zip:''}`);
     const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${addr}`;
     const satUrl  = `https://www.google.com/maps/@?api=1&map_action=map&basemap=satellite&q=${addr}`;
+    const address = esc(p.address);
+    const city = esc(p.city);
+    const county = esc(p.county);
+    const zip = esc(p.zip);
+    const propertyType = esc(p.property_type);
+    const description = esc(p.description);
+    const lotAcres = esc(p.lot_acres);
+    const bedrooms = esc(p.bedrooms);
+    const bathrooms = esc(p.bathrooms);
+    const yearBuilt = esc(p.year_built);
+    const roadAccess = esc(p.road_access);
+    const broadbandType = esc(p.broadband_type);
+    const waterFeatures = esc(p.water_features);
+    const mineralRights = esc(p.mineral_rights);
+    const nearestTown = esc(p.nearest_town);
+    const milesToTown = esc(p.miles_to_town);
+    const parcelId = esc(p.parcel_id);
+    const listingSlug = esc(p.listing_slug);
+    const price = p.price ? `$${Number(p.price).toLocaleString()}` : 'Contact for Price';
     overlay.innerHTML = `
       <div style="background:#fff;border-radius:14px;max-width:680px;width:100%;max-height:90vh;overflow-y:auto;position:relative;">
         <button onclick="document.getElementById('propModal').style.display='none'"
           style="position:absolute;top:.75rem;right:.75rem;background:#1B4332;color:#fff;border:none;border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer;z-index:1">✕</button>
-        ${p.image_url ? `<img src="${p.image_url}" alt="${p.address}" style="width:100%;max-height:300px;object-fit:cover;border-radius:14px 14px 0 0">` : ''}
+        ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${address}" style="width:100%;max-height:300px;object-fit:cover;border-radius:14px 14px 0 0">` : ''}
         <div style="padding:1.5rem">
-          <h2 style="font-size:1.9rem;font-weight:900;color:#0a0a0a;margin-bottom:.25rem">$${Number(p.price).toLocaleString()}</h2>
-          <p style="color:#555;margin-bottom:.75rem">${p.address}${p.city?', '+p.city:''}, ${p.county} County${p.zip?' '+p.zip:''}</p>
+          <h2 style="font-size:1.9rem;font-weight:900;color:#0a0a0a;margin-bottom:.25rem">${esc(price)}</h2>
+          <p style="color:#555;margin-bottom:.75rem">${address}${city?', '+city:''}, ${county} County${zip?' '+zip:''}</p>
           <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:.9rem">
-            <span style="background:#1B4332;color:#D4AF37;padding:.35rem .75rem;border-radius:6px;font-size:.82rem;font-weight:700">${p.property_type==='land'?'🌲 Land':'🏡 '+p.property_type}</span>
-            ${p.lot_acres ? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem;font-weight:700">🌿 ${p.lot_acres} acres</span>`:''}
+            <span style="background:#1B4332;color:#D4AF37;padding:.35rem .75rem;border-radius:6px;font-size:.82rem;font-weight:700">${p.property_type==='land'?'🌲 Land':'🏡 '+propertyType}</span>
+            ${p.lot_acres ? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem;font-weight:700">🌿 ${lotAcres} acres</span>`:''}
             ${p.price && p.lot_acres ? `<span style="background:#f9f6f0;padding:.35rem .75rem;border-radius:6px;font-size:.82rem;color:#666">$${Math.round(p.price/p.lot_acres).toLocaleString()}/acre</span>`:''}
-            ${p.bedrooms  ? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem">🛏 ${p.bedrooms} bd</span>`:''}
-            ${p.bathrooms ? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem">🚿 ${p.bathrooms} ba</span>`:''}
+            ${p.bedrooms  ? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem">🛏 ${bedrooms} bd</span>`:''}
+            ${p.bathrooms ? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem">🚿 ${bathrooms} ba</span>`:''}
             ${p.sqft      ? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem">📐 ${Number(p.sqft).toLocaleString()} sqft</span>`:''}
-            ${p.year_built? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem">🏗 ${p.year_built}</span>`:''}
+            ${p.year_built? `<span style="background:#f3f4f6;padding:.35rem .75rem;border-radius:6px;font-size:.85rem">🏗 ${yearBuilt}</span>`:''}
           </div>
-          ${p.features ? `<div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.9rem">${p.features.split(',').map(f=>f.trim()).filter(Boolean).map(f=>{const icon=Object.entries(FEATURE_ICONS).find(([k])=>f.toLowerCase().includes(k.toLowerCase()));return `<span style="background:#f0fdf4;border:1px solid #bbf7d0;padding:.25rem .6rem;border-radius:20px;font-size:.78rem;color:#166534">${icon?icon[1]+' ':''}${f}</span>`;}).join('')}</div>`:''}
-          ${p.description ? `<p style="color:#444;line-height:1.65;margin-bottom:1rem;font-size:.93rem">${p.description}</p>` : ''}
+          ${p.features ? `<div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.9rem">${p.features.split(',').map(f=>f.trim()).filter(Boolean).map(f=>{const icon=Object.entries(FEATURE_ICONS).find(([k])=>f.toLowerCase().includes(k.toLowerCase()));return `<span style="background:#f0fdf4;border:1px solid #bbf7d0;padding:.25rem .6rem;border-radius:20px;font-size:.78rem;color:#166534">${icon?icon[1]+' ':''}${esc(f)}</span>`;}).join('')}</div>`:''}
+          ${p.description ? `<p style="color:#444;line-height:1.65;margin-bottom:1rem;font-size:.93rem">${description}</p>` : ''}
           <!-- Land-specific detail grid -->
           ${p.property_type==='land' ? `
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem .75rem;margin-bottom:1rem;font-size:.83rem">
-            ${p.road_access ? `<div><span style="color:#888">🛣 Road:</span> ${p.road_access}</div>` : ''}
-            ${p.broadband_type ? `<div><span style="color:#888">📶 Broadband:</span> ${p.broadband_type}</div>` : (p.internet ? `<div><span style="color:#888">📶 Internet:</span> Available</div>` : '')}
-            ${p.water_features ? `<div style="grid-column:1/-1"><span style="color:#888">💧 Water:</span> ${p.water_features}</div>` : ''}
-            ${p.mineral_rights && p.mineral_rights!=='unknown' ? `<div><span style="color:#888">⛏ Mineral Rights:</span> ${p.mineral_rights}</div>` : ''}
-            ${(p.elevation_min||p.elevation_max) ? `<div><span style="color:#888">🏔 Elevation:</span> ${[p.elevation_min,p.elevation_max].filter(Boolean).join('–')} ft</div>` : ''}
-            ${p.nearest_town ? `<div><span style="color:#888">📍 Nearest Town:</span> ${p.nearest_town}${p.miles_to_town?' ('+p.miles_to_town+' mi)':''}</div>` : ''}
+            ${p.road_access ? `<div><span style="color:#888">🛣 Road:</span> ${roadAccess}</div>` : ''}
+            ${p.broadband_type ? `<div><span style="color:#888">📶 Broadband:</span> ${broadbandType}</div>` : (p.internet ? `<div><span style="color:#888">📶 Internet:</span> Available</div>` : '')}
+            ${p.water_features ? `<div style="grid-column:1/-1"><span style="color:#888">💧 Water:</span> ${waterFeatures}</div>` : ''}
+            ${p.mineral_rights && p.mineral_rights!=='unknown' ? `<div><span style="color:#888">⛏ Mineral Rights:</span> ${mineralRights}</div>` : ''}
+            ${(p.elevation_min||p.elevation_max) ? `<div><span style="color:#888">🏔 Elevation:</span> ${[p.elevation_min,p.elevation_max].filter(Boolean).map(esc).join('–')} ft</div>` : ''}
+            ${p.nearest_town ? `<div><span style="color:#888">📍 Nearest Town:</span> ${nearestTown}${p.miles_to_town?' ('+milesToTown+' mi)':''}</div>` : ''}
             ${p.annual_tax ? `<div><span style="color:#888">💰 Annual Tax:</span> $${Number(p.annual_tax).toLocaleString()}</div>` : ''}
-            ${p.parcel_id ? `<div><span style="color:#888">📋 Parcel ID:</span> ${p.parcel_id}</div>` : ''}
+            ${p.parcel_id ? `<div><span style="color:#888">📋 Parcel ID:</span> ${parcelId}</div>` : ''}
           </div>` : ''}
           ${p.driveTimes ? `
           <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.65rem 1rem;margin-bottom:1rem;font-size:.83rem;display:flex;flex-wrap:wrap;gap:.75rem">
-            <span>🚗 <strong>${p.driveTimes.dc}</strong> to DC</span>
-            <span>🚗 <strong>${p.driveTimes.balt}</strong> to Baltimore</span>
-            <span>🚗 <strong>${p.driveTimes.pit}</strong> to Pittsburgh</span>
+            <span>🚗 <strong>${esc(p.driveTimes.dc)}</strong> to DC</span>
+            <span>🚗 <strong>${esc(p.driveTimes.balt)}</strong> to Baltimore</span>
+            <span>🚗 <strong>${esc(p.driveTimes.pit)}</strong> to Pittsburgh</span>
           </div>` : ''}
           <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.5rem">
             <a href="${mapsUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:.4rem;padding:.55rem 1rem;border-radius:8px;font-size:.85rem;font-weight:600;background:#f3f4f6;color:#1a1a1a;border:1px solid #e0e0e0;text-decoration:none">🗺 View on Map</a>
             <a href="${satUrl}"  target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:.4rem;padding:.55rem 1rem;border-radius:8px;font-size:.85rem;font-weight:600;background:#f3f4f6;color:#1a1a1a;border:1px solid #e0e0e0;text-decoration:none">🛰 Satellite View</a>
-            ${p.listing_slug ? `<a href="/properties/${p.listing_slug}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:.4rem;padding:.55rem 1rem;border-radius:8px;font-size:.85rem;font-weight:600;background:#f3f4f6;color:#1a1a1a;border:1px solid #e0e0e0;text-decoration:none">🔗 Full Detail Page</a>` : ''}
+            ${p.listing_slug ? `<a href="/properties/${listingSlug}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:.4rem;padding:.55rem 1rem;border-radius:8px;font-size:.85rem;font-weight:600;background:#f3f4f6;color:#1a1a1a;border:1px solid #e0e0e0;text-decoration:none">🔗 Full Detail Page</a>` : ''}
           </div>
           <div style="border-top:1px solid #f0f0f0;padding-top:1.25rem">
             <h3 style="color:#1B4332;margin-bottom:.5rem;font-size:1rem">Contact Phil Malick</h3>
@@ -1723,8 +1763,8 @@ async function showPropertyModal(id) {
             <input id="pm_name"  type="text"  placeholder="Your Name"  style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
             <input id="pm_email" type="email" placeholder="Email"      style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
             <input id="pm_phone" type="tel"   placeholder="Phone (optional)" style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
-            <textarea id="pm_msg" placeholder="Message" style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.75rem;min-height:80px;font-size:.9rem;font-family:inherit;resize:vertical">I'd like more information about ${p.address}.</textarea>
-            <button onclick="pmSend('${p.id}',this)" style="width:100%;padding:.85rem;background:#D4AF37;color:#0a0a0a;border:none;border-radius:8px;font-size:1rem;font-weight:800;cursor:pointer">Send Inquiry</button>
+            <textarea id="pm_msg" placeholder="Message" style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.75rem;min-height:80px;font-size:.9rem;font-family:inherit;resize:vertical">I'd like more information about ${address}.</textarea>
+            <button onclick="pmSend(${jsArg(p.id)},this)" style="width:100%;padding:.85rem;background:#D4AF37;color:#0a0a0a;border:none;border-radius:8px;font-size:1rem;font-weight:800;cursor:pointer">Send Inquiry</button>
             <p style="font-size:.72rem;color:#999;margin-top:.5rem;line-height:1.5">By submitting, you consent to receive calls and texts from MalickLand at the number provided. Message &amp; data rates may apply. Reply STOP to opt out.</p>
           </div>
         </div>
@@ -1765,6 +1805,7 @@ window.addEventListener('scroll', () => {
 // (chat state now in aiMessages array)
 
 // ---- AI CHAT ----
+const MAX_CHAT_HISTORY = 10;
 const aiMessages = [];
 let chatReady = false;
 let chatConnectShown = false;
@@ -1821,7 +1862,7 @@ async function sendChatMsg() {
     const r = await fetch('/api/chat', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ messages: aiMessages })
+      body: JSON.stringify({ messages: aiMessages.slice(-MAX_CHAT_HISTORY) })
     });
     const data = await r.json();
     const reply = data.reply || "I couldn't connect right now. Call Phil at (540) 246-1421.";
@@ -1869,7 +1910,7 @@ async function submitChatLead(btn) {
   const phone = document.getElementById('chatLeadPhone')?.value.trim();
   if (!name || !email) { alert('Name and email are required.'); return; }
   btn.disabled = true; btn.textContent = 'Sending…';
-  const summary = aiMessages.filter(m=>m.role==='user').map(m=>m.content).join(' | ');
+  const summary = aiMessages.filter(m=>m.role==='user').map(m=>m.content).slice(-5).join(' | ');
   try {
     const r = await fetch('/api/contacts', {
       method:'POST', headers:{'Content-Type':'application/json'},
