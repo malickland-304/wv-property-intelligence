@@ -997,3 +997,27 @@ Close the open `TASKS.md` item asking whether `cors()` without an origin list is
 
 ### Recommended Next Task
 Continue with either the Twilio-path cleanup or the Document Registry implementation skeleton, depending on whether the next chunk should be low-risk cleanup or feature foundation.
+
+---
+
+## 2026-06-18 — Codex — Document Registry Phase 1 implementation skeleton
+
+### Objective
+Implement the Phase 1 Document Registry skeleton described in `docs/DOCUMENT_REGISTRY_SPEC.md` without enabling Drive sync, Gmail intake, AI review UI, public document access, or production deployment.
+
+### Changes Made
+- `api/db.js`, `database/schema.sql` — added `documents`, `document_versions`, `extracted_claims`, `integration_events`, and `audit_events` tables plus supporting indexes.
+- `api/routes/documents.js` — added an API-key protected `/api/documents` router with document metadata CRUD, version registration/approval/rejection, extracted-claim insertion/approval/rejection, state-transition guards, AI extraction payload validation, and audit-event writes.
+- `api/routes/api.js` — mounted the registry router under `/api/documents` behind `apiWriteRateLimit` and `requireApiKey`.
+- `tests/document-registry.test.js` — added real HTTP coverage using a temporary SQLite DB for auth, schema creation, document/version creation, invalid transitions, AI claim validation, claim approval/rejection, version approval, and audit rows.
+- `scripts/preflight.sh` — added route syntax checking and the registry smoke test to the standard preflight gate.
+- `TASKS.md` — moved the Phase 1 implementation skeleton to Completed.
+
+### Verification
+- Required validation before opening PR: `node --check api/routes/documents.js`; `node --check tests/document-registry.test.js`; `node tests/document-registry.test.js`; `bash scripts/preflight.sh`; `node tests/verify-security-fixes.test.js`.
+
+### Remaining Risks
+- This is metadata/API skeleton only. It does not upload binaries, sync Google Drive, ingest Gmail, render an admin review UI, apply approved claims to listings, or deploy to production.
+
+### Recommended Next Task
+After this PR merges, start Phase 2 only from a fresh spec: AI Review Queue/admin UI for reviewing extracted claims and deciding whether to apply approved facts.
