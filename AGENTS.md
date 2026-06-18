@@ -16,7 +16,7 @@ All agents treat repository coordination documents as authoritative. In conflict
 3. ARCHITECTURE.md        — system design, constraints, stability rules
 4. DECISIONS.md           — recorded technical decisions
 5. TASKS.md               — prioritized backlog
-6. PROJECT_STATE.md       — current product completeness
+6. PROJECT_STATE.md       — current product completeness, resolved facts, open gates
 7. Existing repository conventions — patterns already in the codebase
 8. Agent assumptions       — lowest priority; must be documented when used
 ```
@@ -29,6 +29,29 @@ All agents treat repository coordination documents as authoritative. In conflict
 
 `docs/CANONICAL_MAP.md` is the required repo/domain/stack disambiguation map for MalickLand production work.
 `docs/agent-handoff.md` is a deployment-state reference only. It does not override AGENTS.md or other governance documents.
+
+---
+
+## State Ledger Rule
+
+Every agent must read `PROJECT_STATE.md` before asking Phil for status, approval, or facts about current production work.
+
+Agents must treat `PROJECT_STATE.md` as a gate ledger:
+
+- **Resolved facts** are closed. Do not ask Phil to reconfirm them unless live evidence contradicts the ledger.
+- **Closed gates** are not blockers. Do not re-litigate them, restate them as open, or ask whether they are still true.
+- **Open gates** are the only valid source for user questions. Ask only for the specific missing field or approval named there.
+- **Claimed facts** from another agent, chat, screenshot, or handoff remain unverified until checked against repo, GitHub, live endpoint, VPS, Railway, or another primary source.
+- **Verified facts** must include proof in `PROJECT_STATE.md`, `WORK_LOG.md`, a PR comment, or the current response.
+
+Before asking a user-facing question, an agent must be able to answer:
+
+1. Which gate is open?
+2. Who owns it?
+3. What exact evidence would close it?
+4. Why is it not already closed in `PROJECT_STATE.md`?
+
+If the answer is "I am not sure," inspect `PROJECT_STATE.md`, `DECISIONS.md`, GitHub, and the relevant live system first. Do not ask Phil to re-answer closed gates because the chat context is long or confusing.
 
 ---
 

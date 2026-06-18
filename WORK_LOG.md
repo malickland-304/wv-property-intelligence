@@ -707,3 +707,37 @@ Phil handed #101 to me. Resolve Codex's review threads on the Advent-close + $29
 ### Remaining (deploy-time, not merge)
 1. Confirm the sale **price** ($170,000) before deploy (Phil corrected only the date).
 2. At deploy, UPDATE the live 37 Advent DB row — the `db.js` change is seed-only and does not touch the existing live record.
+
+---
+
+## 2026-06-18 — Codex (GPT-5) — Agent state framework / anti-loop ledger
+
+### Objective
+Create a durable framework so agents stop asking Phil to re-answer already-closed gates. The immediate trigger was repeated re-litigation of the Advent close, fee approval, Railway state, and #102 status after those facts were already verified.
+
+### Changes Made
+- `AGENTS.md` — added the **State Ledger Rule**: agents must read `PROJECT_STATE.md` before asking Phil for status, treat resolved facts/closed gates as closed, and ask only against explicit open gates.
+- `PROJECT_STATE.md` — refreshed stale `b9d1198` / PR #97 state to current `origin/main` @ `b6eaefa`, live VPS @ `e7c2114`, and added the Agent State Ledger with resolved facts, closed gates, and open gates.
+- `DECISIONS.md` — updated the VPS/Railway decisions to reflect the actual current state: production remains manual VPS deploy; Railway auto-deploy is disabled; Railway deployments are removed.
+- `TASKS.md` — changed Railway from active decommission work to retention-window final deletion; recorded Advent close, smoke fix, and Railway auto-deploy disable as completed.
+- `docs/CANONICAL_MAP.md` — refreshed production branch/live VPS/Railway truth so agents do not use stale `b9d1198` or "Railway standby" language as current.
+
+### Verification (Truthfulness Rule applies)
+- `git fetch origin` before work → succeeded.
+- Fresh worktree created from `origin/main` @ `b6eaefa`.
+- `rg` / targeted reads confirmed stale state references before patching.
+- `git diff --check` → PASSED.
+- Stale-state search across `AGENTS.md`, `PROJECT_STATE.md`, `DECISIONS.md`, `TASKS.md`, and `docs/CANONICAL_MAP.md` → no current-state stale `b9d1198` / Railway-auto-deploy-open references remain.
+- `node tests/verify-security-fixes.test.js` → PASSED (54/54).
+- `cd api && npm ci` → PASSED; npm reported one existing high-severity audit item in the dependency tree.
+- `bash scripts/preflight.sh` → PASSED.
+
+### Security / Compliance Notes
+- Documentation/governance only; no runtime app code changed.
+- No secrets read or printed.
+- No deploy, Railway mutation, live DB mutation, or production environment change.
+
+### Remaining Open Gates
+1. WV real estate license number for public funnel materials, unless source material already contains it.
+2. Sheila-approved alternate marketing/footer wording only if different from the live site disclosure.
+3. Railway hard-delete and `railway.json` removal after the 30-90 day retention window.

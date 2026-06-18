@@ -1,20 +1,20 @@
 # CANONICAL_MAP.md — MalickLand Production Map
 
-> Last verified: 2026-06-17 (live SSH to the VPS + DNS + read-only curl probes).
+> Last verified: 2026-06-18 (live SSH to the VPS + read-only curl probes + Railway deployment list).
 > Use this file to prevent repo, domain, and stack confusion before touching MalickLand production work.
 
 ## Canonical Truth
 
 | Layer | Current truth | Evidence |
 |-------|---------------|----------|
-| Live domain | `https://malickland.net` | apex A → `31.97.58.203` (Hostinger VPS); `GET /api/health` → 200 served by that IP (verified 2026-06-17). `www` CNAME → `srv1716268.hstgr.cloud` → same IP |
+| Live domain | `https://malickland.net` | apex A → `31.97.58.203` (Hostinger VPS); `GET /api/health` → 200 served by that IP (verified 2026-06-18). `www` CNAME → `srv1716268.hstgr.cloud` → same IP |
 | Live deploy target | **Hostinger VPS** `srv1716268` / `31.97.58.203` | Docker container `wv-property-intelligence` (image `:vps`, `api/Dockerfile`, internal `:3000`) behind **Traefik** + Let's Encrypt; compose at `/docker/wv-property-intelligence/compose.yml`; data on named volume `wv-property-intelligence_wv-data` → `/data`. **Manual deploy** (merge ≠ deploy). **Not Railway.** |
 | Production stack | Express 5 monolith: `api/` JSON + `app/` static HTML | `api/Dockerfile`, `compose.yml`, `api/server.js`, live `/api/health` |
 | Production repo | `malickland-304/wv-property-intelligence` | `origin` in `/Users/yhyh7/Projects/wv-property-intelligence` |
-| Production branch | `origin/main` | `origin/main` at `b9d1198` on 2026-06-17 (PR #97); live VPS `src` checkout at the same SHA |
-| Legacy / not live | Railway service `alert-laughter` / `wv-property-intelligence` | No longer the live target — DNS bypasses it. On standby pending decommission decision; `railway.json` retained only for this twin |
+| Production branch | `origin/main` | `origin/main` at `b6eaefa` on 2026-06-18 (#102). Live VPS `src` checkout is `e7c2114`; the only main-ahead-of-prod change is a smoke-script fix that does not require deploy |
+| Legacy / not live | Railway service `alert-laughter` / `wv-property-intelligence` | No longer the live target — DNS bypasses it. Auto-deploy disabled; all deployments removed; service/volume retained only for 30-90 day backup retention. `railway.json` retained only for this dormant twin |
 | Canonical local checkout | `/Users/yhyh7/Projects/wv-property-intelligence` | Use this checkout only; run `git fetch origin --prune` and compare against `origin/main` before work |
-| Health URL | `https://malickland.net/api/health` | Live probe returned 200 JSON on 2026-05-31 |
+| Health URL | `https://malickland.net/api/health` | Live probe returned 200 JSON on 2026-06-18 |
 | Not production | `malickland-304/malickland.net` | Separate dirty Next.js checkout under Documents; live site is not serving Next.js routes |
 | Not deployed | `listing-system/workers/` | Cloudflare Worker config is experimental/template-level and must not be deployed to apex without an architecture decision |
 | Separate project | `malickland.cloud` | OpenClaw/trading infrastructure; not the MalickLand real estate website |
