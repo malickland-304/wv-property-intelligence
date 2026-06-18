@@ -952,3 +952,26 @@ Clean up the stale Railway-production documentation and add a repeatable proof g
 
 ### Recommended Next Task
 Open and merge this docs/guardrail PR so future agents cannot confuse Railway health with live `malickland.net` production proof.
+
+---
+
+## 2026-06-18 — Codex — Document Registry Phase 1 spec
+
+### Objective
+Deliver the open Phase 1 Document Registry spec from `TASKS.md` so implementation can proceed without inventing schema, approval states, or AI extraction contracts mid-build.
+
+### Changes Made
+- `docs/DOCUMENT_REGISTRY_SPEC.md` — added the Phase 1 build contract: document/version/claim/event/audit tables, state machines, `/api/documents` route skeleton, AI extraction JSON contract, security requirements, phase boundaries, and implementation acceptance criteria.
+- `TASKS.md` — moved the spec task to Completed, recorded the merged HTTP integration smoke test, and updated the Document Registry implementation task to depend on `docs/DOCUMENT_REGISTRY_SPEC.md`.
+- `WORK_LOG.md` — this entry.
+
+### Verification
+- Documentation/spec-only change in this PR; no runtime code, schema migration, deployment config, production secrets, or VPS access.
+- Required validation before opening PR: `git diff --check`; `bash scripts/preflight.sh`; `node tests/verify-security-fixes.test.js`.
+
+### Remaining Risks
+- Document Registry implementation remains open: SQLite migrations, `/api/documents` API skeleton, state-transition helpers, audit writes, extraction validation, and tests.
+- The spec intentionally does not enable Google Drive sync, Gmail intake, AI review UI, or production deployment.
+
+### Recommended Next Task
+Implement the Phase 1 Document Registry skeleton from `docs/DOCUMENT_REGISTRY_SPEC.md` in a separate branch with focused tests.
