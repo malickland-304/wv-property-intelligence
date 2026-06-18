@@ -1,6 +1,6 @@
 # PROJECT_STATE.md — Malickland 2.0
 
-> **Last verified:** 2026-06-18 (GitHub `origin/main` @ `b6eaefa`; live prod = Hostinger VPS, src @ `e7c2114`, container healthy; Railway twin deployments removed)
+> **Last verified:** 2026-06-18 (GitHub `origin/main` @ `f8217747`; live prod = Hostinger VPS, src @ `e7c2114`, container healthy; Railway twin deployments removed; WV license verified)
 > **Authority:** Product completeness, repo workspace truth, resolved facts, and open gates. Use `docs/CANONICAL_MAP.md` for repo/domain/stack disambiguation. Deployment runbooks and guardrails remain in `docs/agent-handoff.md`.
 
 ---
@@ -18,8 +18,9 @@ This section is the anti-loop ledger. Agents must read it before asking Phil for
 | Close date | ✅ `2026-05-29` | Live DB row `advent-dr-hampshire-wv.sold_at='2026-05-29'` |
 | $299 broker admin fee wording | ✅ Approved and live | Homepage and `/37-advent` disclose the fee; broker approval was confirmed before deploy |
 | Brokerage disclosure | ✅ Live | Footer / public pages show `WV Real Estate Agency, LLC | Sheila Judy, Broker` |
+| Phil WV real estate license | ✅ `WV0029577` | Verified against the WV Real Estate Commission Active Licensee Rosters → Salesperson roster: row 1149 lists `PHILIP MALICK`, `WV0029577`, `Salesperson`, `WV REAL ESTATE AGENCY`, `501 E. MAIN STREET`, Romney, WV 26757 |
 | Production deploy | ✅ Live and verified | Hostinger VPS `31.97.58.203`, src @ `e7c2114`, container `wv-property-intelligence` healthy |
-| PRs #98, #100, #101, #102 | ✅ Merged | `origin/main` includes #102 squash `b6eaefa` |
+| PRs #98, #100, #101, #102, #104 | ✅ Merged | `origin/main` includes #104 squash `f8217747` |
 | `scripts/smoke-prod.sh` | ✅ Fixed | #102 merged; script respects `PUBLIC_LISTINGS_ENABLED` via `/api/config` |
 | Railway twin auto-deploy | ✅ Disabled | Dashboard action confirmed; #102 merge did not create a new Railway deployment |
 | Railway twin deployments | ✅ Removed | `railway deployment list` shows all recent deployments `REMOVED`, including `5927bce6` |
@@ -31,6 +32,7 @@ This section is the anti-loop ledger. Agents must read it before asking Phil for
 | Advent price/date confirmation | User confirmation + live DB update + live page verification |
 | Fee wording approval | User/broker approval + live disclosure verification |
 | PR #102 readiness/merge | Codex READY, CI green, 0 unresolved threads, #102 merged |
+| WV license number for funnel materials | WV REC Active Licensee Rosters, Salesperson roster row 1149 |
 | Production correctness after deploy | Live health/page/config checks + VPS container health |
 | Railway revival risk for normal merges | Auto-deploy disabled; #102 merge did not revive the service |
 
@@ -38,7 +40,6 @@ This section is the anti-loop ledger. Agents must read it before asking Phil for
 
 | Gate | Owner | Needed evidence / action | Notes |
 |------|-------|--------------------------|-------|
-| WV real estate license number for public funnel materials | Phil | Exact license number or primary source showing it | If source material already contains it, cite source and use it; otherwise ask only for this field |
 | Final marketing/footer disclosure wording for funnel packet | Sheila / Phil | Sheila-approved exact wording if different from the live site block | Do not ask whether the already-live fee wording is approved; that gate is closed |
 | Railway hard-delete after retention | Phil | Explicit approval after 30-90 day retention window | Service/volume retained for rollback window; deployments are removed |
 | Remove `railway.json` and legacy GitHub deployment environments | Phil / repo maintainer | Decision after retention-window hard-delete | Keep until the Railway twin is fully deleted |
@@ -55,11 +56,11 @@ Before asking Phil anything, identify the open gate in the table above. If no op
 |------|--------|
 | **Active repo** | `/Users/yhyh7/Projects/wv-property-intelligence` |
 | **Remote** | `https://github.com/malickland-304/wv-property-intelligence.git` |
-| **Production branch** | `origin/main` @ `b6eaefa` (#102 merged 2026-06-17) |
-| **Last merged PR** | #102 `fix(smoke): respect PUBLIC_LISTINGS_ENABLED in smoke-prod.sh` |
+| **Production branch** | `origin/main` @ `f8217747` (#104 merged 2026-06-18) |
+| **Last merged PR** | #104 `docs: add agent state ledger framework` |
 | **Live deploy target** | **Hostinger VPS** `srv1716268` / `31.97.58.203` (Docker + Traefik); deploy is **manual** — merge ≠ deploy. Not Railway. See `docs/CANONICAL_MAP.md` |
 
-`origin/main` is ahead of live production by #102 only. This is expected: #102 changes a smoke script, not runtime app behavior, and does not require deploy. Compare future work against `origin/main`, not a stale local `main`.
+`origin/main` is ahead of live production by #102 and #104 only. This is expected: #102 changes a smoke script and #104 changes docs/governance, not runtime app behavior, and neither requires deploy. Compare future work against `origin/main`, not a stale local `main`.
 
 ### Do not use as source of truth
 
@@ -75,7 +76,7 @@ Local `main` checkout may lag `origin/main`; always `git fetch origin` and compa
 
 ## GitHub / PR status (2026-06-18)
 
-Recent PRs #98, #100, #101, and #102 are merged. Open issue/PR counts must still be re-checked live in GitHub before acting; this document is not the live issue tracker.
+Recent PRs #98, #100, #101, #102, and #104 are merged. Open issue/PR counts must still be re-checked live in GitHub before acting; this document is not the live issue tracker.
 
 | PR | Status |
 |----|--------|
@@ -93,6 +94,7 @@ Recent PRs #98, #100, #101, and #102 are merged. Open issue/PR counts must still
 | **#100** (docs follow-up + Railway decommission record) | ✅ Merged — `9e3db78` on `origin/main` |
 | **#101** (37 Advent closed sale + $299 admin fee disclosure) | ✅ Merged — `e7c2114` on `origin/main`; deployed live |
 | **#102** (production smoke respects listings feature flag) | ✅ Merged — `b6eaefa` on `origin/main`; no deploy needed |
+| **#104** (agent state ledger framework) | ✅ Merged — `f8217747` on `origin/main`; no deploy needed |
 
 ---
 

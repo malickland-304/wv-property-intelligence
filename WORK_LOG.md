@@ -741,3 +741,39 @@ Create a durable framework so agents stop asking Phil to re-answer already-close
 1. WV real estate license number for public funnel materials, unless source material already contains it.
 2. Sheila-approved alternate marketing/footer wording only if different from the live site disclosure.
 3. Railway hard-delete and `railway.json` removal after the 30-90 day retention window.
+
+---
+
+## 2026-06-18 — Codex (GPT-5) — WV license verification gate closed
+
+### Objective
+Close the remaining public-funnel license-number gate by verifying the claimed `WV0029577` against an authoritative source instead of asking Phil to reconfirm it.
+
+### Changes Made
+- `PROJECT_STATE.md` — promoted Phil's WV license number from open gate to resolved fact:
+  - `PHILIP MALICK`
+  - `WV0029577`
+  - `Salesperson`
+  - `WV REAL ESTATE AGENCY`
+  - `501 E. MAIN STREET`, Romney, WV 26757
+- Removed the WV license-number item from the open-gates table.
+- Added the WV license-number item to the closed-gates table.
+
+### Verification (Truthfulness Rule applies)
+- Official source page opened: WV Real Estate Commission → Active Licensee Rosters → Salesperson Roster.
+- Downloaded the official salesperson roster workbook to `/tmp/wvrec-salesperson-roster.xlsx`.
+- Parsed the XLSX row data locally. Matching row:
+  - Row 1149: `PHILIP | MALICK | WV0029577 | Salesperson | 005271 | WV REAL ESTATE AGENCY | 00 | malickland@icloud.com | 501 E. MAIN STREET | ROMNEY | WV | 26757`
+- `git diff --check` → PASSED.
+- `node tests/verify-security-fixes.test.js` → PASSED (54/54).
+- `cd api && npm ci` → PASSED; npm reported one existing high-severity audit item in the dependency tree.
+- `bash scripts/preflight.sh` → PASSED.
+
+### Security / Compliance Notes
+- Documentation/governance only; no runtime app code changed.
+- No secrets read or printed.
+- No deploy, Railway mutation, live DB mutation, or production environment change.
+
+### Remaining Open Gates
+1. Sheila-approved alternate marketing/footer wording only if different from the live site disclosure.
+2. Railway hard-delete and `railway.json` removal after the 30-90 day retention window.
