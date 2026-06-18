@@ -838,7 +838,7 @@ Land the `PUBLIC_ASSISTANT_ENABLED` flag as a focused PR off current `origin/mai
 ### Changes Made (5 files, feature only)
 - `api/featureFlags.js` — add `publicAssistantEnabled()` (default ON; `PUBLIC_ASSISTANT_ENABLED=false` → canned reply, zero LLM spend on anonymous visitors). Admin AI generator unaffected.
 - `api/routes/chat.js` — early-return the canned `FALLBACK_REPLY` when the flag is off, before any provider call; safe-by-default header comment now includes the direct Anthropic path.
-- `api/routes/admin.js` — admin AI disabled-state copy/tooltip/error mention `ANTHROPIC_API_KEY` (recommended) alongside `AI_GATEWAY_API_KEY` / `OPENAI_API_KEY`.
+- `api/routes/admin.js` — admin AI disabled-state copy/tooltip/error mentions `ANTHROPIC_API_KEY` (recommended) alongside `AI_GATEWAY_API_KEY` / `OPENAI_API_KEY`.
 - `scripts/preflight.sh` — wire `tests/public-assistant-flag.test.js` into the preflight gate.
 - `tests/public-assistant-flag.test.js` (new) — stubs the AI provider; asserts disabled → 0 calls + canned reply; enabled/default/true → provider called.
 

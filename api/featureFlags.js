@@ -26,11 +26,15 @@ function publicListingsEnabled() {
 // The admin AI listing generator is unaffected either way.
 //
 //   • set env  PUBLIC_ASSISTANT_ENABLED=false   to disable (no code change)
+//
+// The "false" check is normalized (trim + lowercase) so a config typo like
+// `FALSE` or ` false ` still disables the bot — for a cost-control flag, an
+// intended "off" must never silently fall through to paid LLM calls.
 // ─────────────────────────────────────────────────────────────
 function publicAssistantEnabled() {
   const v = process.env.PUBLIC_ASSISTANT_ENABLED;
-  if (v === undefined || v === '') return true; // default: ON
-  return v !== 'false';
+  if (v === undefined || v.trim() === '') return true; // default: ON
+  return v.trim().toLowerCase() !== 'false';
 }
 
 module.exports = { publicListingsEnabled, publicAssistantEnabled };

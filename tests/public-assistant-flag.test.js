@@ -110,6 +110,18 @@ const userMessages = { body: { messages: [{ role: 'user', content: 'Got land in 
     assert.strictEqual(spy.calls, 1, 'true should behave like enabled');
   });
 
+  for (const raw of ['FALSE', ' false ', 'False']) {
+    await test(`normalized disable (PUBLIC_ASSISTANT_ENABLED=${JSON.stringify(raw)}): canned reply, ZERO provider calls`, async () => {
+      process.env.PUBLIC_ASSISTANT_ENABLED = raw;
+      const { handler, spy } = loadChatRouterWithSpy();
+      const res = mockRes();
+      await handler(userMessages, res);
+
+      assert.strictEqual(spy.calls, 0, 'an intended "off" must disable regardless of case/whitespace');
+      assert.strictEqual(res._json && res._json.reply, FALLBACK_REPLY, 'should return the canned reply');
+    });
+  }
+
   delete process.env.PUBLIC_ASSISTANT_ENABLED;
 
   console.log(`\n${passed} passed, ${failed} failed`);
