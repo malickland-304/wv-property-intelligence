@@ -12,10 +12,10 @@
  *     turn count / length,
  *   - a server-injected brokerage-safe system prompt the client cannot override.
  *
- * Safe-by-default: if no AI provider is configured (no AI_GATEWAY_API_KEY /
- * OPENAI_API_KEY), or the upstream call fails, it returns a friendly canned
- * reply instead of crashing or 500-ing — main auto-deploys to Railway, so this
- * must never take the site down when the key is absent.
+ * Safe-by-default: if no AI provider is configured (AI_GATEWAY_API_KEY /
+ * ANTHROPIC_API_KEY / OPENAI_API_KEY), or the upstream call fails, it returns a
+ * friendly canned reply instead of crashing or 500-ing — main auto-deploys to
+ * Railway, so this must never take the site down when the key is absent.
  *
  * Contract (matches app/index.html sendChatMsg):
  *   Request:  { messages: [{ role: 'user'|'assistant', content: string }, ...] }
@@ -26,6 +26,7 @@ const express = require('express');
 
 const { chatRateLimit } = require('../middleware/rate-limits');
 const { generateChatReply, aiConfigured } = require('../ai-generator');
+const { publicAssistantEnabled } = require('../featureFlags');
 const {
   buildChatSystemPrompt,
   sanitizeChatMessages,
@@ -40,6 +41,13 @@ function createChatRouter() {
 
     if (!messages.length || !messages.some((m) => m.role === 'user')) {
       return res.status(400).json({ error: 'A user message is required.' });
+    }
+
+    // Public assistant disabled (PUBLIC_ASSISTANT_ENABLED=false) → return the
+    // canned reply without calling any AI provider. Zero LLM spend on anonymous
+    // visitors; the admin listing generator is unaffected.
+    if (!publicAssistantEnabled()) {
+      return res.json({ reply: FALLBACK_REPLY });
     }
 
     // No provider configured → degrade gracefully (steady state until the key
