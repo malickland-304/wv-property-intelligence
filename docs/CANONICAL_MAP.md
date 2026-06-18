@@ -1,6 +1,6 @@
 # CANONICAL_MAP.md — MalickLand Production Map
 
-> Last verified: 2026-06-18 (live SSH to the VPS + read-only curl probes + Railway deployment list).
+> Last verified: 2026-06-18 (live SSH to the VPS + read-only curl probes + `scripts/verify-vps-prod.sh`).
 > Use this file to prevent repo, domain, and stack confusion before touching MalickLand production work.
 
 ## Canonical Truth
@@ -11,8 +11,8 @@
 | Live deploy target | **Hostinger VPS** `srv1716268` / `31.97.58.203` | Docker container `wv-property-intelligence` (image `:vps`, `api/Dockerfile`, internal `:3000`) behind **Traefik** + Let's Encrypt; compose at `/docker/wv-property-intelligence/compose.yml`; data on named volume `wv-property-intelligence_wv-data` → `/data`. **Manual deploy** (merge ≠ deploy). **Not Railway.** |
 | Production stack | Express 5 monolith: `api/` JSON + `app/` static HTML | `api/Dockerfile`, `compose.yml`, `api/server.js`, live `/api/health` |
 | Production repo | `malickland-304/wv-property-intelligence` | `origin` in `/Users/yhyh7/Projects/wv-property-intelligence` |
-| Production branch | `origin/main` | `origin/main` at `b6eaefa` on 2026-06-18 (#102). Live VPS `src` checkout is `e7c2114`; the only main-ahead-of-prod change is a smoke-script fix that does not require deploy |
-| Legacy / not live | Railway service `alert-laughter` / `wv-property-intelligence` | No longer the live target — DNS bypasses it. Auto-deploy disabled; all deployments removed; service/volume retained only for 30-90 day backup retention. `railway.json` retained only for this dormant twin |
+| Production branch | `origin/main` | Verify current head with `git fetch origin --prune && git rev-parse origin/main`. Live runtime deploy is `24ee74b` from #113; docs/guardrail-only commits may advance `origin/main` without requiring a runtime deploy |
+| Deleted / not live | Railway service `alert-laughter` / `wv-property-intelligence` | Deleted on 2026-06-18. DNS bypasses Railway, and a Railway deployment, Railway healthcheck, or GitHub deployment status is **not production proof**. `railway.json` and `railway.toml` were removed from the repo. Off-Railway backup from 2026-06-17 remains retained |
 | Canonical local checkout | `/Users/yhyh7/Projects/wv-property-intelligence` | Use this checkout only; run `git fetch origin --prune` and compare against `origin/main` before work |
 | Health URL | `https://malickland.net/api/health` | Live probe returned 200 JSON on 2026-06-18 |
 | Not production | `malickland-304/malickland.net` | Separate dirty Next.js checkout under Documents; live site is not serving Next.js routes |
@@ -72,7 +72,7 @@ Purpose:
 3. Health is `/api/health`, not `/health`.
 4. Do not edit the Next.js `malickland.net` repo for production fixes unless a documented architecture decision changes the production stack.
 5. Do not run `wrangler deploy` for `listing-system/workers/` without explicit human approval and a recorded route-ownership decision.
-6. Before claiming production deployment, verify the **VPS** directly — `ssh root@31.97.58.203 'git -C /docker/wv-property-intelligence/src rev-parse --short HEAD'` and confirm the container is healthy — and/or run read-only live smoke checks. **Merging to `main` does NOT deploy**; deploy is a separate manual step (SSH + `docker compose build && docker compose up -d`).
+6. Before claiming production deployment, verify the **VPS** directly: `EXPECTED_SHA=<full-sha> bash scripts/verify-vps-prod.sh`. The script checks DNS (`31.97.58.203`), VPS source SHA, container health, `/api/health`, `/api/config`, and read-only live smoke. **Merging to `main` does NOT deploy**; deploy is a separate manual step (SSH + `docker compose build && docker compose up -d`).
 
 ## Known Follow-Up
 

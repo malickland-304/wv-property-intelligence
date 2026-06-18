@@ -71,6 +71,31 @@ else
   printf 'curl unavailable; cannot verify production health\n'
 fi
 
+section "Production VPS proof"
+if need dig; then
+  printf 'DNS A records: '
+  { dig +short malickland.net A 2>/dev/null || true; } | sort -u | tr '\n' ' '
+  printf '\n'
+elif need host; then
+  printf 'DNS A records: '
+  { host malickland.net 2>/dev/null || true; } | awk '/has address/ {print $4}' | sort -u | tr '\n' ' '
+  printf '\n'
+else
+  printf 'dig/host unavailable; cannot verify DNS target\n'
+fi
+
+if need ssh; then
+  if ssh -o BatchMode=yes -o ConnectTimeout=8 openclaw-vps \
+    'printf "vps_host=%s\n" "$(hostname)"; printf "vps_sha=%s\n" "$(git -C /docker/wv-property-intelligence/src rev-parse HEAD)"; docker inspect wv-property-intelligence --format "container={{.State.Status}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}} started={{.State.StartedAt}}"' \
+    2>/dev/null; then
+    printf 'For strict proof: EXPECTED_SHA=<full-sha> bash scripts/verify-vps-prod.sh\n'
+  else
+    printf 'SSH to openclaw-vps unavailable; cannot verify VPS SHA/container in this run\n'
+  fi
+else
+  printf 'ssh unavailable; cannot verify VPS SHA/container\n'
+fi
+
 section "Question rule"
 cat <<'TEXT'
 Before asking Phil, name the open gate from PROJECT_STATE.md.

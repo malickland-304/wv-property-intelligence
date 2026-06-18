@@ -918,3 +918,37 @@ Remediate the high-severity `multer` DoS advisory (production dependency powerin
 
 ### Recommended Next Task
 Per External Assistant / Codex Handoff Protocol: Codex independently verifies (gh pr view / gh pr checks / reviewThreads unresolved=0 / VPS SHA unchanged) and issues the READY/NOT READY verdict. Claude does not self-declare ready.
+
+---
+
+## 2026-06-18 — Codex — VPS production proof cleanup after Railway false positive
+
+### Objective
+Clean up the stale Railway-production documentation and add a repeatable proof gate after a Railway deployment was incorrectly treated as the live `malickland.net` deploy target. The live site is the Hostinger VPS at `31.97.58.203`; the old Railway twin is deleted.
+
+### Changes Made
+- `scripts/verify-vps-prod.sh` — new read-only proof script that checks DNS, VPS source SHA, container health, `/api/health`, `/api/config`, and `scripts/smoke-prod.sh`.
+- `scripts/agent-triage.sh` — now prints DNS and VPS SHA/container proof when SSH is available, not just HTTP health.
+- `AGENTS.md`, `docs/CANONICAL_MAP.md`, `docs/agent-handoff.md`, `docs/AGENT_TRIAGE_PROTOCOL.md` — production proof now requires VPS SHA/container state; Railway deployments and GitHub deployment environments are explicitly not production proof.
+- `PROJECT_STATE.md`, `TASKS.md` — updated live SHA to `24ee74b`, closed stale `/start`, `multer`, public-assistant, and homepage dynamic HTML safety deploy gates, and recorded the VPS proof guardrail.
+- `railway.json`, `railway.toml` — removed dead Railway deployment config after the linked old service was verified absent.
+- `README.md`, `ARCHITECTURE.md`, `QA_CHECKLIST.md`, `DECISIONS.md` — documented the strict VPS proof command and the reason for the guardrail.
+
+### Verification (Truthfulness Rule applies)
+- Command: `EXPECTED_SHA=24ee74b378df0fa296876abca1699a36baacc0fe bash scripts/verify-vps-prod.sh` → PASSED.
+- Command: `EXPECTED_SHA=24ee74b bash scripts/verify-vps-prod.sh` → PASSED (short-SHA prefix accepted after minimum-length check).
+- Command: VPS `docker compose build --no-cache && docker compose up -d` → PASSED; final strict proof showed image `955c295f...` created `2026-06-18T16:24:00Z`, after the checked-out source commit.
+- Command: `bash scripts/agent-triage.sh` → PASSED.
+- Command: `bash scripts/preflight.sh` → PASSED.
+- Command: `node tests/verify-security-fixes.test.js` → PASSED, 57/57.
+- Command: `railway service status` from canonical checkout → linked old service not found.
+- Command: `gh api repos/malickland-304/wv-property-intelligence/environments --paginate` → only `copilot` remains.
+
+### Security Notes
+- No production secrets printed or read. No database write performed. VPS was aligned from the deployed #113 branch SHA to the #113 squash commit on `origin/main`, then rebuilt/restarted and live-smoked.
+
+### Remaining Risks
+- Off-Railway backup from 2026-06-17 remains retained for rollback/audit; it is not in the repo.
+
+### Recommended Next Task
+Open and merge this docs/guardrail PR so future agents cannot confuse Railway health with live `malickland.net` production proof.

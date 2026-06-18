@@ -10,7 +10,7 @@ Durable state sources, in order:
 
 1. `PROJECT_STATE.md` — resolved facts, closed gates, open gates.
 2. GitHub PR state — checks, mergeability, review comments, head SHA, merged/closed state.
-3. Live production checks — `https://malickland.net/api/health`, `/api/config`, and VPS checks when production state matters.
+3. Live production checks — `https://malickland.net/api/health`, `/api/config`, DNS, and VPS checks when production state matters.
 4. `WORK_LOG.md` — what an agent actually changed and verified.
 5. Chat transcript or screenshot — only a claim until verified.
 
@@ -29,6 +29,7 @@ The command is read-only. It prints:
 - local git state,
 - open GitHub PRs,
 - live production health,
+- DNS and VPS source/container proof when SSH is available,
 - the user-question rule.
 
 ## Closed-Gate Behavior
@@ -106,5 +107,7 @@ Merge and deploy are separate.
 - A merge does not imply deploy.
 - Production deploy is manual to the Hostinger VPS unless a recorded decision changes that.
 - Railway is not the production target.
+- A Railway deployment, Railway healthcheck, or GitHub deployment environment is not proof that `malickland.net` is current.
+- Strict production proof is `EXPECTED_SHA=<full-sha> bash scripts/verify-vps-prod.sh`.
 
 Before saying a PR is ready, use the Codex Gatekeeper Protocol in `AGENTS.md`.

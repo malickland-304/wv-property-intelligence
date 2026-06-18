@@ -74,6 +74,7 @@
 - [ ] If deploying listing persistence support: set `LISTINGS_ROOT=/data/listings` in `/docker/wv-property-intelligence/.env` and copy any existing container `/workspace/listings` content into `/data/listings` before restart
 - [ ] Deploy: SSH → `git -C /docker/wv-property-intelligence/src fetch origin && git -C /docker/wv-property-intelligence/src checkout <sha>` → `cd /docker/wv-property-intelligence && docker compose build && docker compose up -d`
 - [ ] Post-deploy verify: container healthy + live `GET /api/health` → 200
+- [ ] SHA proof: `EXPECTED_SHA=<full-sha> bash scripts/verify-vps-prod.sh` passes
 - [ ] If listing persistence was deployed: verify at least one uploaded image path still serves through `/images/<slug>/photos/compressed/<file>`
 - [ ] **Post-deploy route smoke — validates the NEW SHA** (not the old live one): `bash scripts/smoke-prod.sh https://malickland.net` (read-only) — confirms `/listings`, property pages, and legacy redirects still serve on the just-deployed commit
 - [ ] If lead/email code or Resend env changed: a **human** runs the **lead-pipeline smoke** (`docs/SMOKE_CHECKLIST.md`) — it mutates prod (creates/deletes real rows + sends a real email), so per the AGENTS.md Autonomous Safety Stop Rule it is **not** for an autonomous agent. Capture → Resend notify → delivered, then delete the test row(s)
