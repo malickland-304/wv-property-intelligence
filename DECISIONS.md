@@ -132,6 +132,21 @@
 - Service **stopped**: all deployments REMOVED (`railway status` → no active deployment).
 - Auto-deploy **disabled** in the Railway dashboard; subsequent merge of #102 did **not** create a new Railway deployment.
 - CLI verification: `railway deployment list` shows all recent deployments `REMOVED`, including `5927bce6` from the #101 merge.
-**Deferred (cleanup):** after the 30-90 day retention window, hard-delete the service/volume; remove `railway.json` + the legacy GitHub deployment environments from the repo; rotate/retire any retained Railway copy of production secrets as part of final deletion.
+**Deferred (cleanup):** ~~after the 30-90 day retention window~~ — **done early on 2026-06-18** (Phil approved deleting the service rather than waiting): see the 2026-06-18 decommission entry below.
 **Rollback:** none needed — the VPS is canonical and verified; the downloaded backup + VPS copy fully cover the Railway data.
 **Files:** `DECISIONS.md` (this entry); `TASKS.md` (Railway-decommission task).
+
+---
+
+## 2026-06-18 — Railway twin deleted (final decommission)
+
+**Decision:** After the VPS deploy of `79064a9` was verified healthy, Phil approved deleting the retired Railway service immediately rather than waiting out the 30–90 day window — it gave no useful rollback anymore and kept stale prod secrets + a public Railway URL alive.
+**Context:** During the `79064a9` VPS deploy, a concurrent CLI/queue-triggered Railway deploy (`22f3d836`, cliMessage "Deploy origin/main 79064a9: PR #111/#112 queue", reason `deploy`) revived the twin. There was **no** GitHub auto-deploy trigger (`deploymentTriggers: []`) — the revival was a manual CLI deploy by another actor, so disabling the webhook could not have prevented it.
+**Actions (2026-06-18, live; DNS untouched, no secrets printed):**
+- `railway down` removed the revived deployment; `customDomainDelete` detached `malickland.net` + `www.malickland.net`; confirmed no deployment trigger.
+- `serviceDelete` removed the Railway service `wv-property-intelligence` — its deployments, GitHub source link, public `*.up.railway.app` URL, and env/secrets are gone with it. Project `alert-laughter` now contains only the separate `malickland.net` 2.0 service (untouched).
+- Removed dead repo config: `railway.json`, `railway.toml`.
+- Deleted dead GitHub deployment environments `alert-laughter / production` + `production` (0 secrets each); kept `copilot` (Copilot agent, unrelated to Railway).
+**Verification:** project services = `[malickland.net]` only (twin absent); DNS apex+www still → `31.97.58.203`; VPS `/api/health` 200, `/start` 200, `/api/config` `listingsEnabled:false`, container healthy at `79064a9`.
+**Rollback:** none needed — the VPS is canonical and verified; off-Railway backup retained at `~/railway-decommission-backup-2026-06-17/`.
+**Files:** deleted `railway.json` + `railway.toml`; updated `README.md`, `ARCHITECTURE.md`, `PROJECT_STATE.md`, `docs/CANONICAL_MAP.md`, `TASKS.md`, `WORK_LOG.md`.

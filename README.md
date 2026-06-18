@@ -55,8 +55,7 @@ wv-property-intelligence/
 ├── listings/               ← Per-property file storage (gitignored)
 │   └── _template/          ← Folder structure reference
 ├── api/Dockerfile          ← Multi-stage Docker build
-├── compose.yml             ← Local Docker Compose
-└── railway.json            ← legacy Railway config (dormant twin; prod runs on the Hostinger VPS)
+└── compose.yml             ← Local Docker Compose
 ```
 
 ---
@@ -162,7 +161,7 @@ cd /docker/wv-property-intelligence && docker compose build && docker compose up
 
 Persistent data lives on the Docker named volume `wv-property-intelligence_wv-data`, mounted at `/data`. Set both `DATABASE_PATH=/data/wv_property.db` and `LISTINGS_ROOT=/data/listings` in `/docker/wv-property-intelligence/.env` so admin photo uploads survive rebuilds and `docker compose up -d --force-recreate`. Secrets are set in that `.env` file, not in the repo.
 
-> The old Railway service (`alert-laughter` / `wv-property-intelligence`) is no longer the live target — apex DNS points at the VPS. `railway.json` is retained only for the dormant twin, pending a decommission decision. See `docs/CANONICAL_MAP.md` for the full production map.
+> The old Railway service (`alert-laughter` / `wv-property-intelligence`) was **deleted on 2026-06-18** — production runs solely on the Hostinger VPS, and `railway.json`/`railway.toml` were removed from the repo. See `docs/CANONICAL_MAP.md` for the full production map.
 
 ---
 

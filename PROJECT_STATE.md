@@ -1,6 +1,6 @@
 # PROJECT_STATE.md — Malickland 2.0
 
-> **Last verified:** 2026-06-18 (GitHub `origin/main` @ `09bd364` after #106; live prod = Hostinger VPS, src @ `e7c2114`, container healthy; Railway twin deployments removed; WV license `WV0029577` verified vs WV REC roster)
+> **Last verified:** 2026-06-18 (GitHub `origin/main` @ `79064a9` after #112; live prod = Hostinger VPS, src @ `79064a9` deployed 2026-06-18, container healthy; Railway twin **deleted** 2026-06-18; WV license `WV0029577` verified vs WV REC roster)
 > **Authority:** Product completeness, repo workspace truth, resolved facts, and open gates. Use `docs/CANONICAL_MAP.md` for repo/domain/stack disambiguation. Deployment runbooks and guardrails remain in `docs/agent-handoff.md`.
 
 ---
@@ -28,11 +28,11 @@ Agents must use `PROJECT_STATE.md`, GitHub PR state, and live production checks 
 | Close date | ✅ `2026-05-29` | Live DB row `advent-dr-hampshire-wv.sold_at='2026-05-29'` |
 | $299 broker admin fee wording | ✅ Approved and live | Homepage and `/37-advent` disclose the fee; broker approval was confirmed before deploy |
 | Brokerage disclosure | ✅ Live | Footer / public pages show `WV Real Estate Agency, LLC | Sheila Judy, Broker` |
-| Production deploy | ✅ Live and verified | Hostinger VPS `31.97.58.203`, src @ `e7c2114`, container `wv-property-intelligence` healthy |
+| Production deploy | ✅ Live and verified | Hostinger VPS `31.97.58.203`, src @ `79064a9` (deployed 2026-06-18), container `wv-property-intelligence` healthy |
 | PRs #98, #100, #101, #102, #104, #106 | ✅ Merged | `origin/main` includes #106 squash `09bd364` |
 | `scripts/smoke-prod.sh` | ✅ Fixed | #102 merged; script respects `PUBLIC_LISTINGS_ENABLED` via `/api/config` |
-| Railway twin auto-deploy | ✅ Disabled | Dashboard action confirmed; #102 merge did not create a new Railway deployment |
-| Railway twin deployments | ✅ Removed | `railway deployment list` shows all recent deployments `REMOVED`, including `5927bce6` |
+| Railway twin | ✅ **Deleted** 2026-06-18 | Service `wv-property-intelligence` removed from Railway project `alert-laughter` (deployments removed, custom domains detached, env/secrets gone). Project now holds only the separate `malickland.net` 2.0 service |
+| Railway config in repo | ✅ Removed | `railway.json` + `railway.toml` deleted; legacy GitHub deploy environments `alert-laughter / production` + `production` deleted (0 secrets each); `copilot` env kept (unrelated) |
 | WV real estate license # | ✅ `WV0029577` (active Salesperson) | WV REC Active Salesperson Roster (10.25), verified 2026-06-18 — `PHILIP MALICK · WV0029577 · Salesperson · WV Real Estate Agency · malickland@icloud.com · 501 E Main St, Romney, WV 26757` (name/brokerage/email/address all match) |
 | Content funnel pack | ✅ Finalized, publish-ready | `~/Documents/MalickLand_Content_Funnel_Pack_2026-06-17/`; footer disclosure aligned to the live broker block + `WV0029577` + Equal Housing; PDF text pypdf-verified |
 
@@ -46,6 +46,7 @@ Agents must use `PROJECT_STATE.md`, GitHub PR state, and live production checks 
 | Production correctness after deploy | Live health/page/config checks + VPS container health |
 | Railway revival risk for normal merges | Auto-deploy disabled; #102 merge did not revive the service |
 | WV license number verification | `WV0029577` verified 2026-06-18 against the WV REC Active Salesperson Roster (cited in Resolved facts) |
+| Railway twin decommission | Service deleted from Railway 2026-06-18 (Phil-approved); repo `railway.json`/`railway.toml` + dead GitHub deploy environments removed; production is VPS-only |
 
 ### Open gates — ask only these when needed
 
@@ -54,8 +55,6 @@ Agents must use `PROJECT_STATE.md`, GitHub PR state, and live production checks 
 | Funnel `/start` deploy + activation | Phil | Approve deploy of PR #109 to the VPS, then approve (a) exposing the PDF publicly, (b) activating the form for real traffic | Built on the **live VPS site** (Phil's chosen path, not Squarespace). PR #109 = `app/start.html` + Buyer's Guide PDF, posts to `/api/contacts` (`source=buyers-guide`). Local-verified (preflight + live smoke: `/start` 200 with listings off, PDF 200, contacts 201, cross-origin 403). **Merge-candidate only — not deployed.** Awaiting Codex READY verdict |
 | Welcome / nurture emails (funnel phase 2) | Phil | Approve enabling and sending the welcome sequence | Gated separately; emails are a hard pause-point. Not in PR #109 |
 | Optional alternate footer wording from Sheila | Sheila | Sheila-approved exact wording only if she wants something different from the current live-aligned block | Not blocking; the default form is already in the pack. The live fee/brokerage wording is closed |
-| Railway hard-delete after retention | Phil | Explicit approval after 30-90 day retention window | Service/volume retained for rollback window; deployments are removed |
-| Remove `railway.json` and legacy GitHub deployment environments | Phil / repo maintainer | Decision after retention-window hard-delete | Keep until the Railway twin is fully deleted |
 
 ### Agent question rule
 
@@ -130,9 +129,9 @@ Recent PRs #98, #100, #101, and #102 are merged. Open issue/PR counts must still
 | Governance files | ✅ `README.md`, `CONTRIBUTING.md`, `.github/CODEOWNERS`, issue templates, and PR template present |
 | GitHub security queues | ✅ Open code-scanning alerts: 0; Dependabot alerts: 0; secret-scanning alerts: 0 (2026-05-31 API audit) — ⚠️ predates the 2026-06-17 high-sev `multer` DoS advisory (Dependabot/npm-audit class), remediated on `fix/multer-dos-advisory` (multer 2.1.1→2.2.0); re-query queues after that PR merges |
 | Remote branches | ✅ Only protected `main` remains on `origin` after stale branch cleanup (2026-05-31) |
-| Railway twin | ✅ Not live; auto-deploy disabled; all deployments removed. `railway deployment list` shows all recent deployments `REMOVED`. Retain service/volume until hard-delete after the 30-90 day backup window |
-| GitHub environments | Legacy Railway deployment statuses (`alert-laughter / production`) and the `production`/`copilot` environments are **not** gating and no longer reflect the live target (prod is the Hostinger VPS) — remove after Railway retention hard-delete |
-| Listing uploads | ⚠️ Repo support added for `LISTINGS_ROOT`; live deploy still needs `LISTINGS_ROOT=/data/listings` plus one-time migration of any existing `/workspace/listings` files before relying on VPS-local uploaded photos surviving recreate |
+| Railway twin | ✅ **Deleted** 2026-06-18 — service removed from Railway (deployments, custom domains, env/secrets gone); production is VPS-only. Off-Railway backup retained at `~/railway-decommission-backup-2026-06-17/` per the 30–90 day window |
+| GitHub environments | ✅ Cleaned 2026-06-18 — deleted the Railway-era `alert-laughter / production` + `production` environments (0 secrets each, non-gating). Only `copilot` remains (GitHub Copilot agent; unrelated to Railway) |
+| Listing uploads | ✅ Deployed 2026-06-18 — `LISTINGS_ROOT=/data/listings` set on the VPS `.env`; `/data/listings` created on the persistent volume (entrypoint); migration was a no-op (live `/workspace/listings` empty). Uploads now survive container recreate |
 
 ---
 

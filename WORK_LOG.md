@@ -918,3 +918,29 @@ Remediate the high-severity `multer` DoS advisory (production dependency powerin
 
 ### Recommended Next Task
 Per External Assistant / Codex Handoff Protocol: Codex independently verifies (gh pr view / gh pr checks / reviewThreads unresolved=0 / VPS SHA unchanged) and issues the READY/NOT READY verdict. Claude does not self-declare ready.
+
+---
+
+## 2026-06-18 — Claude (Opus 4.8) — Railway twin decommission + production-truth sync
+
+### Objective
+Finalize the Railway decommission after the verified VPS deploy of `79064a9`, and bring the durable docs to current production truth.
+
+### Context
+The `79064a9` VPS deploy (PRs #102/#104/#106/#108/#109/#111/#112) went out and verified healthy. During that window a stray CLI/queue-triggered Railway deploy (`22f3d836`, cliMessage "Deploy origin/main 79064a9: PR #111/#112 queue") revived the retired twin — there was no GitHub auto-deploy trigger, so it was a manual deploy by another actor. Phil approved deleting the service outright.
+
+### Changes Made (live; DNS untouched; no secrets printed)
+- Railway: `railway down` the revived deploy; `customDomainDelete` for `malickland.net` + `www.malickland.net`; `serviceDelete` for `wv-property-intelligence`. Project `alert-laughter` now holds only the separate `malickland.net` 2.0 service (untouched).
+- GitHub: deleted dead deployment environments `alert-laughter / production` + `production` (0 secrets each); kept `copilot`.
+- Repo: removed `railway.json` + `railway.toml`; updated `README.md`, `ARCHITECTURE.md`, `PROJECT_STATE.md`, `docs/CANONICAL_MAP.md`, `TASKS.md`, `DECISIONS.md` to reflect "twin deleted" + VPS @ `79064a9`.
+
+### Verification
+- Railway project services = `[malickland.net]` only (twin absent).
+- DNS apex+www → `31.97.58.203` (unchanged); VPS `/api/health` 200, `/start` 200, `/api/config` `listingsEnabled:false`, container healthy at `79064a9`.
+- Remaining `git grep -i railway` matches are process/agent docs only (issue/PR templates, `.openhands`, `.cursor`, a `chat.js` comment) — flagged as a follow-up ops-doc scrub; no live config references the deleted service.
+
+### Remaining Risks
+- None to production (VPS is canonical; off-Railway backup retained at `~/railway-decommission-backup-2026-06-17/`).
+
+### Recommended Next Task
+Per the gatekeeper protocol, Codex independently verifies and issues the READY/NOT READY verdict; Claude does not self-declare ready. Optional follow-up: scrub residual "deploy → Railway" wording from the issue/PR templates and the `api/routes/chat.js` comment.

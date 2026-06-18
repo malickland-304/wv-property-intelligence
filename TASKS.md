@@ -12,9 +12,6 @@
 ---
 
 ## High Priority
-
-- [ ] **Railway twin final deletion after retention** — audit ✅ (Railway `contacts`/`leads` == VPS, hashes match, no un-migrated leads), full `/data` backup ✅ (downloaded to `~/railway-decommission-backup-2026-06-17/`, retain 30-90 days), deployments ✅ **REMOVED**, GitHub auto-deploy ✅ **disabled** and proven by the #102 merge not reviving Railway. See `DECISIONS.md` 2026-06-17. **Remaining after retention:** (1) hard-delete the service/volume; (2) remove `railway.json` + the legacy GitHub deployment environments from the repo; (3) rotate/retire any retained Railway copy of production secrets as part of final deletion. ⚠️ **Human-only** (real lead PII + prod secrets). — **Phil**
-- [ ] **Deploy persistent `LISTINGS_ROOT` on the VPS** — repo support added for configurable listing storage; next deploy must set `LISTINGS_ROOT=/data/listings` in `/docker/wv-property-intelligence/.env`, create/migrate any existing `/workspace/listings` files into `/data/listings`, restart, and verify `/images/*` still serves. Google Drive remains the off-box media backup path. — depends on Phil-approved VPS deploy window — **Phil / Claude Code**
 - [ ] **Public assistant backend (`POST /api/chat`)** — homepage "MalickLand Assistant" widget had no backend (404 in prod). Added a public, per-IP rate-limited, same-origin chat route reusing the PR #90 gateway-aware AI plumbing (`generateChatReply`); strict brokerage-safe system prompt; safe-by-default with no AI key. Acceptance: security suite 52/52, new chat suite 14/14, preflight green (incl. assistant smoke). **Phil (human-only)** — configuring the AI key requires production SSH + secret access, which agents must not do per AGENTS.md; a human sets it in the VPS `.env` (not Railway) to enable live replies.
 - [ ] **OpenHands executor activation** — provision fine-grained GitHub token; start executor; run first supervised task — waiting on developer action; Issue #66 is fixed and Issue #65 is closed, so create or pick a current task — **developer action**
 
@@ -41,6 +38,8 @@
 
 ## Completed
 
+- [x] **Railway twin deleted (final decommission)** — service `wv-property-intelligence` removed from Railway project `alert-laughter` (Phil-approved): revived deploy `22f3d836` removed, `malickland.net`/`www` custom domains detached, service deleted (deployments + GitHub source link + env/secrets gone); repo `railway.json` + `railway.toml` removed; dead GitHub deploy environments `alert-laughter / production` + `production` deleted (`copilot` kept). Production is VPS-only; off-Railway backup retained at `~/railway-decommission-backup-2026-06-17/` — 2026-06-18
+- [x] **Deploy persistent `LISTINGS_ROOT` on the VPS** — `LISTINGS_ROOT=/data/listings` set on the VPS `.env`; `/data/listings` created on the persistent volume by the entrypoint; migration was a no-op (live `/workspace/listings` was empty); uploads now survive container recreate. Deployed with `79064a9` — 2026-06-18
 - [x] **Repo support for persistent listing uploads** — `LISTINGS_ROOT` now controls listing/photo storage and `/images` serving; default remains local repo `listings/`, VPS target is `/data/listings` on the existing persistent volume — 2026-06-18
 - [x] **Agent triage protocol** — added `scripts/agent-triage.sh` and `docs/AGENT_TRIAGE_PROTOCOL.md`; agents must run/read durable state before asking Phil to relay Claude/Codex/GitHub/production status — 2026-06-18
 - [x] **Broken county links** — resolved: `/wv/:slug` county-page route exists (`api/routes/public.js:161`); serves county pages when `PUBLIC_LISTINGS_ENABLED=true`, gracefully `302`→`/` when off; homepage `/wv/<county>-county` links are hidden by the listings-off CSS — no 404s (verified live 2026-06-18: `/wv/hampshire-county` → 302)

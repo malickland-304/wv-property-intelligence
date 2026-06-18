@@ -223,7 +223,7 @@ Request path:
 
 - **Cloudflare** provides DNS only (grey-cloud / DNS-only); it is **not** proxying or terminating TLS in front of the VPS. TLS is terminated by **Traefik** on the VPS via Let's Encrypt.
 - The compose file (`/docker/wv-property-intelligence/compose.yml`) lives on the VPS and also runs the test host `Host(wv-test.malickland.cloud)`.
-- The old **Railway** service (`alert-laughter` / `wv-property-intelligence`) is no longer the live target — DNS bypasses it. It is on standby pending a decommission decision; `railway.json` is retained only for that twin.
+- The old **Railway** service (`alert-laughter` / `wv-property-intelligence`) was **fully decommissioned on 2026-06-18** — the service was deleted from Railway (deployments removed, the `malickland.net`/`www` custom domains detached, and its env/secrets deleted with the service), and `railway.json`/`railway.toml` were removed from the repo. Production runs solely on the Hostinger VPS. (The separate `malickland.net` Next.js 2.0 Railway service is unaffected.)
 - No application CDN, no load balancer, no Redis, no external database
 - Uploaded photos use `LISTINGS_ROOT` (default: repo `listings/`). On the VPS, set `LISTINGS_ROOT=/data/listings` so admin uploads are stored on the existing persistent Docker volume and continue serving through `/images/*`. Google Drive (`api/google.js`) remains the off-box media backup path; S3+CDN is the longer-term upgrade path.
 - Single-process Node.js — no clustering
