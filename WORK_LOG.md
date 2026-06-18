@@ -792,3 +792,38 @@ Turn the anti-loop framework into an executable triage path so Phil does not hav
 
 ### Recommended Next Task
 Open a small PR against current `origin/main` so every future agent has the executable triage entrypoint.
+
+---
+
+## 2026-06-18 — Codex (GPT-5) — Persistent listing uploads
+
+### Objective
+Remove the repo-side blocker that made admin-uploaded listing photos depend on the container filesystem instead of persistent VPS storage.
+
+### Changes Made
+- `api/helpers.js` — made listing storage configurable with `LISTINGS_ROOT`, defaulting to the existing repo `listings/` path for local development.
+- `api/server.js` — serves `/images/*` from the shared `LISTINGS_ROOT`.
+- `api/ai-generator.js` — creates the listing directory and writes `listing.json` through `safeListingPath()` so AI output follows the configured listing root.
+- `api/docker-entrypoint.sh` / `api/Dockerfile` — ensure `/data/listings` exists on persistent-volume deployments and remove stale Railway-only wording.
+- `tests/verify-security-fixes.test.js` — added checks that uploads, image serving, and AI listing JSON all use the shared configurable listing root.
+- `README.md`, `ARCHITECTURE.md`, `QA_CHECKLIST.md`, `PROJECT_STATE.md`, `TASKS.md`, `AGENTS.md` — documented `LISTINGS_ROOT=/data/listings` as the VPS target and kept deploy/migration as an explicit human-approved production step.
+
+### Verification (Truthfulness Rule applies)
+- Command: `git diff --check` → Result: PASSED.
+- Command: `node --check api/helpers.js && node --check api/server.js && node --check api/ai-generator.js && sh -n api/docker-entrypoint.sh` → Result: PASSED.
+- Command: `node tests/verify-security-fixes.test.js` → Result: PASSED (57/57).
+- Command: `cd api && npm ci` → Result: PASSED; npm reported one existing high-severity audit item.
+- Command: `LISTINGS_ROOT=/tmp/wv-listings-test node -e "..."` → Result: PASSED (`/tmp/wv-listings-test`).
+- Command: `bash scripts/preflight.sh` → Result: PASSED.
+
+### Security Notes
+- No secrets read, printed, or changed.
+- No production deploy, VPS mutation, DB mutation, or Railway mutation.
+- The live deployment remains gated: set `LISTINGS_ROOT=/data/listings`, migrate any existing `/workspace/listings` files, restart, then verify `/images/*` paths.
+
+### Remaining Risks
+- Existing live uploads, if any, still need a one-time migration into `/data/listings` during a Phil-approved deploy window.
+- Google Drive remains the off-box media backup path; this change only makes VPS-local storage survive container recreate.
+
+### Recommended Next Task
+Open PR for review. After merge, schedule a controlled VPS deploy/migration only with explicit Phil approval.

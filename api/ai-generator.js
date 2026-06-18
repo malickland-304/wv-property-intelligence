@@ -27,9 +27,7 @@
 
 const https  = require('https');
 const fs     = require('fs');
-const path   = require('path');
-
-const PROJECT_ROOT = path.join(__dirname, '..');
+const { safeListingPath } = require('./helpers');
 
 // ── AI provider calls — Vercel AI Gateway, direct Anthropic, or direct OpenAI, no SDK ─────
 
@@ -395,7 +393,9 @@ OUTPUT FORMAT — Return this exact JSON structure:
 // ── Write outputs to listing.json ─────────────────────────────────────────────
 
 function saveToListingJson(slug, aiContent, propertyData) {
-  const jsonPath = path.join(PROJECT_ROOT, 'listings', slug, 'listing.json');
+  const baseDir = safeListingPath(slug);
+  fs.mkdirSync(baseDir, { recursive: true });
+  const jsonPath = safeListingPath(slug, 'listing.json');
 
   let existing = {};
   try { existing = JSON.parse(fs.readFileSync(jsonPath, 'utf8')); } catch {}

@@ -23,8 +23,8 @@ COPY --chown=65532:65532 api ./api
 COPY --chown=65532:65532 app ./app
 COPY --chmod=755 api/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-# Create runtime directories. Railway mounts /data at runtime, so the entrypoint
-# fixes volume ownership before dropping to appuser.
+# Create runtime directories. Persistent deployments mount /data at runtime, so
+# the entrypoint fixes volume ownership before dropping to appuser.
 RUN mkdir -p /data data database listings uploads reports \
     && groupadd --system --gid 1001 appgroup \
     && useradd --system --uid 1001 --gid appgroup --no-create-home appuser \

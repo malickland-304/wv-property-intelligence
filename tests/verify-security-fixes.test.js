@@ -303,6 +303,31 @@ test('safeListingPath or safePathComponent is used for listing file paths in hel
     'Path safety helpers must be defined in api/helpers.js');
 });
 
+test('listing storage root is configurable through LISTINGS_ROOT', () => {
+  assert(helpersCode.includes('process.env.LISTINGS_ROOT'),
+    'api/helpers.js should allow LISTINGS_ROOT to move listing uploads onto a persistent volume');
+  assert(helpersCode.includes('path.resolve(process.env.LISTINGS_ROOT || DEFAULT_LISTINGS_ROOT)'),
+    'LISTINGS_ROOT should resolve either the configured persistent root or the local default');
+});
+
+test('/images static files serve from the shared LISTINGS_ROOT', () => {
+  assert(serverCode.includes("const { LISTINGS_ROOT } = require('./helpers')"),
+    'server.js should import LISTINGS_ROOT from helpers.js');
+  assert(serverCode.includes("app.use('/images', express.static(LISTINGS_ROOT))"),
+    '/images should serve from the same configurable listing root used by uploads');
+});
+
+test('AI listing JSON writes use safeListingPath', () => {
+  const aiGeneratorPath = path.join(PROJECT_ROOT, 'api/ai-generator.js');
+  const aiGeneratorCode = fs.readFileSync(aiGeneratorPath, 'utf8');
+  assert(aiGeneratorCode.includes("const { safeListingPath } = require('./helpers')"),
+    'ai-generator.js should use shared listing path safety helpers');
+  assert(aiGeneratorCode.includes("const jsonPath = safeListingPath(slug, 'listing.json')"),
+    'AI listing JSON output should write through safeListingPath');
+  assert(aiGeneratorCode.includes('fs.mkdirSync(baseDir, { recursive: true })'),
+    'AI listing JSON output should create the listing directory before writing');
+});
+
 test('admin mutating routes require CSRF in routes/admin.js', () => {
   const mutatingRoutes = [
     "router.post('/new'",

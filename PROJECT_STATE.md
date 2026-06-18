@@ -121,7 +121,7 @@ Recent PRs #98, #100, #101, and #102 are merged. Open issue/PR counts must still
 | Live config | ✅ `/api/config` → `listingsEnabled:false` (public listing API routes are intentionally gated off) |
 | 37 Advent live DB row | ✅ `status='sold'`, `price=170000`, `sold_at='2026-05-29'` |
 | npm audit | ✅ 0 vulnerabilities (verified on fix branch 2026-05-31) |
-| Security test suite | ✅ **52/52** locally on 2026-06-04 (`node tests/verify-security-fixes.test.js`) |
+| Security test suite | ✅ **57/57** locally on 2026-06-18 (`node tests/verify-security-fixes.test.js`) |
 | Preflight + route smoke | ✅ `scripts/preflight.sh` passed locally on 2026-06-04 |
 | CI gates | ✅ CodeQL, Semgrep, `preflight.yml` |
 | Branch protection | Required status checks enabled (`CodeQL`, `verify`, `check`, `CodeScan`, `semgrep-cloud-platform/scan`); required conversation resolution enabled; PR review protection and admin enforcement intentionally off per `DECISIONS.md` 2026-05-31 |
@@ -130,6 +130,7 @@ Recent PRs #98, #100, #101, and #102 are merged. Open issue/PR counts must still
 | Remote branches | ✅ Only protected `main` remains on `origin` after stale branch cleanup (2026-05-31) |
 | Railway twin | ✅ Not live; auto-deploy disabled; all deployments removed. `railway deployment list` shows all recent deployments `REMOVED`. Retain service/volume until hard-delete after the 30-90 day backup window |
 | GitHub environments | Legacy Railway deployment statuses (`alert-laughter / production`) and the `production`/`copilot` environments are **not** gating and no longer reflect the live target (prod is the Hostinger VPS) — remove after Railway retention hard-delete |
+| Listing uploads | ⚠️ Repo support added for `LISTINGS_ROOT`; live deploy still needs `LISTINGS_ROOT=/data/listings` plus one-time migration of any existing `/workspace/listings` files before relying on VPS-local uploaded photos surviving recreate |
 
 ---
 

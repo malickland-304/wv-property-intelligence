@@ -5,7 +5,8 @@ const fs   = require('fs');
 const escapeHtml = require('escape-html');
 
 const PROJECT_ROOT = path.join(__dirname, '..');
-const LISTINGS_ROOT = path.join(PROJECT_ROOT, 'listings');
+const DEFAULT_LISTINGS_ROOT = path.join(PROJECT_ROOT, 'listings');
+const LISTINGS_ROOT = path.resolve(process.env.LISTINGS_ROOT || DEFAULT_LISTINGS_ROOT);
 
 const VALID_PROP_TYPES   = ['residential','commercial','land','multi-family','industrial'];
 const VALID_PROP_STATUSES = ['active','pending','sold','withdrawn','draft'];
