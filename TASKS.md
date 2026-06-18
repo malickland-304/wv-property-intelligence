@@ -31,13 +31,13 @@
 - [ ] **Phase 2: AI Review Queue** — depends on Phase 1 complete + ChatGPT spec
 - [ ] **Phase 3: Drive event automation** — depends on Phase 2 — **Gemini leads**
 - [ ] **Phase 4: Gmail intake** — depends on Phase 3 — **Gemini leads**
-- [ ] **CORS origin restriction review** — evaluate if `cors()` without origin list is appropriate as API scope grows
 - [ ] **Add integration/E2E tests** — currently only unit-style static-analysis tests; add real HTTP tests using supertest or similar
 
 ---
 
 ## Completed
 
+- [x] **CORS origin restriction review** — existing `CORS_ORIGIN` allowlist behavior verified and regression-covered in `tests/http-smoke.test.js`; trusted origins receive CORS headers and can submit guarded leads, untrusted origins do not receive CORS access and are rejected by same-origin lead guards — 2026-06-18
 - [x] **Phase 1: Document Registry spec** — schema, approval state machine, AI extraction JSON contract, API skeleton, and implementation acceptance criteria captured in `docs/DOCUMENT_REGISTRY_SPEC.md` — 2026-06-18
 - [x] **HTTP integration smoke test** — `tests/http-smoke.test.js` starts the real Express app on a temp SQLite DB and is enforced by `scripts/preflight.sh`; covers health/config/listings-off/contact-origin/chat-fallback behavior — 2026-06-18
 - [x] **Repo support for persistent listing uploads** — `LISTINGS_ROOT` now controls listing/photo storage and `/images` serving; default remains local repo `listings/`, VPS target is `/data/listings` on the existing persistent volume — 2026-06-18

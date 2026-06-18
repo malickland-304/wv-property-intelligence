@@ -975,3 +975,25 @@ Deliver the open Phase 1 Document Registry spec from `TASKS.md` so implementatio
 
 ### Recommended Next Task
 Implement the Phase 1 Document Registry skeleton from `docs/DOCUMENT_REGISTRY_SPEC.md` in a separate branch with focused tests.
+
+---
+
+## 2026-06-18 — Codex — CORS origin restriction review
+
+### Objective
+Close the open `TASKS.md` item asking whether `cors()` without an origin list is appropriate as API scope grows.
+
+### Changes Made
+- `tests/http-smoke.test.js` — extended the real HTTP smoke to start the app with `CORS_ORIGIN=https://trusted.example`; verified trusted origins receive `Access-Control-Allow-Origin`, untrusted origins do not, untrusted lead POSTs are rejected by `requireLeadSameOrigin`, and allowlisted cross-origin lead POSTs still work.
+- `TASKS.md` — moved CORS origin restriction review to Completed with the tested behavior.
+- `WORK_LOG.md` — this entry.
+
+### Verification
+- Required before PR: `node tests/http-smoke.test.js`, `bash scripts/preflight.sh`, `node tests/verify-security-fixes.test.js`, and `git diff --check`.
+
+### Security Notes
+- No runtime policy change was needed. Existing behavior is allowlist-based via `CORS_ORIGIN`; browser CORS access and lead/chat origin acceptance share that allowlist through `expectedLeadOrigins()`.
+- No secrets, production config, or VPS state changed.
+
+### Recommended Next Task
+Continue with either the Twilio-path cleanup or the Document Registry implementation skeleton, depending on whether the next chunk should be low-risk cleanup or feature foundation.

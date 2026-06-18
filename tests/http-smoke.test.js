@@ -12,6 +12,8 @@ const ROOT = path.join(__dirname, '..');
 const API_DIR = path.join(ROOT, 'api');
 const TMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'wv-http-smoke-'));
 const DB_PATH = path.join(TMP_DIR, 'smoke.db');
+const TRUSTED_ORIGIN = 'https://trusted.example';
+const UNTRUSTED_ORIGIN = 'https://untrusted.example';
 
 let server = null;
 let passed = 0;
@@ -85,6 +87,7 @@ async function main() {
       NODE_ENV: 'test',
       PUBLIC_LISTINGS_ENABLED: 'false',
       PUBLIC_ASSISTANT_ENABLED: 'false',
+      CORS_ORIGIN: TRUSTED_ORIGIN,
       API_KEY: 'http-smoke-api-key',
       SESSION_SECRET: 'http-smoke-session-secret',
       ADMIN_PASSWORD: 'http-smoke-admin-password',
@@ -126,6 +129,20 @@ async function main() {
       assert.deepStrictEqual(await json(res), { total: 0, page: 1, properties: [] });
     });
 
+    await test('CORS allows only configured cross-origin browser access', async () => {
+      const trusted = await fetch(`${baseUrl}/api/health`, {
+        headers: { Origin: TRUSTED_ORIGIN },
+      });
+      assert.strictEqual(trusted.status, 200);
+      assert.strictEqual(trusted.headers.get('access-control-allow-origin'), TRUSTED_ORIGIN);
+
+      const untrusted = await fetch(`${baseUrl}/api/health`, {
+        headers: { Origin: UNTRUSTED_ORIGIN },
+      });
+      assert.strictEqual(untrusted.status, 200);
+      assert.strictEqual(untrusted.headers.get('access-control-allow-origin'), null);
+    });
+
     await test('GET /listings redirects home when public listings are disabled', async () => {
       const res = await fetch(`${baseUrl}/listings`, { redirect: 'manual' });
       assert.strictEqual(res.status, 302);
@@ -153,6 +170,40 @@ async function main() {
       });
       assert.strictEqual(res.status, 403);
       assert.strictEqual((await json(res)).error, 'Lead request origin is required.');
+    });
+
+    await test('POST /api/contacts rejects untrusted cross-origin leads', async () => {
+      const res = await fetch(`${baseUrl}/api/contacts`, {
+        method: 'POST',
+        headers: {
+          Origin: UNTRUSTED_ORIGIN,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: 'Bad Origin', email: 'bad@example.com' }),
+      });
+      assert.strictEqual(res.status, 403);
+      assert.strictEqual(res.headers.get('access-control-allow-origin'), null);
+      assert.strictEqual((await json(res)).error, 'Lead request origin is not allowed.');
+    });
+
+    await test('POST /api/contacts stores a CORS-allowlisted lead', async () => {
+      const res = await fetch(`${baseUrl}/api/contacts`, {
+        method: 'POST',
+        headers: {
+          Origin: TRUSTED_ORIGIN,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: 'Trusted Lead',
+          email: 'trusted@example.com',
+          message: 'Allowlisted origin contact',
+          source: 'http_smoke_cors',
+        }),
+      });
+      assert.strictEqual(res.status, 201);
+      assert.strictEqual(res.headers.get('access-control-allow-origin'), TRUSTED_ORIGIN);
+      const body = await json(res);
+      assert(Number.isInteger(body.id), 'response should include integer lead id');
     });
 
     await test('POST /api/contacts stores a same-origin lead', async () => {
