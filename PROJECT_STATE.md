@@ -1,7 +1,51 @@
 # PROJECT_STATE.md — Malickland 2.0
 
-> **Last verified:** 2026-06-17 (canonical branch `main` @ `b9d1198`; PR #97 merged; live prod = Hostinger VPS, src @ `b9d1198`, container healthy)
-> **Authority:** Product completeness and repo workspace truth. Use `docs/CANONICAL_MAP.md` for repo/domain/stack disambiguation. Deployment runbooks and guardrails remain in `docs/agent-handoff.md`.
+> **Last verified:** 2026-06-18 (GitHub `origin/main` @ `b6eaefa`; live prod = Hostinger VPS, src @ `e7c2114`, container healthy; Railway twin deployments removed)
+> **Authority:** Product completeness, repo workspace truth, resolved facts, and open gates. Use `docs/CANONICAL_MAP.md` for repo/domain/stack disambiguation. Deployment runbooks and guardrails remain in `docs/agent-handoff.md`.
+
+---
+
+## Agent State Ledger
+
+This section is the anti-loop ledger. Agents must read it before asking Phil for status or approval.
+
+### Resolved facts — do not ask again
+
+| Fact | Status | Evidence |
+|------|--------|----------|
+| 37 Advent close | ✅ Closed / verified | Live site and DB updated; `/37-advent` shows closed sale |
+| Sale price | ✅ `$170,000` | Live DB row `advent-dr-hampshire-wv.price=170000`; `/37-advent` copy shows closed at `$170,000` |
+| Close date | ✅ `2026-05-29` | Live DB row `advent-dr-hampshire-wv.sold_at='2026-05-29'` |
+| $299 broker admin fee wording | ✅ Approved and live | Homepage and `/37-advent` disclose the fee; broker approval was confirmed before deploy |
+| Brokerage disclosure | ✅ Live | Footer / public pages show `WV Real Estate Agency, LLC | Sheila Judy, Broker` |
+| Production deploy | ✅ Live and verified | Hostinger VPS `31.97.58.203`, src @ `e7c2114`, container `wv-property-intelligence` healthy |
+| PRs #98, #100, #101, #102 | ✅ Merged | `origin/main` includes #102 squash `b6eaefa` |
+| `scripts/smoke-prod.sh` | ✅ Fixed | #102 merged; script respects `PUBLIC_LISTINGS_ENABLED` via `/api/config` |
+| Railway twin auto-deploy | ✅ Disabled | Dashboard action confirmed; #102 merge did not create a new Railway deployment |
+| Railway twin deployments | ✅ Removed | `railway deployment list` shows all recent deployments `REMOVED`, including `5927bce6` |
+
+### Closed gates — do not re-litigate
+
+| Gate | Closed by |
+|------|-----------|
+| Advent price/date confirmation | User confirmation + live DB update + live page verification |
+| Fee wording approval | User/broker approval + live disclosure verification |
+| PR #102 readiness/merge | Codex READY, CI green, 0 unresolved threads, #102 merged |
+| Production correctness after deploy | Live health/page/config checks + VPS container health |
+| Railway revival risk for normal merges | Auto-deploy disabled; #102 merge did not revive the service |
+
+### Open gates — ask only these when needed
+
+| Gate | Owner | Needed evidence / action | Notes |
+|------|-------|--------------------------|-------|
+| WV real estate license number for public funnel materials | Phil | Exact license number or primary source showing it | If source material already contains it, cite source and use it; otherwise ask only for this field |
+| Final marketing/footer disclosure wording for funnel packet | Sheila / Phil | Sheila-approved exact wording if different from the live site block | Do not ask whether the already-live fee wording is approved; that gate is closed |
+| Railway hard-delete after retention | Phil | Explicit approval after 30-90 day retention window | Service/volume retained for rollback window; deployments are removed |
+| Remove `railway.json` and legacy GitHub deployment environments | Phil / repo maintainer | Decision after retention-window hard-delete | Keep until the Railway twin is fully deleted |
+
+### Agent question rule
+
+Before asking Phil anything, identify the open gate in the table above. If no open gate matches, do the next repo-safe task or state that the remaining work is human-gated. Do not ask about resolved facts or closed gates.
 
 ---
 
@@ -11,11 +55,11 @@
 |------|--------|
 | **Active repo** | `/Users/yhyh7/Projects/wv-property-intelligence` |
 | **Remote** | `https://github.com/malickland-304/wv-property-intelligence.git` |
-| **Production branch** | `origin/main` @ `b9d1198` (PR #97 merged 2026-06-17) |
-| **Last merged PR** | #97 wire Resend for lead notifications (Ticket 0.3) |
+| **Production branch** | `origin/main` @ `b6eaefa` (#102 merged 2026-06-17) |
+| **Last merged PR** | #102 `fix(smoke): respect PUBLIC_LISTINGS_ENABLED in smoke-prod.sh` |
 | **Live deploy target** | **Hostinger VPS** `srv1716268` / `31.97.58.203` (Docker + Traefik); deploy is **manual** — merge ≠ deploy. Not Railway. See `docs/CANONICAL_MAP.md` |
 
-PR #76 is merged and live; PR #77 is merged on top. Compare future work against `origin/main`, not a stale local `main`.
+`origin/main` is ahead of live production by #102 only. This is expected: #102 changes a smoke script, not runtime app behavior, and does not require deploy. Compare future work against `origin/main`, not a stale local `main`.
 
 ### Do not use as source of truth
 
@@ -29,9 +73,9 @@ Local `main` checkout may lag `origin/main`; always `git fetch origin` and compa
 
 ---
 
-## GitHub / PR status (2026-06-04)
+## GitHub / PR status (2026-06-18)
 
-Open pull requests: **0**. Open issue count must be re-checked live in GitHub before acting; this document is not the live issue tracker.
+Recent PRs #98, #100, #101, and #102 are merged. Open issue/PR counts must still be re-checked live in GitHub before acting; this document is not the live issue tracker.
 
 | PR | Status |
 |----|--------|
@@ -45,6 +89,10 @@ Open pull requests: **0**. Open issue count must be re-checked live in GitHub be
 | **#86** (governance and compliance copy) | ✅ Merged — `a479bfb` on `origin/main` (2026-06-04) |
 | **#77** (Cursor workspace guardrails) | ✅ Merged — `b34e2fb` on `origin/main` (2026-05-31) |
 | **#78** (post-PR76 docs refresh) | ✅ Merged — `0908cd4` on `origin/main` (2026-05-31) |
+| **#98** (VPS production truth / gatekeeper protocol) | ✅ Merged — `250cef7` on `origin/main` |
+| **#100** (docs follow-up + Railway decommission record) | ✅ Merged — `9e3db78` on `origin/main` |
+| **#101** (37 Advent closed sale + $299 admin fee disclosure) | ✅ Merged — `e7c2114` on `origin/main`; deployed live |
+| **#102** (production smoke respects listings feature flag) | ✅ Merged — `b6eaefa` on `origin/main`; no deploy needed |
 
 ---
 
@@ -53,8 +101,10 @@ Open pull requests: **0**. Open issue count must be re-checked live in GitHub be
 | Item | Status |
 |------|--------|
 | Live URL | https://malickland.net |
-| VPS deploy / live smoke | ✅ Live `GET /api/health` → 200 served by `31.97.58.203` (Hostinger VPS, container `wv-property-intelligence:vps`, src @ `b9d1198`) verified 2026-06-17. Deploy is **manual** (SSH + `docker compose build && docker compose up -d`) — not Railway |
+| VPS deploy / live smoke | ✅ Live `GET /api/health` → 200 served by `31.97.58.203` (Hostinger VPS, container `wv-property-intelligence`, src @ `e7c2114`) verified 2026-06-18. Deploy is **manual** (SSH + `docker compose build && docker compose up -d`) — not Railway |
 | Health endpoint | **`GET /api/health`** — not `/health` (mounted in `api/routes/api.js`) |
+| Live config | ✅ `/api/config` → `listingsEnabled:false` (public listing API routes are intentionally gated off) |
+| 37 Advent live DB row | ✅ `status='sold'`, `price=170000`, `sold_at='2026-05-29'` |
 | npm audit | ✅ 0 vulnerabilities (verified on fix branch 2026-05-31) |
 | Security test suite | ✅ **52/52** locally on 2026-06-04 (`node tests/verify-security-fixes.test.js`) |
 | Preflight + route smoke | ✅ `scripts/preflight.sh` passed locally on 2026-06-04 |
@@ -63,7 +113,8 @@ Open pull requests: **0**. Open issue count must be re-checked live in GitHub be
 | Governance files | ✅ `README.md`, `CONTRIBUTING.md`, `.github/CODEOWNERS`, issue templates, and PR template present |
 | GitHub security queues | ✅ Open code-scanning alerts: 0; Dependabot alerts: 0; secret-scanning alerts: 0 (2026-05-31 API audit) |
 | Remote branches | ✅ Only protected `main` remains on `origin` after stale branch cleanup (2026-05-31) |
-| GitHub environments | Legacy Railway deployment statuses (`alert-laughter / production`) and the `production`/`copilot` environments are **not** gating and no longer reflect the live target (prod is the Hostinger VPS) — clean up with the Railway decommission task |
+| Railway twin | ✅ Not live; auto-deploy disabled; all deployments removed. `railway deployment list` shows all recent deployments `REMOVED`. Retain service/volume until hard-delete after the 30-90 day backup window |
+| GitHub environments | Legacy Railway deployment statuses (`alert-laughter / production`) and the `production`/`copilot` environments are **not** gating and no longer reflect the live target (prod is the Hostinger VPS) — remove after Railway retention hard-delete |
 
 ---
 
