@@ -49,6 +49,11 @@ node "$ROOT/tests/public-assistant-flag.test.js"
 echo "✓ Public assistant flag OK"
 echo
 
+echo "== HTTP integration smoke =="
+node "$ROOT/tests/http-smoke.test.js"
+echo "✓ HTTP integration smoke OK"
+echo
+
 echo "== Startup smoke =="
 PORT="$PORT_TO_USE" DATABASE_PATH="$TMP_DIR/preflight.db" NODE_ENV=test PUBLIC_LISTINGS_ENABLED=true API_KEY=preflight-api-key SESSION_SECRET=preflight-session-secret ADMIN_PASSWORD=preflight-admin-password node server.js > "$APP_LOG" 2>&1 &
 PID=$!
