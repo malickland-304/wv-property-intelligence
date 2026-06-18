@@ -53,6 +53,26 @@ Before asking a user-facing question, an agent must be able to answer:
 
 If the answer is "I am not sure," inspect `PROJECT_STATE.md`, `DECISIONS.md`, GitHub, and the relevant live system first. Do not ask Phil to re-answer closed gates because the chat context is long or confusing.
 
+### Agent Triage Protocol
+
+Before asking Phil to relay status between Claude, Codex, Gemini, GitHub, Squarespace, Railway, or the VPS, run:
+
+```bash
+bash scripts/agent-triage.sh
+```
+
+Use the script output plus `PROJECT_STATE.md` as the shared message bus:
+
+- Pull current PR state from GitHub instead of asking Phil to copy/paste another agent's PR summary.
+- Pull closed facts and open gates from `PROJECT_STATE.md` instead of asking Phil to restate them.
+- Pull live health from `https://malickland.net/api/health` and `/api/config` instead of asking whether production is correct.
+- Treat another agent's chat output as **CLAIMED** until verified by repository files, GitHub, live endpoints, VPS, Railway, or an official source.
+- If the triage output already answers the question, act on it; do not ask Phil to mediate.
+
+Manual chat relay is a last resort, not the operating model. Use it only when the needed source is unavailable to the current agent or requires a human-owned authentication step such as Squarespace login.
+
+Detailed rules live in `docs/AGENT_TRIAGE_PROTOCOL.md`.
+
 ---
 
 ## Architectural Stability Rule

@@ -41,6 +41,7 @@
 
 ## Completed
 
+- [x] **Agent triage protocol** — added `scripts/agent-triage.sh` and `docs/AGENT_TRIAGE_PROTOCOL.md`; agents must run/read durable state before asking Phil to relay Claude/Codex/GitHub/production status — 2026-06-18
 - [x] **Broken county links** — resolved: `/wv/:slug` county-page route exists (`api/routes/public.js:161`); serves county pages when `PUBLIC_LISTINGS_ENABLED=true`, gracefully `302`→`/` when off; homepage `/wv/<county>-county` links are hidden by the listings-off CSS — no 404s (verified live 2026-06-18: `/wv/hampshire-county` → 302)
 - [x] csurf → csrf-csrf migration — PR #63 merged 2026-05-27 — Codex verified, smoke PASSED
 - [x] AI control plane bootstrap (AGENTS.md, OpenHands hooks, issue templates) — PR #64 merged 2026-05-27

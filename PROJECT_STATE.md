@@ -1,6 +1,6 @@
 # PROJECT_STATE.md — Malickland 2.0
 
-> **Last verified:** 2026-06-18 (GitHub `origin/main` @ `f821774` after #104; live prod = Hostinger VPS, src @ `e7c2114`, container healthy; Railway twin deployments removed; WV license `WV0029577` verified vs WV REC roster)
+> **Last verified:** 2026-06-18 (GitHub `origin/main` @ `09bd364` after #106; live prod = Hostinger VPS, src @ `e7c2114`, container healthy; Railway twin deployments removed; WV license `WV0029577` verified vs WV REC roster)
 > **Authority:** Product completeness, repo workspace truth, resolved facts, and open gates. Use `docs/CANONICAL_MAP.md` for repo/domain/stack disambiguation. Deployment runbooks and guardrails remain in `docs/agent-handoff.md`.
 
 ---
@@ -8,6 +8,16 @@
 ## Agent State Ledger
 
 This section is the anti-loop ledger. Agents must read it before asking Phil for status or approval.
+
+### Triage entrypoint
+
+Before asking Phil to relay another agent's status, run:
+
+```bash
+bash scripts/agent-triage.sh
+```
+
+Agents must use `PROJECT_STATE.md`, GitHub PR state, and live production checks as the shared message bus. Chat screenshots and another agent's summaries are only CLAIMED until verified. Manual copy/paste relay is reserved for human-owned authentication boundaries such as Squarespace login.
 
 ### Resolved facts — do not ask again
 
@@ -19,7 +29,7 @@ This section is the anti-loop ledger. Agents must read it before asking Phil for
 | $299 broker admin fee wording | ✅ Approved and live | Homepage and `/37-advent` disclose the fee; broker approval was confirmed before deploy |
 | Brokerage disclosure | ✅ Live | Footer / public pages show `WV Real Estate Agency, LLC | Sheila Judy, Broker` |
 | Production deploy | ✅ Live and verified | Hostinger VPS `31.97.58.203`, src @ `e7c2114`, container `wv-property-intelligence` healthy |
-| PRs #98, #100, #101, #102 | ✅ Merged | `origin/main` includes #102 squash `b6eaefa` |
+| PRs #98, #100, #101, #102, #104, #106 | ✅ Merged | `origin/main` includes #106 squash `09bd364` |
 | `scripts/smoke-prod.sh` | ✅ Fixed | #102 merged; script respects `PUBLIC_LISTINGS_ENABLED` via `/api/config` |
 | Railway twin auto-deploy | ✅ Disabled | Dashboard action confirmed; #102 merge did not create a new Railway deployment |
 | Railway twin deployments | ✅ Removed | `railway deployment list` shows all recent deployments `REMOVED`, including `5927bce6` |
@@ -58,11 +68,11 @@ Before asking Phil anything, identify the open gate in the table above. If no op
 |------|--------|
 | **Active repo** | `/Users/yhyh7/Projects/wv-property-intelligence` |
 | **Remote** | `https://github.com/malickland-304/wv-property-intelligence.git` |
-| **Production branch** | `origin/main` @ `b6eaefa` (#102 merged 2026-06-17) |
-| **Last merged PR** | #102 `fix(smoke): respect PUBLIC_LISTINGS_ENABLED in smoke-prod.sh` |
+| **Production branch** | `origin/main` @ `09bd364` (#106 merged 2026-06-18) |
+| **Last merged PR** | #106 `docs(ledger): record WV license WV0029577 as verified; close that gate` |
 | **Live deploy target** | **Hostinger VPS** `srv1716268` / `31.97.58.203` (Docker + Traefik); deploy is **manual** — merge ≠ deploy. Not Railway. See `docs/CANONICAL_MAP.md` |
 
-`origin/main` is ahead of live production by #102 only. This is expected: #102 changes a smoke script, not runtime app behavior, and does not require deploy. Compare future work against `origin/main`, not a stale local `main`.
+`origin/main` is ahead of live production by docs/governance and smoke-script changes only (#102, #104, #106). This is expected: none of those changes require runtime deploy. Compare future work against `origin/main`, not a stale local `main`.
 
 ### Do not use as source of truth
 
@@ -96,6 +106,8 @@ Recent PRs #98, #100, #101, and #102 are merged. Open issue/PR counts must still
 | **#100** (docs follow-up + Railway decommission record) | ✅ Merged — `9e3db78` on `origin/main` |
 | **#101** (37 Advent closed sale + $299 admin fee disclosure) | ✅ Merged — `e7c2114` on `origin/main`; deployed live |
 | **#102** (production smoke respects listings feature flag) | ✅ Merged — `b6eaefa` on `origin/main`; no deploy needed |
+| **#104** (agent state ledger framework) | ✅ Merged — `f821774` on `origin/main`; no deploy needed |
+| **#106** (WV license verified + ledger cleanup) | ✅ Merged — `09bd364` on `origin/main`; no deploy needed |
 
 ---
 
