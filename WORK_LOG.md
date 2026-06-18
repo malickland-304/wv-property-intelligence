@@ -827,3 +827,36 @@ Remove the repo-side blocker that made admin-uploaded listing photos depend on t
 
 ### Recommended Next Task
 Open PR for review. After merge, schedule a controlled VPS deploy/migration only with explicit Phil approval.
+
+---
+
+## 2026-06-18 — Claude Code (Opus 4.8) — fix/multer-dos-advisory
+
+### Objective
+Remediate the high-severity `multer` DoS advisory (production dependency powering admin photo upload). Two advisories: GHSA-72gw-mp4g-v24j (DoS via deeply nested field names) and GHSA-3p4h-7m6x-2hcm (DoS via incomplete cleanup of aborted uploads); affected `multer` 1.0.0–2.1.1. This postdated the 2026-05-31 "0 vulnerabilities" audit, so `PROJECT_STATE.md` was stale on that point.
+
+### Changes Made
+- `api/package-lock.json` — `npm audit fix` bumped `multer` 2.1.1 → **2.2.0** (lockfile-only; non-`--force`, no breaking major bump). `api/package.json` caret `^2.1.1` already admits 2.2.0; per AGENTS.md the lockfile is canonical and installs are `npm ci`-only, so the manifest floor was intentionally left unchanged rather than hand-editing the lockfile or running `npm install` to resync a floor bump.
+- `PROJECT_STATE.md` — updated the `npm audit` line and the GitHub-security-queues note to record the advisory + remediation.
+- `WORK_LOG.md` — this entry.
+- Done in an isolated git worktree branched off `origin/main` @ `0da3357`, then **rebased onto `origin/main` @ `345d509`** (after PRs #108/#109 merged) with the `PROJECT_STATE.md` / `WORK_LOG.md` coordination-file conflicts resolved by combining both sides; all gates re-run on the rebased base (below). Phil's uncommitted WIP on `feat/listings-feature-flag` was left untouched.
+
+### Verification (Truthfulness Rule applies)
+- Command: `npm ci` (api/) → PASSED — 178 pkgs; lock⇄package.json consistent; deterministically installs multer 2.2.0.
+- Command: `npm audit` (api/) → PASSED — found 0 vulnerabilities (JSON totals high 0 / critical 0).
+- Command: `npm audit --omit=dev` (api/) → PASSED — found 0 vulnerabilities (prod-only high 0 / critical 0).
+- Command: `node --check` on server.js, db.js, middleware/auth.js, routes/{api,public,admin}.js → PASSED (all parse; multer 2.2.0 resolves).
+- Command: `bash scripts/preflight.sh` → PASSED ("PRE-FLIGHT PASSED", exit 0).
+- Command: `node tests/verify-security-fixes.test.js` → PASSED — 57/57 (on rebased base; suite grew 54→57 via #108).
+- Live upload round-trip (server on temp DB + ephemeral port, multer 2.2.0): authed + CSRF + valid JPEG → HTTP 200 `{"ok":true,"filename":…}` with raw/compressed/mls files written; authed + no CSRF → 403; anonymous → 403.
+
+### Security Notes
+- Middleware order for `POST /admin/upload/:slug` (read from `api/server.js:153` + `api/routes/admin.js:318`): app-level `doubleCsrfProtection` (csrf-csrf) → `requireAuth` → `requireCsrf` → `uploadRateLimit` → `upload.single('photo')` (**multer LAST**). multer parses the body **after** auth + CSRF + rate-limiting — the DoS surface is unreachable without a valid admin session + CSRF token (empirically: anon and no-CSRF requests both 403 before any file is processed). No ordering regression — source is `origin/main`, unchanged by a lockfile bump.
+- multer 2.1.1 → 2.2.0 is a minor, API-compatible release (`diskStorage`, `single`, `limits`, `fileFilter` unchanged).
+
+### Remaining Risks
+- None identified for this change. Re-query GitHub code-scanning / Dependabot / secret-scanning queues after merge to confirm the Dependabot alert clears.
+- **Not deployed** — deploy to the Hostinger VPS is Phil's gate (merge ≠ deploy).
+
+### Recommended Next Task
+Per External Assistant / Codex Handoff Protocol: Codex independently verifies (gh pr view / gh pr checks / reviewThreads unresolved=0 / VPS SHA unchanged) and issues the READY/NOT READY verdict. Claude does not self-declare ready.
