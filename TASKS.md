@@ -22,13 +22,12 @@
 
 - [ ] **Delete stale local branches** — remote branches are cleaned up; remove superseded local `copilot/*`, old `claude/*`, and merged fix branches after confirming no unpushed work — no deps — **Claude Code or developer**
 - [ ] **Add twilio to package.json or remove Twilio path** — optional SMS alert follow-up; current code fails gracefully when `twilio` is unavailable — no longer blocks lead route mounting
-- [ ] **Phase 1: Document Registry spec** — ChatGPT delivers schema, approval state machine, AI extraction JSON contract — no code deps — **ChatGPT**
 
 ---
 
 ## Low Priority
 
-- [ ] **Phase 1: Document Registry implementation** — new SQLite tables: `documents`, `document_versions`, `audit_events`, `integration_events`, `extracted_claims` (placeholder); API skeleton `/api/documents`; tests — depends on Phase 1 spec from ChatGPT — **OpenHands or Claude Code**
+- [ ] **Phase 1: Document Registry implementation** — new SQLite tables: `documents`, `document_versions`, `audit_events`, `integration_events`, `extracted_claims` (placeholder); API skeleton `/api/documents`; tests — depends on `docs/DOCUMENT_REGISTRY_SPEC.md` — **OpenHands or Claude Code**
 - [ ] **Phase 2: AI Review Queue** — depends on Phase 1 complete + ChatGPT spec
 - [ ] **Phase 3: Drive event automation** — depends on Phase 2 — **Gemini leads**
 - [ ] **Phase 4: Gmail intake** — depends on Phase 3 — **Gemini leads**
@@ -39,6 +38,8 @@
 
 ## Completed
 
+- [x] **Phase 1: Document Registry spec** — schema, approval state machine, AI extraction JSON contract, API skeleton, and implementation acceptance criteria captured in `docs/DOCUMENT_REGISTRY_SPEC.md` — 2026-06-18
+- [x] **HTTP integration smoke test** — `tests/http-smoke.test.js` starts the real Express app on a temp SQLite DB and is enforced by `scripts/preflight.sh`; covers health/config/listings-off/contact-origin/chat-fallback behavior — 2026-06-18
 - [x] **Repo support for persistent listing uploads** — `LISTINGS_ROOT` now controls listing/photo storage and `/images` serving; default remains local repo `listings/`, VPS target is `/data/listings` on the existing persistent volume — 2026-06-18
 - [x] **Agent triage protocol** — added `scripts/agent-triage.sh` and `docs/AGENT_TRIAGE_PROTOCOL.md`; agents must run/read durable state before asking Phil to relay Claude/Codex/GitHub/production status — 2026-06-18
 - [x] **Broken county links** — resolved: `/wv/:slug` county-page route exists (`api/routes/public.js:161`); serves county pages when `PUBLIC_LISTINGS_ENABLED=true`, gracefully `302`→`/` when off; homepage `/wv/<county>-county` links are hidden by the listings-off CSS — no 404s (verified live 2026-06-18: `/wv/hampshire-county` → 302)
