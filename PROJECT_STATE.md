@@ -51,7 +51,8 @@ Agents must use `PROJECT_STATE.md`, GitHub PR state, and live production checks 
 
 | Gate | Owner | Needed evidence / action | Notes |
 |------|-------|--------------------------|-------|
-| Funnel packet publish | Phil | Publish `/start` to Squarespace, upload the PDF lead-magnet, load the welcome emails | Pack is finalized and publish-ready: license #, brokerage disclosure, and Equal Housing all verified |
+| Funnel `/start` deploy + activation | Phil | Approve deploy of PR #109 to the VPS, then approve (a) exposing the PDF publicly, (b) activating the form for real traffic | Built on the **live VPS site** (Phil's chosen path, not Squarespace). PR #109 = `app/start.html` + Buyer's Guide PDF, posts to `/api/contacts` (`source=buyers-guide`). Local-verified (preflight + live smoke: `/start` 200 with listings off, PDF 200, contacts 201, cross-origin 403). **Merge-candidate only — not deployed.** Awaiting Codex READY verdict |
+| Welcome / nurture emails (funnel phase 2) | Phil | Approve enabling and sending the welcome sequence | Gated separately; emails are a hard pause-point. Not in PR #109 |
 | Optional alternate footer wording from Sheila | Sheila | Sheila-approved exact wording only if she wants something different from the current live-aligned block | Not blocking; the default form is already in the pack. The live fee/brokerage wording is closed |
 | Railway hard-delete after retention | Phil | Explicit approval after 30-90 day retention window | Service/volume retained for rollback window; deployments are removed |
 | Remove `railway.json` and legacy GitHub deployment environments | Phil / repo maintainer | Decision after retention-window hard-delete | Keep until the Railway twin is fully deleted |
@@ -108,6 +109,7 @@ Recent PRs #98, #100, #101, and #102 are merged. Open issue/PR counts must still
 | **#102** (production smoke respects listings feature flag) | ✅ Merged — `b6eaefa` on `origin/main`; no deploy needed |
 | **#104** (agent state ledger framework) | ✅ Merged — `f821774` on `origin/main`; no deploy needed |
 | **#106** (WV license verified + ledger cleanup) | ✅ Merged — `09bd364` on `origin/main`; no deploy needed |
+| **#109** (/start funnel landing page + Buyer's Guide lead magnet) | 🟡 Open — additive (`app/start.html` + PDF); local-verified; awaiting Codex READY; **do not deploy** until Phil approves publish/activation |
 
 ---
 
