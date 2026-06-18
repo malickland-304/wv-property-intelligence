@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>West Virginia Buyer's Guide | MalickLand</title>
+  <meta name="description" content="Download a practical West Virginia buyer's guide for homes, land, cabins, and investment property in the Eastern Panhandle and Potomac Highlands." />
+  <meta property="og:title" content="West Virginia Buyer's Guide | MalickLand" />
+  <meta property="og:description" content="A practical guide for buyers comparing homes, acreage, cabins, and investment property across West Virginia." />
+  <meta property="og:type" content="website" />
+  <style>
+    :root {
+      --bg: #f4f0e7; --paper: #fcfbf7; --ink: #111111; --muted: #5f5a52;
+      --line: #cfc2aa; --gold: #af8242; --gold-dark: #8b632b; --forest: #162017;
+      --forest-soft: #223126; --white: #ffffff; --shadow: 0 14px 40px rgba(17,17,17,0.12);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0; font-family: "Avenir Next", "Segoe UI", sans-serif; color: var(--ink);
+      background: radial-gradient(circle at top left, rgba(175,130,66,0.12), transparent 28%),
+        linear-gradient(180deg, #f7f3eb 0%, #efe7da 100%);
+      line-height: 1.55;
+    }
+    a { color: inherit; }
+    .shell { max-width: 1020px; margin: 0 auto; padding: 0 22px; }
+    .hero { background: linear-gradient(160deg, var(--forest) 0%, var(--forest-soft) 100%); color: var(--white); }
+    .hero .shell { padding: 60px 22px 66px; }
+    .eyebrow { text-transform: uppercase; letter-spacing: 0.16em; font-size: 0.78rem; color: var(--gold); font-weight: 700; margin: 0 0 14px; }
+    .hero h1 { font-size: 2.5rem; line-height: 1.12; margin: 0 0 16px; max-width: 16ch; }
+    .hero p { font-size: 1.12rem; color: #e9e1d2; max-width: 60ch; margin: 0 0 26px; }
+    .btn { display: inline-block; border: none; border-radius: 8px; padding: 14px 26px; font-size: 1rem; font-weight: 700; cursor: pointer; text-decoration: none; }
+    .btn-gold { background: var(--gold); color: var(--forest); }
+    .btn-gold:hover { background: var(--gold-dark); color: var(--white); }
+    .btn-ghost { background: transparent; color: var(--white); border: 1px solid rgba(255,255,255,0.5); margin-left: 12px; }
+    .section { padding: 54px 0; }
+    .section-title { font-size: 1.9rem; color: var(--forest); margin: 0 0 8px; }
+    .lead { color: var(--muted); max-width: 62ch; margin: 0 0 28px; }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+    .card { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 22px 24px; box-shadow: var(--shadow); }
+    .card h3 { margin: 0 0 6px; color: var(--gold-dark); font-size: 1.12rem; }
+    .card p { margin: 0; color: var(--muted); font-size: 0.98rem; }
+    .form-wrap { background: var(--forest); color: var(--white); }
+    .form-wrap .shell { padding: 52px 22px 60px; }
+    .form-card { background: var(--paper); color: var(--ink); border-radius: 14px; padding: 30px 30px 34px; box-shadow: var(--shadow); max-width: 640px; margin: 0 auto; }
+    .form-card h2 { color: var(--forest); margin: 0 0 6px; font-size: 1.7rem; }
+    .form-intro { color: var(--muted); margin: 0 0 22px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .row { display: flex; flex-direction: column; }
+    .row.full { grid-column: 1 / -1; }
+    label { font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; color: var(--forest-soft); }
+    input, select, textarea { font: inherit; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--white); color: var(--ink); }
+    input:focus, select:focus, textarea:focus { outline: 2px solid var(--gold); border-color: var(--gold); }
+    .submit-btn { width: 100%; margin-top: 20px; background: var(--gold); color: var(--forest); }
+    .submit-btn:hover { background: var(--gold-dark); color: var(--white); }
+    .status { margin: 14px 0 0; font-weight: 600; min-height: 1.2em; }
+    .status.success { color: #1f7a44; }
+    .status.error { color: #b3261e; }
+    .success-panel { display: none; margin-top: 18px; padding: 20px; border: 1px solid var(--line); border-radius: 10px; background: #f3f7f1; text-align: center; }
+    .success-panel.show { display: block; }
+    .success-panel .btn-gold { margin-top: 12px; }
+    footer { background: #11160f; color: #cdbf9f; font-size: 0.82rem; }
+    footer .shell { padding: 30px 22px; }
+    footer .contact { color: #f7f4ec; font-weight: 600; margin: 0 0 8px; }
+    footer .legal { color: #9d937f; line-height: 1.6; margin: 0; }
+    @media (max-width: 680px) { .hero h1 { font-size: 1.95rem; } .grid, .form-grid { grid-template-columns: 1fr; } .btn-ghost { margin-left: 0; margin-top: 10px; } }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="shell">
+      <p class="eyebrow">Free West Virginia Buyer's Guide</p>
+      <h1>Buy WV homes, land, and mountain property with a clearer plan.</h1>
+      <p>A practical guide for buyers comparing homes, acreage, cabins, and investment property across the Eastern Panhandle and Potomac Highlands. Learn what to check before you write an offer &mdash; financing, commute, water, septic, access, restrictions, and resale logic.</p>
+      <a href="#get-guide" class="btn btn-gold">Download the Guide</a>
+      <a href="tel:+15402461421" class="btn btn-ghost">Talk with Phil</a>
+    </div>
+  </header>
+
+  <section class="section">
+    <div class="shell">
+      <h2 class="section-title">What the guide helps you avoid</h2>
+      <p class="lead">The most expensive mistakes in WV real estate are avoidable when you know what to check first.</p>
+      <div class="grid">
+        <div class="card"><h3>Financing surprises</h3><p>Know why the buyer, the property, and the address all matter to whether a loan closes.</p></div>
+        <div class="card"><h3>Land mistakes</h3><p>Check access, water, septic, utilities, restrictions, and survey issues before deadlines pass.</p></div>
+        <div class="card"><h3>Commute assumptions</h3><p>Compare counties and verify real door-to-door timing, including MARC access where relevant.</p></div>
+        <div class="card"><h3>Weak investment math</h3><p>Think through buyer pool, resale, rental demand, repair cost, and exit strategy.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0;">
+    <div class="shell">
+      <h2 class="section-title">Built for West Virginia buyers</h2>
+      <p class="lead">Phil Malick works with buyers across Berkeley, Morgan, Jefferson, Hampshire, Hardy, and Mineral Counties. Whether you are local, relocating, commuting, investing, or looking for land, the right first step is a practical conversation about the property type and county that actually fit.</p>
+    </div>
+  </section>
+
+  <section class="form-wrap" id="get-guide">
+    <div class="shell">
+      <div class="form-card">
+        <h2>Get the guide</h2>
+        <p class="form-intro">Tell Phil a little about what you're looking for and the guide is yours. If you add a property type or county, he can follow up with specific local guidance.</p>
+        <form id="startLeadForm">
+          <input type="hidden" name="source" value="buyers-guide" />
+          <input type="hidden" name="utm_source" id="utm_source" />
+          <input type="hidden" name="utm_medium" id="utm_medium" />
+          <input type="hidden" name="utm_campaign" id="utm_campaign" />
+          <div class="form-grid">
+            <div class="row"><label for="name">First name *</label><input id="name" name="name" type="text" required /></div>
+            <div class="row"><label for="email">Email *</label><input id="email" name="email" type="email" required /></div>
+            <div class="row"><label for="phone">Phone (optional)</label><input id="phone" name="phone" type="tel" /></div>
+            <div class="row">
+              <label for="lookingFor">What are you looking for?</label>
+              <select id="lookingFor" name="lookingFor">
+                <option value="">Select one</option>
+                <option value="Home">Home</option>
+                <option value="Land">Land</option>
+                <option value="Cabin">Cabin</option>
+                <option value="Investment">Investment</option>
+                <option value="Not sure">Not sure</option>
+              </select>
+            </div>
+            <div class="row"><label for="county">Target county (optional)</label><input id="county" name="county" type="text" placeholder="e.g. Hampshire" /></div>
+            <div class="row">
+              <label for="timeline">Timeline (optional)</label>
+              <select id="timeline" name="timeline">
+                <option value="">Select one</option>
+                <option value="Ready now">Ready now</option>
+                <option value="30-90 days">30-90 days</option>
+                <option value="Just looking">Just looking</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" id="startSubmitBtn" class="btn submit-btn">Send Me the Guide</button>
+          <p id="startFormStatus" class="status" role="status" aria-live="polite"></p>
+        </form>
+        <div class="success-panel" id="successPanel">
+          <p style="margin:0 0 4px;font-weight:700;color:var(--forest);">Thanks &mdash; your guide is ready.</p>
+          <p style="margin:0;color:var(--muted);">If you included a property type or county, Phil will follow up with specific local guidance.</p>
+          <a href="/assets/MalickLand_WV_Buyers_Guide.pdf" class="btn btn-gold" download>Download the Buyer's Guide (PDF)</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="shell">
+      <p class="contact">Phil Malick | MalickLand | (540) 246-1421 | phil@malickland.net</p>
+      <p class="legal">Real estate services by Phil Malick through WV Real Estate Agency, LLC &middot; Sheila Judy, Broker &middot; Licensed in West Virginia &middot; WV License #WV0029577 &middot; 501 E Main St, Romney, WV 26757 &middot; Equal Housing Opportunity.</p>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var form = document.getElementById('startLeadForm');
+      var status = document.getElementById('startFormStatus');
+      var button = document.getElementById('startSubmitBtn');
+      var successPanel = document.getElementById('successPanel');
+      var utm = { utm_source: document.getElementById('utm_source'), utm_medium: document.getElementById('utm_medium'), utm_campaign: document.getElementById('utm_campaign') };
+      Object.keys(utm).forEach(function (k) { if (utm[k]) utm[k].value = params.get(k) || ''; });
+      if (!form) return;
+
+      form.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        status.textContent = ''; status.className = 'status';
+        button.disabled = true; button.textContent = 'Sending...';
+
+        var parts = [];
+        if (form.county.value.trim()) parts.push('County: ' + form.county.value.trim());
+        if (form.timeline.value) parts.push('Timeline: ' + form.timeline.value);
+        parts.push('Buyer’s Guide download');
+        var utmBits = [];
+        if (form.utm_source.value) utmBits.push('src=' + form.utm_source.value);
+        if (form.utm_medium.value) utmBits.push('med=' + form.utm_medium.value);
+        if (form.utm_campaign.value) utmBits.push('camp=' + form.utm_campaign.value);
+        if (utmBits.length) parts.push('[' + utmBits.join(' ') + ']');
+
+        var payload = {
+          name: form.name.value.trim(),
+          email: form.email.value.trim(),
+          phone: form.phone.value.trim(),
+          interest: form.lookingFor.value,
+          message: parts.join(' · '),
+          source: 'buyers-guide',
+          utm_source: form.utm_source.value,
+          utm_medium: form.utm_medium.value,
+          utm_campaign: form.utm_campaign.value
+        };
+
+        try {
+          var response = await fetch('/api/contacts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          var data = await response.json().catch(function () { return {}; });
+          if (!response.ok) throw new Error(data.error || 'There was a problem. Please try again.');
+          form.style.display = 'none';
+          status.textContent = '';
+          successPanel.classList.add('show');
+          successPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } catch (error) {
+          status.textContent = error.message || 'There was a problem. Please try again.';
+          status.classList.add('error');
+          button.disabled = false; button.textContent = 'Send Me the Guide';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
