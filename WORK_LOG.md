@@ -830,6 +830,64 @@ Open PR for review. After merge, schedule a controlled VPS deploy/migration only
 
 ---
 
+## 2026-06-18 — Claude (Opus 4.8) — Public assistant cost-control flag (clean extraction)
+
+### Objective
+Land the `PUBLIC_ASSISTANT_ENABLED` flag as a focused PR off current `origin/main`. The flag was developed earlier (Codex, 2026-06-14) but sat as uncommitted WIP on the stale `feat/listings-feature-flag` branch (10 commits behind main, tangled with already-merged route aliases and local strays). This extracts the feature cleanly and drops the redundant/stale pieces.
+
+### Changes Made (5 files, feature only)
+- `api/featureFlags.js` — add `publicAssistantEnabled()` (default ON; `PUBLIC_ASSISTANT_ENABLED=false` → canned reply, zero LLM spend on anonymous visitors). Admin AI generator unaffected.
+- `api/routes/chat.js` — early-return the canned `FALLBACK_REPLY` when the flag is off, before any provider call; safe-by-default header comment now includes the direct Anthropic path.
+- `api/routes/admin.js` — admin AI disabled-state copy/tooltip/error mentions `ANTHROPIC_API_KEY` (recommended) alongside `AI_GATEWAY_API_KEY` / `OPENAI_API_KEY`.
+- `scripts/preflight.sh` — wire `tests/public-assistant-flag.test.js` into the preflight gate.
+- `tests/public-assistant-flag.test.js` (new) — stubs the AI provider; asserts disabled → 0 calls + canned reply; enabled/default/true → provider called.
+
+### Deliberately excluded (kept the PR focused)
+- `api/routes/public.js` `/contact` `/about` `/search` aliases + their `verify-security-fixes.test.js` assertion — already on `origin/main` (verified present).
+- `AGENTS.md` Codex-gatekeeper handoff-format doc update — net-new but process-doc churn; deferred to a separate docs PR.
+- Local strays `compose.override.yml`, root `package-lock.json` — not part of the feature; left on the WIP branch.
+
+### Verification (Truthfulness Rule applies — clean worktree off origin/main @ 345d509, after `cd api && npm ci`)
+- `node --check` server.js / routes/chat.js / routes/admin.js / featureFlags.js → PASSED.
+- `node tests/public-assistant-flag.test.js` → 3/3 PASSED.
+- `node tests/chat-assistant.test.js` → 14/14 PASSED.
+- `node tests/ai-generator-routing.test.js` → 18/18 PASSED.
+- `node tests/verify-security-fixes.test.js` → 57/57 PASSED (matches main baseline — no regression from dropping the redundant alias hunk).
+- `bash scripts/preflight.sh` → PRE-FLIGHT PASSED (incl. new flag regression + safe-by-default `/api/chat` no-key smoke).
+
+### Security Notes
+- No secrets read, printed, committed, or changed. No production/VPS/DB mutation.
+- `npm ci` on this base reports the pending high-sev multer advisory — that is main's state, remediated separately by PR #111 (out of scope here).
+
+### Remaining Risks / Requires Human Decision
+1. Merge — gated on Codex VERDICT (gatekeeper protocol) + Phil approval.
+2. Deploy — Phil's manual VPS gate; merge ≠ deploy. To actually cut anonymous-visitor AI spend in prod, set `PUBLIC_ASSISTANT_ENABLED=false` in the VPS env after deploy.
+
+### Recommended Next Task
+Codex verifies the PR via GitHub; on READY, Phil merges. Optional follow-ups: small docs PR for the AGENTS.md gatekeeper-format update; gitignore the two local strays.
+
+---
+
+## 2026-06-18 — Claude (Opus 4.8) — #112 follow-up: listings-aware fallback (Codex P2)
+
+### Objective
+Resolve Codex P2 on PR #112 (`api/routes/chat.js:50`): when the public assistant is disabled (or no AI key / upstream failure) AND public listings are off (the current default), the canned `FALLBACK_REPLY` still told visitors to "browse current WV listings" — a dead end, since `/listings`, `/search`, `/listing/*`, `/wv/*` redirect/empty when `publicListingsEnabled()` is false.
+
+### Changes Made
+- `api/utils/chatAssistant.js` — added `buildFallbackReply(listingsEnabled)` that appends the "browse listings" pointer only when listings are live; `FALLBACK_REPLY` is now `buildFallbackReply(true)` (unchanged default copy / client parity). Exported `buildFallbackReply`.
+- `api/routes/chat.js` — all four fallback returns (assistant-disabled, no-AI-key, empty reply, upstream error) now use `buildFallbackReply(publicListingsEnabled())`, so none point to hidden inventory. Imported `publicListingsEnabled`.
+- `tests/public-assistant-flag.test.js` — disabled-case assertions are now listings-aware; added a dedicated case proving disabled + `PUBLIC_LISTINGS_ENABLED=false` omits the listings pointer while keeping the contact path and zero provider calls.
+
+### Verification (Truthfulness Rule applies — worktree off origin/main @ 345d509, after `cd api && npm ci`)
+- `node --check` routes/chat.js, utils/chatAssistant.js → PASSED.
+- `node tests/public-assistant-flag.test.js` → 7/7.
+- `node tests/chat-assistant.test.js` → 14/14.
+- `node tests/ai-generator-routing.test.js` → 18/18.
+- `node tests/verify-security-fixes.test.js` → 57/57.
+- `bash scripts/preflight.sh` → PRE-FLIGHT PASSED.
+
+### Note
+- `publicListingsEnabled()` currently defaults **OFF** (inventory cleanup), so this fixes the DEFAULT prod path, not just an edge case.
 ## 2026-06-18 — Claude Code (Opus 4.8) — fix/multer-dos-advisory
 
 ### Objective

@@ -25,11 +25,23 @@ const MAX_TOTAL_CHARS     = 6000;
 const ALLOWED_ROLES       = new Set(['user', 'assistant']);
 
 // Brokerage-safe canned reply used whenever the live assistant can't answer
-// (no AI key configured, or the upstream call fails). No claims, just a useful
-// next step. Kept in sync with the client-side fallback in app/index.html.
-const FALLBACK_REPLY =
-  "Thanks for reaching out! I can't chat live right now, but Phil Malick can help directly — " +
-  'call (540) 246-1421 or email phil@malickland.net. You can also browse current WV listings here on the site.';
+// (assistant disabled, no AI key configured, or the upstream call fails). No
+// claims, just a useful next step. The "browse listings" pointer is only added
+// when public listings are actually live — with listings off, /listings,
+// /search, /listing/*, /wv/* redirect or return empty, so pointing visitors
+// there would be a dead end.
+function buildFallbackReply(listingsEnabled = true) {
+  const base =
+    "Thanks for reaching out! I can't chat live right now, but Phil Malick can help directly — " +
+    'call (540) 246-1421 or email phil@malickland.net.';
+  return listingsEnabled
+    ? `${base} You can also browse current WV listings here on the site.`
+    : base;
+}
+
+// Default (listings-on) form — preserves the original copy and parity with the
+// client-side fallback in app/index.html.
+const FALLBACK_REPLY = buildFallbackReply(true);
 
 /**
  * The system prompt. Mirrors the brokerage-safe guardrails of the listing
@@ -122,6 +134,7 @@ module.exports = {
   buildChatSystemPrompt,
   sanitizeChatMessages,
   FALLBACK_REPLY,
+  buildFallbackReply,
   MAX_MESSAGES,
   MAX_CHARS_PER_MSG,
   MAX_TOTAL_CHARS,

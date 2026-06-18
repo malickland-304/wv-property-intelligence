@@ -528,12 +528,12 @@ router.get('/ai/:id', requireAuth, adminActionRateLimit, (req, res) => {
       <a href="/admin" class="btn-outline">← Back</a>
     </div>
     ${!aiOk ? `<div style="background:#fff3cd;color:#856404;padding:1rem;border-radius:8px;margin-bottom:1.5rem">
-      ⚠️ <strong>AI is not configured.</strong> Set <code>AI_GATEWAY_API_KEY</code> (preferred) or <code>OPENAI_API_KEY</code> to enable AI generation.
+      ⚠️ <strong>AI is not configured.</strong> Set <code>ANTHROPIC_API_KEY</code> (recommended) — or <code>AI_GATEWAY_API_KEY</code> / <code>OPENAI_API_KEY</code> — to enable AI generation.
     </div>` : ''}
     <div style="display:flex;gap:1rem;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap">
       <form method="POST" action="/admin/ai/${esc(p.id)}" style="margin:0">
         <input type="hidden" name="_csrf" value="${esc(csrfToken(req))}" />
-        <button type="submit" class="btn" ${!aiOk ? 'disabled title="Set AI_GATEWAY_API_KEY or OPENAI_API_KEY first"' : ''}>
+        <button type="submit" class="btn" ${!aiOk ? 'disabled title="Set ANTHROPIC_API_KEY, AI_GATEWAY_API_KEY, or OPENAI_API_KEY first"' : ''}>
           ${content ? '🔄 Regenerate' : '✨ Generate Now'}
         </button>
       </form>
@@ -571,7 +571,7 @@ router.post('/ai/:id', requireAuth, requireCsrf, adminActionRateLimit, async (re
   `).get(req.params.id);
   if (!p) return res.redirect('/admin');
   if (!aiConfigured())
-    return res.status(400).send('AI not configured (set AI_GATEWAY_API_KEY or OPENAI_API_KEY)');
+    return res.status(400).send('AI not configured (set ANTHROPIC_API_KEY, AI_GATEWAY_API_KEY, or OPENAI_API_KEY)');
 
   try {
     await generateListingContent(p, db);
