@@ -122,13 +122,13 @@ Recent PRs #98, #100, #101, and #102 are merged. Open issue/PR counts must still
 | Health endpoint | **`GET /api/health`** — not `/health` (mounted in `api/routes/api.js`) |
 | Live config | ✅ `/api/config` → `listingsEnabled:false` (public listing API routes are intentionally gated off) |
 | 37 Advent live DB row | ✅ `status='sold'`, `price=170000`, `sold_at='2026-05-29'` |
-| npm audit | ✅ 0 vulnerabilities (verified on fix branch 2026-05-31) |
+| npm audit | ✅ 0 vulnerabilities — re-verified 2026-06-18 on `fix/multer-dos-advisory` (`npm audit` **and** `npm audit --omit=dev` both 0 high/critical). Supersedes the 2026-05-31 "0 vulns": a **high-sev `multer` DoS** advisory (GHSA-72gw-mp4g-v24j deeply-nested field names; GHSA-3p4h-7m6x-2hcm aborted-upload cleanup; affected ≤2.1.1) surfaced 2026-06-17 and was remediated by bumping `multer` 2.1.1→**2.2.0** (lockfile via `npm audit fix`) |
 | Security test suite | ✅ **57/57** locally on 2026-06-18 (`node tests/verify-security-fixes.test.js`) |
 | Preflight + route smoke | ✅ `scripts/preflight.sh` passed locally on 2026-06-04 |
 | CI gates | ✅ CodeQL, Semgrep, `preflight.yml` |
 | Branch protection | Required status checks enabled (`CodeQL`, `verify`, `check`, `CodeScan`, `semgrep-cloud-platform/scan`); required conversation resolution enabled; PR review protection and admin enforcement intentionally off per `DECISIONS.md` 2026-05-31 |
 | Governance files | ✅ `README.md`, `CONTRIBUTING.md`, `.github/CODEOWNERS`, issue templates, and PR template present |
-| GitHub security queues | ✅ Open code-scanning alerts: 0; Dependabot alerts: 0; secret-scanning alerts: 0 (2026-05-31 API audit) |
+| GitHub security queues | ✅ Open code-scanning alerts: 0; Dependabot alerts: 0; secret-scanning alerts: 0 (2026-05-31 API audit) — ⚠️ predates the 2026-06-17 high-sev `multer` DoS advisory (Dependabot/npm-audit class), remediated on `fix/multer-dos-advisory` (multer 2.1.1→2.2.0); re-query queues after that PR merges |
 | Remote branches | ✅ Only protected `main` remains on `origin` after stale branch cleanup (2026-05-31) |
 | Railway twin | ✅ Not live; auto-deploy disabled; all deployments removed. `railway deployment list` shows all recent deployments `REMOVED`. Retain service/volume until hard-delete after the 30-90 day backup window |
 | GitHub environments | Legacy Railway deployment statuses (`alert-laughter / production`) and the `production`/`copilot` environments are **not** gating and no longer reflect the live target (prod is the Hostinger VPS) — remove after Railway retention hard-delete |
