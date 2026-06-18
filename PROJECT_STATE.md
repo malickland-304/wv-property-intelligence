@@ -1,6 +1,6 @@
 # PROJECT_STATE.md — Malickland 2.0
 
-> **Last verified:** 2026-06-18 (GitHub `origin/main` @ `b6eaefa`; live prod = Hostinger VPS, src @ `e7c2114`, container healthy; Railway twin deployments removed)
+> **Last verified:** 2026-06-18 (GitHub `origin/main` @ `f821774` after #104; live prod = Hostinger VPS, src @ `e7c2114`, container healthy; Railway twin deployments removed; WV license `WV0029577` verified vs WV REC roster)
 > **Authority:** Product completeness, repo workspace truth, resolved facts, and open gates. Use `docs/CANONICAL_MAP.md` for repo/domain/stack disambiguation. Deployment runbooks and guardrails remain in `docs/agent-handoff.md`.
 
 ---
@@ -23,6 +23,8 @@ This section is the anti-loop ledger. Agents must read it before asking Phil for
 | `scripts/smoke-prod.sh` | ✅ Fixed | #102 merged; script respects `PUBLIC_LISTINGS_ENABLED` via `/api/config` |
 | Railway twin auto-deploy | ✅ Disabled | Dashboard action confirmed; #102 merge did not create a new Railway deployment |
 | Railway twin deployments | ✅ Removed | `railway deployment list` shows all recent deployments `REMOVED`, including `5927bce6` |
+| WV real estate license # | ✅ `WV0029577` (active Salesperson) | WV REC Active Salesperson Roster (10.25), verified 2026-06-18 — `PHILIP MALICK · WV0029577 · Salesperson · WV Real Estate Agency · malickland@icloud.com · 501 E Main St, Romney, WV 26757` (name/brokerage/email/address all match) |
+| Content funnel pack | ✅ Finalized, publish-ready | `~/Documents/MalickLand_Content_Funnel_Pack_2026-06-17/`; footer disclosure aligned to the live broker block + `WV0029577` + Equal Housing; PDF text pypdf-verified |
 
 ### Closed gates — do not re-litigate
 
@@ -33,13 +35,14 @@ This section is the anti-loop ledger. Agents must read it before asking Phil for
 | PR #102 readiness/merge | Codex READY, CI green, 0 unresolved threads, #102 merged |
 | Production correctness after deploy | Live health/page/config checks + VPS container health |
 | Railway revival risk for normal merges | Auto-deploy disabled; #102 merge did not revive the service |
+| WV license number verification | `WV0029577` verified 2026-06-18 against the WV REC Active Salesperson Roster (cited in Resolved facts) |
 
 ### Open gates — ask only these when needed
 
 | Gate | Owner | Needed evidence / action | Notes |
 |------|-------|--------------------------|-------|
-| WV real estate license number for public funnel materials | Phil | Exact license number or primary source showing it | If source material already contains it, cite source and use it; otherwise ask only for this field |
-| Final marketing/footer disclosure wording for funnel packet | Sheila / Phil | Sheila-approved exact wording if different from the live site block | Do not ask whether the already-live fee wording is approved; that gate is closed |
+| Funnel packet publish | Phil | Publish `/start` to Squarespace, upload the PDF lead-magnet, load the welcome emails | Pack is finalized and publish-ready: license #, brokerage disclosure, and Equal Housing all verified |
+| Optional alternate footer wording from Sheila | Sheila | Sheila-approved exact wording only if she wants something different from the current live-aligned block | Not blocking; the default form is already in the pack. The live fee/brokerage wording is closed |
 | Railway hard-delete after retention | Phil | Explicit approval after 30-90 day retention window | Service/volume retained for rollback window; deployments are removed |
 | Remove `railway.json` and legacy GitHub deployment environments | Phil / repo maintainer | Decision after retention-window hard-delete | Keep until the Railway twin is fully deleted |
 

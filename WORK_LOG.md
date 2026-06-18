@@ -741,3 +741,26 @@ Create a durable framework so agents stop asking Phil to re-answer already-close
 1. WV real estate license number for public funnel materials, unless source material already contains it.
 2. Sheila-approved alternate marketing/footer wording only if different from the live site disclosure.
 3. Railway hard-delete and `railway.json` removal after the 30-90 day retention window.
+
+---
+
+## 2026-06-18 — Claude Code (Opus 4.8)
+
+### Objective
+Apply the State Ledger Rule (#104): verify the one actionable open gate — the WV license number — instead of asking, and update the canonical ledger (`PROJECT_STATE.md`).
+
+### Changes Made
+- Verified **WV license `WV0029577`** against the WV REC Active Salesperson Roster (10.25): `PHILIP MALICK · WV0029577 · Salesperson · WV Real Estate Agency · malickland@icloud.com · 501 E Main St, Romney, WV 26757` — all match. CLAIMED (from Gemini's funnel `build_pack.py`) → VERIFIED → FACT.
+- `PROJECT_STATE.md`: moved the WV license # from Open gates → Resolved facts (with roster proof) + Closed gates; added the finalized content-funnel-pack fact; replaced the funnel "wording" open gate with a "publish" gate (Phil) + an optional Sheila-wording note; refreshed the last-verified line to `f821774`.
+- Finalized the content funnel pack disclosure to the live broker-approved block across PDF + `/start` + emails (pack at `~/Documents/MalickLand_Content_Funnel_Pack_2026-06-17/`, outside this repo).
+- Deprecated the stopgap `~/MALICKLAND_STATE_LEDGER.md` to a pointer at this canonical `PROJECT_STATE.md`.
+
+### Verification (Truthfulness Rule applies)
+- WV REC roster: downloaded `SP ACTIVE 10.25.xlsx` from `rec.wv.gov`, parsed with openpyxl → exact match (above).
+- Funnel PDF: `pypdf` extract confirms `WV Real Estate Agency, LLC` + `Sheila Judy` + `WV0029577` + `Equal Housing`.
+- No deploy, no prod/Railway/DB mutation. VPS unchanged `e7c2114`; Railway twin still dark.
+
+### Remaining Open Gates
+1. Funnel packet publish (Squarespace `/start`, PDF lead-magnet, welcome emails) — owner Phil.
+2. Optional alternate marketing/footer wording from Sheila — only if different from the current live-aligned block (not blocking).
+3. Railway hard-delete + `railway.json` removal after the 30-90 day retention window — owner Phil.

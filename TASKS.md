@@ -24,7 +24,6 @@
 
 - [ ] **Delete stale local branches** — remote branches are cleaned up; remove superseded local `copilot/*`, old `claude/*`, and merged fix branches after confirming no unpushed work — no deps — **Claude Code or developer**
 - [ ] **Add twilio to package.json or remove Twilio path** — optional SMS alert follow-up; current code fails gracefully when `twilio` is unavailable — no longer blocks lead route mounting
-- [ ] **Resolve broken county links** — homepage links `/wv/hampshire-county`, `/wv/hardy-county`, `/wv/morgan-county`, and other county paths, but no static pages or Express route exists; decide whether to create county pages or replace links with listing filters — no deps
 - [ ] **Phase 1: Document Registry spec** — ChatGPT delivers schema, approval state machine, AI extraction JSON contract — no code deps — **ChatGPT**
 
 ---
@@ -42,6 +41,7 @@
 
 ## Completed
 
+- [x] **Broken county links** — resolved: `/wv/:slug` county-page route exists (`api/routes/public.js:161`); serves county pages when `PUBLIC_LISTINGS_ENABLED=true`, gracefully `302`→`/` when off; homepage `/wv/<county>-county` links are hidden by the listings-off CSS — no 404s (verified live 2026-06-18: `/wv/hampshire-county` → 302)
 - [x] csurf → csrf-csrf migration — PR #63 merged 2026-05-27 — Codex verified, smoke PASSED
 - [x] AI control plane bootstrap (AGENTS.md, OpenHands hooks, issue templates) — PR #64 merged 2026-05-27
 - [x] Handoff doc update post-PR #64 — PR #67 merged
