@@ -26,11 +26,11 @@ const express = require('express');
 
 const { chatRateLimit } = require('../middleware/rate-limits');
 const { generateChatReply, aiConfigured } = require('../ai-generator');
-const { publicAssistantEnabled } = require('../featureFlags');
+const { publicAssistantEnabled, publicListingsEnabled } = require('../featureFlags');
 const {
   buildChatSystemPrompt,
   sanitizeChatMessages,
-  FALLBACK_REPLY,
+  buildFallbackReply,
 } = require('../utils/chatAssistant');
 
 function createChatRouter() {
@@ -47,25 +47,25 @@ function createChatRouter() {
     // canned reply without calling any AI provider. Zero LLM spend on anonymous
     // visitors; the admin listing generator is unaffected.
     if (!publicAssistantEnabled()) {
-      return res.json({ reply: FALLBACK_REPLY });
+      return res.json({ reply: buildFallbackReply(publicListingsEnabled()) });
     }
 
     // No provider configured → degrade gracefully (steady state until the key
     // is set in Railway), not an error.
     if (!aiConfigured()) {
-      return res.json({ reply: FALLBACK_REPLY });
+      return res.json({ reply: buildFallbackReply(publicListingsEnabled()) });
     }
 
     const payload = [{ role: 'system', content: buildChatSystemPrompt() }, ...messages];
 
     try {
       const reply = await generateChatReply(payload);
-      return res.json({ reply: reply || FALLBACK_REPLY });
+      return res.json({ reply: reply || buildFallbackReply(publicListingsEnabled()) });
     } catch (err) {
       console.error('[Chat] assistant call failed:', err.message);
       // Non-2xx for observability, but include a usable reply so the widget
       // still shows something helpful (its own client fallback also covers this).
-      return res.status(502).json({ error: 'assistant_unavailable', reply: FALLBACK_REPLY });
+      return res.status(502).json({ error: 'assistant_unavailable', reply: buildFallbackReply(publicListingsEnabled()) });
     }
   });
 

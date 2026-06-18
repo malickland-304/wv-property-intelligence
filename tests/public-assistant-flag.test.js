@@ -78,7 +78,8 @@ function mockRes() {
 const userMessages = { body: { messages: [{ role: 'user', content: 'Got land in Hampshire County?' }] } };
 
 (async () => {
-  const { FALLBACK_REPLY } = require(path.join(__dirname, '..', 'api', 'utils', 'chatAssistant'));
+  const { buildFallbackReply } = require(path.join(__dirname, '..', 'api', 'utils', 'chatAssistant'));
+  const { publicListingsEnabled } = require(path.join(__dirname, '..', 'api', 'featureFlags'));
 
   await test('disabled (PUBLIC_ASSISTANT_ENABLED=false): canned reply, ZERO provider calls', async () => {
     process.env.PUBLIC_ASSISTANT_ENABLED = 'false';
@@ -88,7 +89,7 @@ const userMessages = { body: { messages: [{ role: 'user', content: 'Got land in 
 
     assert.strictEqual(spy.calls, 0, 'generateChatReply must NOT be called when disabled');
     assert.strictEqual(res._status, 200, 'disabled bot should answer 200, not error');
-    assert.strictEqual(res._json && res._json.reply, FALLBACK_REPLY, 'should return the canned reply');
+    assert.strictEqual(res._json && res._json.reply, buildFallbackReply(publicListingsEnabled()), 'should return the canned reply');
   });
 
   await test('enabled (default): provider IS called and its reply is returned', async () => {
@@ -118,9 +119,25 @@ const userMessages = { body: { messages: [{ role: 'user', content: 'Got land in 
       await handler(userMessages, res);
 
       assert.strictEqual(spy.calls, 0, 'an intended "off" must disable regardless of case/whitespace');
-      assert.strictEqual(res._json && res._json.reply, FALLBACK_REPLY, 'should return the canned reply');
+      assert.strictEqual(res._json && res._json.reply, buildFallbackReply(publicListingsEnabled()), 'should return the canned reply');
     });
   }
+
+  await test('disabled + listings OFF: fallback omits the listings pointer (no dead end), ZERO calls', async () => {
+    process.env.PUBLIC_ASSISTANT_ENABLED = 'false';
+    process.env.PUBLIC_LISTINGS_ENABLED = 'false';
+    const { handler, spy } = loadChatRouterWithSpy();
+    const res = mockRes();
+    await handler(userMessages, res);
+
+    assert.strictEqual(spy.calls, 0, 'still zero provider calls when disabled');
+    assert.ok(
+      res._json && !/browse current WV listings/i.test(res._json.reply),
+      'must NOT point users to listings when PUBLIC_LISTINGS_ENABLED=false',
+    );
+    assert.ok(/246-1421/.test(res._json.reply), 'should still give the direct contact path');
+    delete process.env.PUBLIC_LISTINGS_ENABLED;
+  });
 
   delete process.env.PUBLIC_ASSISTANT_ENABLED;
 

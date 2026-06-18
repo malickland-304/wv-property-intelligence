@@ -865,3 +865,26 @@ Land the `PUBLIC_ASSISTANT_ENABLED` flag as a focused PR off current `origin/mai
 
 ### Recommended Next Task
 Codex verifies the PR via GitHub; on READY, Phil merges. Optional follow-ups: small docs PR for the AGENTS.md gatekeeper-format update; gitignore the two local strays.
+
+---
+
+## 2026-06-18 — Claude (Opus 4.8) — #112 follow-up: listings-aware fallback (Codex P2)
+
+### Objective
+Resolve Codex P2 on PR #112 (`api/routes/chat.js:50`): when the public assistant is disabled (or no AI key / upstream failure) AND public listings are off (the current default), the canned `FALLBACK_REPLY` still told visitors to "browse current WV listings" — a dead end, since `/listings`, `/search`, `/listing/*`, `/wv/*` redirect/empty when `publicListingsEnabled()` is false.
+
+### Changes Made
+- `api/utils/chatAssistant.js` — added `buildFallbackReply(listingsEnabled)` that appends the "browse listings" pointer only when listings are live; `FALLBACK_REPLY` is now `buildFallbackReply(true)` (unchanged default copy / client parity). Exported `buildFallbackReply`.
+- `api/routes/chat.js` — all four fallback returns (assistant-disabled, no-AI-key, empty reply, upstream error) now use `buildFallbackReply(publicListingsEnabled())`, so none point to hidden inventory. Imported `publicListingsEnabled`.
+- `tests/public-assistant-flag.test.js` — disabled-case assertions are now listings-aware; added a dedicated case proving disabled + `PUBLIC_LISTINGS_ENABLED=false` omits the listings pointer while keeping the contact path and zero provider calls.
+
+### Verification (Truthfulness Rule applies — worktree off origin/main @ 345d509, after `cd api && npm ci`)
+- `node --check` routes/chat.js, utils/chatAssistant.js → PASSED.
+- `node tests/public-assistant-flag.test.js` → 7/7.
+- `node tests/chat-assistant.test.js` → 14/14.
+- `node tests/ai-generator-routing.test.js` → 18/18.
+- `node tests/verify-security-fixes.test.js` → 57/57.
+- `bash scripts/preflight.sh` → PRE-FLIGHT PASSED.
+
+### Note
+- `publicListingsEnabled()` currently defaults **OFF** (inventory cleanup), so this fixes the DEFAULT prod path, not just an edge case.
