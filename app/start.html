@@ -100,6 +100,7 @@
   <section class="form-wrap" id="get-guide">
     <div class="shell">
       <div class="form-card">
+        <div id="leadCapture">
         <h2>Get the guide</h2>
         <p class="form-intro">Tell Phil a little about what you're looking for and the guide is yours. If you add a property type or county, he can follow up with specific local guidance.</p>
         <form id="startLeadForm">
@@ -136,10 +137,11 @@
           <button type="submit" id="startSubmitBtn" class="btn submit-btn">Send Me the Guide</button>
           <p id="startFormStatus" class="status" role="status" aria-live="polite"></p>
         </form>
+        </div>
         <div class="success-panel" id="successPanel">
           <p style="margin:0 0 4px;font-weight:700;color:var(--forest);">Thanks &mdash; your guide is ready.</p>
           <p style="margin:0;color:var(--muted);">If you included a property type or county, Phil will follow up with specific local guidance.</p>
-          <a href="/assets/MalickLand_WV_Buyers_Guide.pdf" class="btn btn-gold" download>Download the Buyer's Guide (PDF)</a>
+          <a href="/assets/MalickLand_WV_Buyers_Guide.pdf" class="btn btn-gold" download target="_blank" rel="noopener">Download the Buyer's Guide (PDF)</a>
         </div>
       </div>
     </div>
@@ -198,10 +200,11 @@
           });
           var data = await response.json().catch(function () { return {}; });
           if (!response.ok) throw new Error(data.error || 'There was a problem. Please try again.');
-          form.style.display = 'none';
+          var capture = document.getElementById('leadCapture');
+          if (capture) capture.style.display = 'none';
           status.textContent = '';
           successPanel.classList.add('show');
-          successPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          successPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         } catch (error) {
           status.textContent = error.message || 'There was a problem. Please try again.';
           status.classList.add('error');
