@@ -101,9 +101,9 @@
 
 **Problem:** The homepage "MalickLand Assistant" chat widget POSTs to `/api/chat`, but no such route existed on `main`, so the button 404'd in production. Two paths: (A) build the backend, or (B) remove/hide the widget.
 **Decision:** Build the backend (option A). Add a public, per-IP rate-limited, same-origin `POST /api/chat` that reuses the gateway-aware AI plumbing from PR #90 (`resolveAiProvider` + the generalized `requestChat`, surfaced as `generateChatReply`). It routes through the Vercel AI Gateway when `AI_GATEWAY_API_KEY` is set (model `openai/gpt-5.4`, failover `anthropic/claude-haiku-4.5`) and falls back to direct OpenAI otherwise.
-**Reasoning:** The widget is a complete, polished frontend (greeting → Q&A → lead handoff → analytics), and the gateway plumbing was merged specifically to be reused — the backend was the known follow-up to PR #90. Removing a finished feature is the wasteful path. The route is safe-by-default (graceful fallback when no AI key) so it cannot break the Railway auto-deploy.
+**Reasoning:** The widget is a complete, polished frontend (greeting → Q&A → lead handoff → analytics), and the gateway plumbing was merged specifically to be reused — the backend was the known follow-up to PR #90. Removing a finished feature is the wasteful path. The route is safe-by-default (graceful fallback when no AI key) so it cannot break production when manually deployed to the VPS.
 **Brokerage-safety:** A strict server-injected system prompt forbids ROI/appreciation/legal/tax/financing claims and inventing listings/prices; valuations are routed to a CMA from Phil. The client cannot override it — `sanitizeChatMessages()` strips any client-supplied `system` role. This aligns with the WV first-screen disclosure posture and mirrors `buildPrompt` in `ai-generator.js`.
-**Cost control:** Per-IP rate limit (15/min), trimmed history (≤10 turns / ≤6000 chars), capped output (~500 tokens). The endpoint is a no-op cost-wise until `AI_GATEWAY_API_KEY` is set in Railway.
+**Cost control:** Per-IP rate limit (15/min), trimmed history (≤10 turns / ≤6000 chars), capped output (~500 tokens). The endpoint is a no-op cost-wise until `AI_GATEWAY_API_KEY` or another supported provider key is set in the VPS `.env`.
 **Alternatives considered:** (B) remove the widget — rejected; throws away finished UX and the planned feature. Giving the model live DB/listing context — deferred to a follow-up to keep this change conservative and avoid fabrication risk.
 **Security impact:** Neutral-to-positive — new public endpoint, but defended in depth (same-origin + JSON guards reused from the lead routes, rate limit, prompt-injection stripping, server-controlled prompt, bounded I/O). No new dependencies.
 **Files:** `api/ai-generator.js`, `api/utils/chatAssistant.js`, `api/routes/chat.js`, `api/middleware/rate-limits.js`, `api/server.js`, `scripts/preflight.sh`, `tests/chat-assistant.test.js`, `api/.env.example`
@@ -116,7 +116,7 @@
 **Decision:** Production runs as a Docker container (`wv-property-intelligence:vps`, built from `api/Dockerfile`) on Phil's Hostinger VPS `srv1716268` (`31.97.58.203`), behind **Traefik** + Let's Encrypt. Apex DNS A → `31.97.58.203` (Cloudflare is DNS-only, not proxying/terminating TLS). Deploy is **manual**: SSH to the VPS, `git -C /docker/wv-property-intelligence/src fetch origin && git -C /docker/wv-property-intelligence/src checkout <sha>`, then `docker compose build && docker compose up -d`. There is **no** auto-deploy on merge (no webhook, no CI deploy step, no watchtower). Data persists on the Docker named volume `wv-property-intelligence_wv-data` (`/data`, `DATABASE_PATH=/data/wv_property.db`); secrets in `/docker/wv-property-intelligence/.env`.
 **Reasoning:** Single owner-controlled box co-located with Phil's other infra, no platform lock-in; the manual deploy keeps an explicit human gate on production for a solo-maintainer site.
 **Alternatives considered:** Stay on Railway — rejected (consolidation + coupling); add auto-deploy on the VPS (watchtower/CI) — deferred, manual deploy preferred for now as the human gate.
-**Migration impact / rollback:** The Railway service (`alert-laughter` / `wv-property-intelligence`) is no longer the live target (DNS bypasses it). Its deployments are removed and auto-deploy is disabled; the service/volume are retained only for the 30-90 day backup retention window.
+**Migration impact / rollback:** The Railway service (`alert-laughter` / `wv-property-intelligence`) is no longer the live target (DNS bypasses it). Its deployments were removed and auto-deploy was disabled; final deletion happened early on 2026-06-18 after approval. The off-Railway backup remains retained for the 30-90 day backup window.
 **Verification (2026-06-18, live):** `GET https://malickland.net/api/health` → 200 served by `31.97.58.203`; container `wv-property-intelligence` healthy; VPS `src` HEAD == `e7c2114`; Traefik routers `Host(malickland.net) || Host(www.malickland.net)` → container `:3000`. `origin/main` is `b6eaefa`; the only main-ahead-of-prod change is #102's smoke-script fix, which does not require deploy.
 **Files:** `README.md`, `ARCHITECTURE.md`, `CONTEXT.md`, `PROJECT_STATE.md`, `QA_CHECKLIST.md`, `SECURITY.md`, `CONTRIBUTING.md`, `AGENTS.md`, `docs/CANONICAL_MAP.md`, `docs/agent-handoff.md`, `TASKS.md`
 
@@ -132,6 +132,28 @@
 - Service **stopped**: all deployments REMOVED (`railway status` → no active deployment).
 - Auto-deploy **disabled** in the Railway dashboard; subsequent merge of #102 did **not** create a new Railway deployment.
 - CLI verification: `railway deployment list` shows all recent deployments `REMOVED`, including `5927bce6` from the #101 merge.
-**Deferred (cleanup):** after the 30-90 day retention window, hard-delete the service/volume; remove `railway.json` + the legacy GitHub deployment environments from the repo; rotate/retire any retained Railway copy of production secrets as part of final deletion.
+**Deferred (cleanup):** ~~after the 30-90 day retention window, hard-delete the service/volume; remove `railway.json` + the legacy GitHub deployment environments from the repo; rotate/retire any retained Railway copy of production secrets as part of final deletion~~ — done early on 2026-06-18 after Phil approved deleting the service. See the final decommission entry below.
 **Rollback:** none needed — the VPS is canonical and verified; the downloaded backup + VPS copy fully cover the Railway data.
 **Files:** `DECISIONS.md` (this entry); `TASKS.md` (Railway-decommission task).
+
+---
+
+## 2026-06-18 — Railway twin deleted (final decommission)
+
+**Decision:** The retired Railway service `alert-laughter / wv-property-intelligence` is deleted. Production is VPS-only.
+**Context:** The Railway twin had already been stopped and removed from traffic. During the 2026-06-18 deploy cleanup, a stale Railway deploy path was still able to create false-positive deployment signals. Keeping repo config for the dead twin was causing more confusion than rollback value.
+**Actions / verification:** `railway service status` from the canonical checkout reports the linked old service is not found in the project. GitHub environments now list only `copilot`; the old `alert-laughter / production` and `production` environments are gone. DNS and strict VPS proof pass for live runtime commit `24ee74b378df0fa296876abca1699a36baacc0fe`.
+**Repo change:** removed `railway.json` and `railway.toml`; durable docs now describe Railway as deleted, not dormant.
+**Rollback:** none needed for production; the VPS is canonical and healthy, and the off-Railway backup from 2026-06-17 remains retained.
+**Files:** `railway.json`, `railway.toml`, `README.md`, `ARCHITECTURE.md`, `PROJECT_STATE.md`, `docs/CANONICAL_MAP.md`, `TASKS.md`, `WORK_LOG.md`.
+
+---
+
+## 2026-06-18 — Production proof requires VPS SHA, not Railway or HTTP-only smoke
+
+**Problem:** A Railway CLI deployment to the dormant `alert-laughter / wv-property-intelligence` twin can succeed while the public site remains on the Hostinger VPS. A plain `curl https://malickland.net/api/health` can also return 200 from the old VPS code, creating a false-positive deployment claim.
+**Decision:** A commit is not considered live on `malickland.net` unless DNS resolves to the Hostinger VPS and the VPS checkout/container prove the expected SHA. Use `EXPECTED_SHA=<full-sha> bash scripts/verify-vps-prod.sh` as the standard proof command.
+**Reasoning:** The only live target is the VPS at `31.97.58.203`; Railway and GitHub deployment records are legacy/dormant signals. SHA proof prevents confusing "site is healthy" with "new commit is live."
+**Alternatives considered:** Keep using Railway deployment status or live HTTP smoke alone — rejected because both can be green for the wrong target or old code.
+**Security impact:** Positive — prevents high-severity dependency fixes from being falsely marked deployed.
+**Files:** `scripts/verify-vps-prod.sh`, `scripts/agent-triage.sh`, `AGENTS.md`, `docs/CANONICAL_MAP.md`, `docs/agent-handoff.md`, `docs/AGENT_TRIAGE_PROTOCOL.md`, `PROJECT_STATE.md`, `QA_CHECKLIST.md`, `README.md`, `ARCHITECTURE.md`, `TASKS.md`.

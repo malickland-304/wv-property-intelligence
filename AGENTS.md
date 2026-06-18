@@ -41,7 +41,7 @@ Agents must treat `PROJECT_STATE.md` as a gate ledger:
 - **Resolved facts** are closed. Do not ask Phil to reconfirm them unless live evidence contradicts the ledger.
 - **Closed gates** are not blockers. Do not re-litigate them, restate them as open, or ask whether they are still true.
 - **Open gates** are the only valid source for user questions. Ask only for the specific missing field or approval named there.
-- **Claimed facts** from another agent, chat, screenshot, or handoff remain unverified until checked against repo, GitHub, live endpoint, VPS, Railway, or another primary source.
+- **Claimed facts** from another agent, chat, screenshot, or handoff remain unverified until checked against repo, GitHub, live endpoint, VPS, or another primary source. For `malickland.net` production, the old Railway twin is deleted and is not production proof.
 - **Verified facts** must include proof in `PROJECT_STATE.md`, `WORK_LOG.md`, a PR comment, or the current response.
 
 Before asking a user-facing question, an agent must be able to answer:
@@ -55,7 +55,7 @@ If the answer is "I am not sure," inspect `PROJECT_STATE.md`, `DECISIONS.md`, Gi
 
 ### Agent Triage Protocol
 
-Before asking Phil to relay status between Claude, Codex, Gemini, GitHub, Squarespace, Railway, or the VPS, run:
+Before asking Phil to relay status between Claude, Codex, Gemini, GitHub, or the VPS, run:
 
 ```bash
 bash scripts/agent-triage.sh
@@ -65,13 +65,25 @@ Use the script output plus `PROJECT_STATE.md` as the shared message bus:
 
 - Pull current PR state from GitHub instead of asking Phil to copy/paste another agent's PR summary.
 - Pull closed facts and open gates from `PROJECT_STATE.md` instead of asking Phil to restate them.
-- Pull live health from `https://malickland.net/api/health` and `/api/config` instead of asking whether production is correct.
-- Treat another agent's chat output as **CLAIMED** until verified by repository files, GitHub, live endpoints, VPS, Railway, or an official source.
+- Pull live health from `https://malickland.net/api/health` and `/api/config`, then prove the VPS SHA/container with `EXPECTED_SHA=<full-sha> bash scripts/verify-vps-prod.sh` before claiming production is current.
+- Treat another agent's chat output as **CLAIMED** until verified by repository files, GitHub, live endpoints, VPS, or an official source.
 - If the triage output already answers the question, act on it; do not ask Phil to mediate.
 
-Manual chat relay is a last resort, not the operating model. Use it only when the needed source is unavailable to the current agent or requires a human-owned authentication step such as Squarespace login.
+Manual chat relay is a last resort, not the operating model. Use it only when the needed source is unavailable to the current agent or requires a human-owned authentication step.
 
 Detailed rules live in `docs/AGENT_TRIAGE_PROTOCOL.md`.
+
+### Production Proof Rule
+
+`malickland.net` production truth is DNS + VPS + container state. A Railway deployment, Railway healthcheck, GitHub deployment environment, or generic `curl /api/health` without SHA proof is not enough.
+
+Required proof before saying a commit is live:
+
+```bash
+EXPECTED_SHA=<full-git-sha> bash scripts/verify-vps-prod.sh
+```
+
+That command must show DNS includes `31.97.58.203`, `/docker/wv-property-intelligence/src` is at the expected SHA, the `wv-property-intelligence` container is running healthy, and read-only live smoke passes.
 
 ---
 

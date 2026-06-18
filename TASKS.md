@@ -13,8 +13,6 @@
 
 ## High Priority
 
-- [ ] **Railway twin final deletion after retention** — audit ✅ (Railway `contacts`/`leads` == VPS, hashes match, no un-migrated leads), full `/data` backup ✅ (downloaded to `~/railway-decommission-backup-2026-06-17/`, retain 30-90 days), deployments ✅ **REMOVED**, GitHub auto-deploy ✅ **disabled** and proven by the #102 merge not reviving Railway. See `DECISIONS.md` 2026-06-17. **Remaining after retention:** (1) hard-delete the service/volume; (2) remove `railway.json` + the legacy GitHub deployment environments from the repo; (3) rotate/retire any retained Railway copy of production secrets as part of final deletion. ⚠️ **Human-only** (real lead PII + prod secrets). — **Phil**
-- [ ] **Deploy persistent `LISTINGS_ROOT` on the VPS** — repo support added for configurable listing storage; next deploy must set `LISTINGS_ROOT=/data/listings` in `/docker/wv-property-intelligence/.env`, create/migrate any existing `/workspace/listings` files into `/data/listings`, restart, and verify `/images/*` still serves. Google Drive remains the off-box media backup path. — depends on Phil-approved VPS deploy window — **Phil / Claude Code**
 - [ ] **Public assistant backend (`POST /api/chat`)** — homepage "MalickLand Assistant" widget had no backend (404 in prod). Added a public, per-IP rate-limited, same-origin chat route reusing the PR #90 gateway-aware AI plumbing (`generateChatReply`); strict brokerage-safe system prompt; safe-by-default with no AI key. Acceptance: security suite 52/52, new chat suite 14/14, preflight green (incl. assistant smoke). **Phil (human-only)** — configuring the AI key requires production SSH + secret access, which agents must not do per AGENTS.md; a human sets it in the VPS `.env` (not Railway) to enable live replies.
 - [ ] **OpenHands executor activation** — provision fine-grained GitHub token; start executor; run first supervised task — waiting on developer action; Issue #66 is fixed and Issue #65 is closed, so create or pick a current task — **developer action**
 
@@ -70,3 +68,9 @@
 - [x] Advent close + $299 broker admin-fee disclosure deployed — #101 merged/deployed; live DB row `sold` / `$170,000` / `2026-05-29`; broker disclosure live — 2026-06-17
 - [x] Production smoke flag fix — #102 merged; `scripts/smoke-prod.sh` respects `PUBLIC_LISTINGS_ENABLED` and validates listings-off behavior — 2026-06-17
 - [x] Railway auto-deploy disabled — deployments removed and #102 merge did not revive the dormant twin — 2026-06-17
+- [x] Railway twin final deletion — linked old service no longer exists in Railway; repo `railway.json`/`railway.toml` removed; dead GitHub deployment environments removed; off-Railway backup retained — 2026-06-18
+- [x] VPS production proof guardrail — added `scripts/verify-vps-prod.sh` and corrected docs so Railway deployments are not treated as live `malickland.net` proof — 2026-06-18
+- [x] Persistent `LISTINGS_ROOT` deployed on the VPS — `LISTINGS_ROOT=/data/listings` set on the VPS; `/data/listings` created on the persistent volume; uploads now survive container recreate — 2026-06-18
+- [x] `multer` high-severity DoS patch deployed — PR #111 merged; VPS source `24ee74b` includes lockfile resolving `multer` to 2.2.0 — 2026-06-18
+- [x] Public assistant cost-control flag deployed — PR #112 merged and live on VPS source `24ee74b` — 2026-06-18
+- [x] Homepage dynamic HTML safety deployed — PR #113 merged; VPS source `24ee74b` escapes dynamic listing/property fields before insertion — 2026-06-18

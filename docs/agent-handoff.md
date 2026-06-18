@@ -17,14 +17,14 @@
 | Item | Status |
 |------|--------|
 | HEAD (main) | See `PROJECT_STATE.md` — verify with `git rev-parse origin/main` before work |
-| Live deploy target | ✅ **Hostinger VPS** `srv1716268` / `31.97.58.203` — Docker container `wv-property-intelligence:vps` behind Traefik+LE; src @ `b9d1198`, container healthy (verified 2026-06-17). **Not Railway.** |
+| Live deploy target | ✅ **Hostinger VPS** `srv1716268` / `31.97.58.203` — Docker container `wv-property-intelligence:vps` behind Traefik+LE; src @ `24ee74b`, container healthy (verified 2026-06-18). **Not Railway.** |
 | Deploy method | ⚠️ **Manual** — `ssh root@31.97.58.203`, `git -C /docker/wv-property-intelligence/src fetch origin && git -C /docker/wv-property-intelligence/src checkout <sha>`, then `docker compose build && docker compose up -d`. Merging to `main` does **not** deploy (no webhook / CI deploy / watchtower) |
 | Authenticated smoke | ✅ PASSED (7/7) — 2026-05-27 |
 | Production smoke path | ✅ `scripts/smoke-prod.sh` is read-only (`GET` health + property page checks only) |
-| npm audit | 0 vulnerabilities (main) |
+| npm audit | 0 high/critical after PR #111; live VPS lockfile resolves `multer` to 2.2.0 |
 | GitHub security queues | ✅ clean — open code-scanning, Dependabot, and secret-scanning alerts all zero on 2026-05-31 |
 | GitHub branch protection | ✅ required checks + conversation resolution; PR review/admin gates intentionally off per `DECISIONS.md` 2026-05-31 |
-| GitHub deployment environments | Legacy Railway statuses (`alert-laughter / production`) + `production`/`copilot` envs are non-gating and no longer reflect the live target (prod is the VPS) — clean up with the Railway decommission task |
+| GitHub deployment environments | Legacy Railway statuses (`alert-laughter / production`) + `production`/`copilot` envs are non-gating and no longer reflect the live target (prod is the VPS) — do not treat them as production proof |
 | OpenHands executor | ⏳ NOT LIVE — awaiting token provisioning and runtime start |
 | `API_KEY` in prod | set in the VPS `.env` (`/docker/wv-property-intelligence/.env`) |
 
@@ -98,7 +98,7 @@ Issue #66 was fixed by merged PRs #68/#69. The OpenHands npm install blocker now
 - **Do not commit directly to `main`** unless explicitly approved by the user
 - **Do not mutate production data** during smoke tests
 - **Do not print or echo production secrets** (the VPS `.env` at `/docker/wv-property-intelligence/.env`, or the dormant Railway twin)
-- Confirm deployment success before claiming production completion
+- Confirm deployment success before claiming production completion: `EXPECTED_SHA=<full-sha> bash scripts/verify-vps-prod.sh`
 - `ADMIN_PASSWORD` for smoke must be supplied at runtime — never hardcoded
 - **Verify your branch before acting:** `git branch --show-current`. If not on the intended branch, `git fetch origin && git checkout main && git pull origin main` before starting work
 - **Do not commit unrelated untracked files.** Always inspect `git status` before staging
@@ -136,7 +136,7 @@ See `AGENTS.md` for full operating rules, forbidden actions, and workflow.
 - **CSRF:** `csrf-csrf@^3.2.2` active (PR #63 merged 2026-05-27). Double-submit cookie pattern, `req.csrfToken()` polyfill, session-bound. `csurf` fully removed.
 - **Google APIs:** `api/google.js` uses Node `https` directly — the `googleapis` npm package is NOT a dependency.
 - **Routes:** `/api/properties` and `/api/listings` are alias routes for the same handler. `/properties/:slug` and `/listing/:slug` are both active.
-- **Deploy:** Hostinger VPS (`31.97.58.203`) — Docker + Traefik via `api/Dockerfile`; **manual** deploy (merge ≠ deploy). See `docs/CANONICAL_MAP.md`.
+- **Deploy:** Hostinger VPS (`31.97.58.203`) — Docker + Traefik via `api/Dockerfile`; **manual** deploy (merge ≠ deploy). See `docs/CANONICAL_MAP.md`. The old Railway twin is deleted and is not production proof.
 - **Smoke scripts:** `scripts/preflight.sh`, `scripts/smoke-admin.sh`, `scripts/smoke-prod.sh` (read-only), `scripts/check-env.sh`. For the lead capture→email path use the manual **`docs/SMOKE_CHECKLIST.md`** (it mutates prod: creates a row + sends a real email).
 - **Lead capture:** `/api/leads` is mounted; the Google Sheets adapter is local-safe when sheet credentials are absent
 - **CI:** `.github/workflows/preflight.yml` runs `preflight.sh` on all PRs and pushes to `main`.
