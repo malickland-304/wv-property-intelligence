@@ -5,6 +5,7 @@ const crypto  = require('crypto');
 
 const { db }              = require('../db');
 const { requireApiKey }   = require('../middleware/auth');
+const createDocumentsRouter = require('./documents');
 const { contactsRateLimit, publicReadRateLimit, generateDescRateLimit, apiWriteRateLimit } = require('../middleware/rate-limits');
 const { sendLeadNotification } = require('../services/email');
 const { isValidEmail, normalizeAcreage, slugify, VALID_PROP_TYPES, VALID_PROP_STATUSES } = require('../helpers');
@@ -79,6 +80,9 @@ router.get('/properties',     publicReadRateLimit, sendPropertyList);
 router.get('/listings',       publicReadRateLimit, sendPropertyList);
 router.get('/properties/:id', publicReadRateLimit, sendPropertyDetail);
 router.get('/listings/:id',   publicReadRateLimit, sendPropertyDetail);
+
+// ── Document Registry (API-key protected) ────────────────
+router.use('/documents', apiWriteRateLimit, requireApiKey, createDocumentsRouter({ db }));
 
 // ── Analytics ─────────────────────────────────────────────
 router.get('/analytics', publicReadRateLimit, (_req, res) => {

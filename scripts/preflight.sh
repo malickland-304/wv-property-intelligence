@@ -39,6 +39,7 @@ node --check server.js
 node --check db.js
 node --check middleware/auth.js
 node --check routes/api.js
+node --check routes/documents.js
 node --check routes/public.js
 node --check routes/admin.js
 echo "✓ Syntax OK"
@@ -52,6 +53,11 @@ echo
 echo "== HTTP integration smoke =="
 node "$ROOT/tests/http-smoke.test.js"
 echo "✓ HTTP integration smoke OK"
+echo
+
+echo "== Document registry smoke =="
+node "$ROOT/tests/document-registry.test.js"
+echo "✓ Document registry smoke OK"
 echo
 
 echo "== Startup smoke =="
