@@ -65,15 +65,24 @@ function adminShell(title, body, csrf) {
     .detail-table{width:100%;font-size:.875rem;border-collapse:collapse}
     .detail-table td{padding:.5rem;border-bottom:1px solid #f0f0f0}
     .detail-table td:first-child{font-weight:600;color:#555;width:40%}
+    .filter-panel{background:#fff;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:1rem;margin-bottom:1.25rem}
+    .filter-panel form{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr)) auto;gap:.85rem;align-items:end}
+    .queue-meta{color:#555;font-size:.85rem;margin-bottom:1rem}
+    .muted{color:#666;font-size:.82rem}
+    .code-chip{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#f6f4ee;border:1px solid #e5dfd0;border-radius:4px;padding:.15rem .35rem}
+    .claim-value{max-width:260px;white-space:normal;word-break:break-word}
+    .quote-cell{max-width:320px;white-space:normal;color:#444}
+    .empty-state{background:#fff;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:2rem;text-align:center;color:#555}
     @media(max-width:768px){
       .sidebar{display:none}.main{margin-left:0}
-      .form-grid,.report-grid{grid-template-columns:1fr}
+      .form-grid,.report-grid,.filter-panel form{grid-template-columns:1fr}
     }
   </style></head><body>
   <div class="sidebar">
     <span class="logo">🏡 WVREA Admin</span>
     <a href="/admin">📋 Listings</a>
     <a href="/admin/new">➕ New Listing</a>
+    <a href="/admin/document-claims">🧾 Document Claims</a>
     <a href="/admin/integrations">🔗 Integrations</a>
     <a href="/" target="_blank">🌐 Public Site</a>
     <a href="/admin/logout" class="logout" style="color:#ffaaaa">🚪 Logout</a>

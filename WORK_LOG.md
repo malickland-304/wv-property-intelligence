@@ -1059,3 +1059,24 @@ Start Phase 2 with a backend review-queue slice for extracted claims, without bu
 ### Remaining Risks
 - This does not yet render the queue in `/admin`, mutate property/listing facts, or mark approved claims as `applied`.
 - The existing Phase 1 schema validates AI `value_type` but does not persist it; that should be a separate schema decision if the admin UI needs it.
+
+---
+
+## 2026-06-19 — Codex — Document Registry Phase 2 read-only admin review page
+
+### Objective
+Add the first admin-facing review surface for extracted document claims without approving, rejecting, applying facts to listing records, enabling Drive/Gmail automation, or deploying to production.
+
+### Changes Made
+- `api/routes/admin.js` — added authenticated `GET /admin/document-claims` with status/property/claim/document filters, effective-property fallback, rejected/superseded version exclusion, escaped read-only claim rendering, and deliberate omission of source/storage URIs.
+- `api/views/admin.js` — added a sidebar link and small table/filter styles for the document-claim review page.
+- `tests/admin-document-review.test.js` — added real HTTP coverage with a temporary SQLite DB for auth redirect, admin login, rendered claim data, filter behavior, rejected-version exclusion, and source/storage URI redaction.
+- `scripts/preflight.sh` — added the admin document review smoke test to the standard preflight gate.
+- `TASKS.md`, `docs/DOCUMENT_REGISTRY_SPEC.md`, `PROJECT_STATE.md` — recorded the read-only admin review page as complete while leaving audited apply workflow open.
+
+### Verification
+- Required validation before PR: `node --check api/routes/admin.js`; `node --check api/views/admin.js`; `node --check tests/admin-document-review.test.js`; `node tests/admin-document-review.test.js`; `bash scripts/preflight.sh`; `node tests/verify-security-fixes.test.js`; `git diff --check`.
+
+### Remaining Risks
+- This is review-only. The audited workflow that applies approved claims into listing/property facts is still the next Phase 2 slice.
+- Merge still does not deploy this admin page to the VPS; production remains on the last manually deployed runtime until Phil approves a VPS deploy.
