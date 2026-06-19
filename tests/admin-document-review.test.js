@@ -130,6 +130,38 @@ function seedReviewData() {
   );
 
   testDb.prepare(`
+    INSERT INTO extracted_claims (
+      id, document_id, document_version_id, property_id, claim_type, claim_value_json,
+      source_quote, source_location_json, confidence, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0.72, 'pending_review')
+  `).run(
+    'claim_admin_xss',
+    'doc_admin_review',
+    'ver_admin_review',
+    PROPERTY_ID,
+    '<script>alert("type")</script>&',
+    JSON.stringify({ foo: '<script>alert("value")</script>&"&' }),
+    '<script>alert("quote")</script>&',
+    JSON.stringify({ page: '<script>1</script>&' })
+  );
+
+  testDb.prepare(`
+    INSERT INTO extracted_claims (
+      id, document_id, document_version_id, property_id, claim_type, claim_value_json,
+      source_quote, source_location_json, confidence, status, reviewed_by, reviewed_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 'approved', 'test-suite', datetime('now'))
+  `).run(
+    'claim_admin_approved',
+    'doc_admin_review',
+    'ver_admin_review',
+    PROPERTY_ID,
+    'acreage',
+    JSON.stringify('12.5 acres approved'),
+    'Approved acreage source',
+    JSON.stringify({ page: 4 })
+  );
+
+  testDb.prepare(`
     INSERT INTO document_versions (
       id, document_id, version_number, file_name, sha256, storage_uri, approval_status
     ) VALUES (?, ?, 2, ?, ?, ?, 'rejected')
@@ -211,9 +243,33 @@ async function main() {
       assert(html.includes('14-09-012B-0096-0000'));
       assert(html.includes('Parcel 14-09-012B-0096-0000'));
       assert(html.includes('&quot;page&quot;:2') || html.includes('{&quot;page&quot;:2'));
+      assert(html.includes('data-status="pending_review"'));
+      assert(!html.includes('<script>alert("type")</script>&'));
+      assert(!html.includes('<script>alert("value")</script>&"&'));
+      assert(!html.includes('<script>alert("quote")</script>&'));
+      assert(!html.includes('<script>1</script>&'));
+      assert(html.includes('&lt;script&gt;alert(&quot;type&quot;)&lt;/script&gt;&amp;'));
+      assert(html.includes('&lt;script&gt;alert(\\&quot;value\\&quot;)&lt;/script&gt;&amp;\\&quot;&amp;'));
+      assert(html.includes('&lt;script&gt;alert(&quot;quote&quot;)&lt;/script&gt;&amp;'));
+      assert(html.includes('&lt;script&gt;1&lt;/script&gt;&amp;'));
       assert(!html.includes('Rejected source claim'), 'claims from rejected versions must be excluded');
       assert(!html.includes('manual://hidden-tax-card.pdf'), 'source_uri must not render');
       assert(!html.includes('manual://hidden-storage-tax-card.pdf'), 'storage_uri must not render');
+    });
+
+    await test('GET /admin/document-claims with status=approved renders only approved claims', async () => {
+      const res = await fetch(`${baseUrl}/admin/document-claims?status=approved`, {
+        headers: { Cookie: cookie },
+      });
+      assert.strictEqual(res.status, 200);
+      const html = await res.text();
+      assert(html.includes('Document Claims'));
+      assert(html.includes('12.5 acres approved'));
+      assert(html.includes('Approved acreage source'));
+      assert(html.includes('data-status="approved"'));
+      assert(!html.includes('14-09-012B-0096-0000'));
+      assert(!html.includes('data-status="pending_review"'));
+      assert(!html.includes('<td>0%</td>'), 'null confidence should render blank, not 0%');
     });
 
     await test('GET /admin/document-claims supports effective property and document type filters', async () => {
@@ -235,6 +291,15 @@ async function main() {
       assert.strictEqual(res.status, 400);
       const html = await res.text();
       assert(html.includes('Invalid status filter.'));
+    });
+
+    await test('GET /admin/document-claims rejects invalid document type filters', async () => {
+      const res = await fetch(`${baseUrl}/admin/document-claims?document_type=not_a_real_type`, {
+        headers: { Cookie: cookie },
+      });
+      assert.strictEqual(res.status, 400);
+      const html = await res.text();
+      assert(html.includes('Invalid document type filter.'));
     });
   } finally {
     if (testDb) testDb.close();

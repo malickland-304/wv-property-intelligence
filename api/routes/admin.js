@@ -13,6 +13,7 @@ const { adminShell, listingForm, loginPageHtml, loginErrorHtml } = require('../v
 const { esc, slugify, initListingFolder, isSafePathComponent, normalizeAcreage, safeListingPath } = require('../helpers');
 const { uploadPhotoToDrive } = require('../google');
 const { generateListingContent, aiConfigured } = require('../ai-generator');
+const { CLAIM_STATUSES, DOCUMENT_TYPES } = require('./documents');
 
 let sharp;
 try { sharp = require('sharp'); } catch (_) { sharp = null; }
@@ -46,13 +47,6 @@ const upload = multer({
 });
 
 const router = express.Router();
-const CLAIM_STATUSES = new Set(['pending_review', 'approved', 'rejected', 'superseded', 'applied']);
-const DOCUMENT_TYPES = new Set([
-  'deed', 'plat', 'survey', 'tax_card', 'disclosure', 'contract',
-  'listing_agreement', 'inspection', 'photo_release', 'utility',
-  'hoa_or_restrictions', 'seller_note', 'buyer_note', 'marketing_source',
-  'other',
-]);
 
 function cleanQuery(value, max = 120) {
   if (value == null) return '';
@@ -82,7 +76,7 @@ function renderSelectOptions(values, selected) {
 }
 
 function renderReviewFilters(filters) {
-  const statuses = ['pending_review', 'approved', 'rejected', 'superseded', 'applied'];
+  const statuses = Array.from(CLAIM_STATUSES);
   const documentTypes = ['', ...Array.from(DOCUMENT_TYPES).sort()];
 
   return `
@@ -117,9 +111,17 @@ function renderReviewFilters(filters) {
 }
 
 function formatConfidence(value) {
+  if (value == null || value === '') return '';
   const n = Number(value);
   if (!Number.isFinite(n)) return '';
   return `${Math.round(n * 100)}%`;
+}
+
+function statusBadgeClass(status) {
+  if (status === 'approved' || status === 'applied') return 'active';
+  if (status === 'rejected') return 'sold';
+  if (status === 'superseded') return 'draft';
+  return 'pending';
 }
 
 // ── Login ─────────────────────────────────────────────────
@@ -747,7 +749,7 @@ router.get('/document-claims', requireAuth, adminActionRateLimit, (req, res) => 
           ${claim.source_quote ? esc(claim.source_quote) : '<span class="muted">No quote</span>'}
           ${sourceLocation ? `<div class="muted">${esc(sourceLocation)}</div>` : ''}
         </td>
-        <td><span class="badge pending">${esc(claim.status)}</span></td>
+        <td><span class="badge ${esc(statusBadgeClass(claim.status))}" data-status="${esc(claim.status)}">${esc(claim.status)}</span></td>
       </tr>`;
   }).join('');
 
