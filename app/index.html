@@ -12,6 +12,12 @@
   <meta property="og:url" content="https://malickland.net" />
   <meta property="og:type" content="website" />
   <meta property="og:image" content="https://malickland.net/public/brand/og-image.jpg" />
+  <meta property="og:image:width" content="1024" />
+  <meta property="og:image:height" content="1024" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="MalickLand | West Virginia Land, Homes & Property" />
+  <meta name="twitter:description" content="Find land, homes, farms, and rural property across all 55 WV counties. AI-assisted property research and local WV expertise." />
+  <meta name="twitter:image" content="https://malickland.net/public/brand/og-image.jpg" />
   <link rel="canonical" href="https://malickland.net" />
   <!-- Analytics + Meta Pixel — loaded from /api/config (GA_MEASUREMENT_ID, META_PIXEL_ID) -->
   <script>
@@ -94,6 +100,7 @@
       --shadow: 0 4px 24px rgba(0,0,0,0.18);
       --shadow-gold: 0 4px 32px rgba(212,175,55,0.18);
       --radius: 12px;
+      --focus-ring: 0 0 0 3px rgba(212,175,55,0.45);
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -109,6 +116,28 @@
 
     a { color: inherit; text-decoration: none; }
     img { max-width: 100%; display: block; }
+
+    a:focus-visible,
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible {
+      outline: 2px solid var(--gold);
+      outline-offset: 3px;
+      box-shadow: var(--focus-ring);
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
 
     /* ---- NAVBAR ---- */
     .nav {
@@ -380,6 +409,14 @@
       padding: 1.5rem;
       color: var(--green);
       font-weight: 600;
+    }
+
+    .form-error {
+      display: none;
+      padding: 1rem;
+      color: #b42318;
+      font-size: 0.9rem;
+      text-align: center;
     }
 
     /* ---- TRUST BAR ---- */
@@ -1153,22 +1190,21 @@
 <body>
 
 <!-- NAVBAR -->
-<nav class="nav">
-  <a href="/" class="nav-logo">
-    <img src="/public/brand/logo-primary.png" alt="MalickLand" class="nav-logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
-    <span class="nav-logo-fallback" style="display:none"><div class="nav-logo-icon">🏡</div><span>Malick<em>Land</em></span></span>
+<nav class="nav" aria-label="Main navigation">
+  <a href="/" class="nav-logo" aria-label="MalickLand home">
+    <img src="/public/brand/logo-primary.png" alt="" class="nav-logo-img" width="44" height="44" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" aria-hidden="true" />
+    <span class="nav-logo-fallback" style="display:none" aria-hidden="true"><span class="nav-logo-icon">🏡</span><span>Malick<em>Land</em></span></span>
     <span class="nav-logo-wordmark">Malick<em>Land</em></span>
   </a>
-  <ul class="nav-links">
+  <ul class="nav-links" id="navLinks">
     <li><a href="/listings">Search</a></li>
     <li><a href="#listings">Featured</a></li>
     <li><a href="/37-advent">37 Advent Closed Sale</a></li>
     <li><a href="#why">About</a></li>
     <li><a href="#contact-form">Contact</a></li>
-    <li><a href="/admin" style="opacity:0.5;font-size:0.8rem">Admin</a></li>
   </ul>
-  <button class="nav-cta" onclick="openModal()">Get Property Alerts</button>
-  <button class="nav-mobile-toggle" onclick="this.parentElement.querySelector('.nav-links').style.display = this.parentElement.querySelector('.nav-links').style.display === 'flex' ? 'none' : 'flex'">☰</button>
+  <button class="nav-cta" type="button" onclick="openModal()">Get Property Alerts</button>
+  <button class="nav-mobile-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="navLinks" onclick="toggleNav(this)">☰</button>
 </nav>
 
 <!-- HERO -->
@@ -1180,24 +1216,24 @@
 
     <div class="hero-form">
       <h3>Tell Phil What You're Looking For</h3>
-      <form id="heroForm">
+      <form id="heroForm" novalidate>
         <div class="form-row">
           <div class="form-group">
-            <label>Your Name *</label>
-            <input type="text" name="name" placeholder="Phil Smith" required />
+            <label for="hero-name">Your Name *</label>
+            <input type="text" id="hero-name" name="name" placeholder="Jane Smith" required autocomplete="name" />
           </div>
           <div class="form-group">
-            <label>Phone *</label>
-            <input type="tel" name="phone" placeholder="(304) 555-1234" required />
+            <label for="hero-phone">Phone *</label>
+            <input type="tel" id="hero-phone" name="phone" placeholder="(304) 555-1234" required autocomplete="tel" />
           </div>
         </div>
         <div class="form-group">
-          <label>Email *</label>
-          <input type="email" name="email" placeholder="you@email.com" required />
+          <label for="hero-email">Email *</label>
+          <input type="email" id="hero-email" name="email" placeholder="you@email.com" required autocomplete="email" />
         </div>
         <div class="form-group">
-          <label>What are you looking for?</label>
-          <select name="interest">
+          <label for="hero-interest">What are you looking for?</label>
+          <select id="hero-interest" name="interest">
             <option value="Buying Land">Buying Land or Acreage</option>
             <option value="Buying a Home">Buying a Home in WV</option>
             <option value="Selling Property">Selling My Property</option>
@@ -1208,16 +1244,17 @@
           </select>
         </div>
         <div class="form-group">
-          <label>County or Area of Interest</label>
-          <input type="text" name="message" placeholder="Hampshire, Tucker, Pocahontas... or any WV county" />
+          <label for="hero-message">County or Area of Interest</label>
+          <input type="text" id="hero-message" name="message" placeholder="Hampshire, Tucker, Pocahontas... or any WV county" />
         </div>
         <input type="hidden" name="source" value="website_hero" />
         <button type="submit" class="btn-submit">📬 Connect With Phil — It's Free</button>
         <p class="consent-text">By submitting, you consent to receive calls and texts from MalickLand at the number provided. Message &amp; data rates may apply. Reply STOP to opt out at any time.</p>
       </form>
-      <div class="form-success" id="heroSuccess">
+      <div class="form-success" id="heroSuccess" role="status">
         ✅ Got it! Phil will follow up as soon as practical. Call anytime: <strong>(540) 246-1421</strong>
       </div>
+      <div class="form-error" id="heroError" role="alert" tabindex="-1"></div>
     </div>
   </div>
 </section>
@@ -1252,12 +1289,12 @@
       <h2 class="section-title">Featured Properties</h2>
     </div>
     <!-- Type filter tabs -->
-    <div id="listingTabs" style="display:flex;gap:.5rem;margin-bottom:1.25rem;flex-wrap:wrap">
-      <button class="ltab ltab-active" data-type="" onclick="setListingType(this,'')">All Properties</button>
-      <button class="ltab" data-type="land" onclick="setListingType(this,'land')">🌲 Land &amp; Acreage</button>
-      <button class="ltab" data-type="residential" onclick="setListingType(this,'residential')">🏡 Homes</button>
+    <div id="listingTabs" role="group" aria-label="Filter listings by property type" style="display:flex;gap:.5rem;margin-bottom:1.25rem;flex-wrap:wrap">
+      <button class="ltab ltab-active" type="button" data-type="" aria-pressed="true" onclick="setListingType(this,'')">All Properties</button>
+      <button class="ltab" type="button" data-type="land" aria-pressed="false" onclick="setListingType(this,'land')">🌲 Land &amp; Acreage</button>
+      <button class="ltab" type="button" data-type="residential" aria-pressed="false" onclick="setListingType(this,'residential')">🏡 Homes</button>
     </div>
-    <div class="listings-grid" id="listingsGrid">
+    <div class="listings-grid" id="listingsGrid" aria-live="polite" aria-busy="true">
       <div class="skeleton"></div>
       <div class="skeleton"></div>
       <div class="skeleton"></div>
@@ -1275,18 +1312,25 @@
     <h2>Don't Buy Property in WV Until You Read This</h2>
     <p>Download our free <strong>2026 WV Property Buying Guide</strong> — everything you need to know about land, homes, septic, well access, zoning traps, and due diligence before you sign anything.</p>
     <div class="lead-magnet-form">
-      <form id="alertsForm">
+      <form id="alertsForm" novalidate>
         <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
-          <input type="text" name="name" placeholder="Your Name" required class="chat-input" style="background:rgba(255,255,255,0.92);border:2px solid rgba(201,168,76,0.5);color:#1f2937;" />
-          <input type="email" name="email" placeholder="Your Email" required class="chat-input" style="background:rgba(255,255,255,0.92);border:2px solid rgba(201,168,76,0.5);color:#1f2937;" />
+          <div>
+            <label for="alerts-name" class="sr-only">Your Name</label>
+            <input type="text" id="alerts-name" name="name" placeholder="Your Name" required autocomplete="name" class="chat-input" style="background:rgba(255,255,255,0.92);border:2px solid rgba(201,168,76,0.5);color:#1f2937;" />
+          </div>
+          <div>
+            <label for="alerts-email" class="sr-only">Your Email</label>
+            <input type="email" id="alerts-email" name="email" placeholder="Your Email" required autocomplete="email" class="chat-input" style="background:rgba(255,255,255,0.92);border:2px solid rgba(201,168,76,0.5);color:#1f2937;" />
+          </div>
         </div>
         <input type="hidden" name="source" value="website_alerts" />
         <button type="submit" class="btn-submit" style="background:var(--gold);color:var(--green);">📋 Send Me the Checklist — Free</button>
         <p class="consent-text" style="color:rgba(255,255,255,0.5);margin-top:0.65rem;font-size:0.72rem;">By submitting, you consent to receive emails and texts from MalickLand. Reply STOP to opt out at any time.</p>
       </form>
-      <div class="form-success" id="alertsSuccess" style="color:#c9a84c;">
+      <div class="form-success" id="alertsSuccess" style="color:#c9a84c;" role="status">
         ✅ Checklist on the way! Check your email — and Phil may follow up personally.
       </div>
+      <div class="form-error" id="alertsError" role="alert" tabindex="-1" style="color:#f9c84c;"></div>
     </div>
   </div>
 </section>
@@ -1362,7 +1406,7 @@
   <div class="container">
     <div class="agent-inner">
       <div class="agent-photo">
-        <img src="/public/brand/headshot.jpg" alt="Phil Malick — MalickLand" class="agent-headshot" onerror="this.parentElement.innerHTML='<div class=\'agent-headshot-fallback\'>👤</div>'" />
+        <img src="/public/brand/headshot.jpg" alt="Phil Malick — MalickLand" class="agent-headshot" width="280" height="373" onerror="this.parentElement.innerHTML='<div class=\'agent-headshot-fallback\'>👤</div>'" />
       </div>
       <div class="agent-bio">
         <span class="section-label">Your Agent</span>
@@ -1419,20 +1463,29 @@
     <!-- Contact Form -->
     <div id="contact-form" style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:var(--radius);padding:2rem;max-width:520px;margin:0 auto;text-align:left;">
       <h3 style="color:var(--white);font-size:1.1rem;margin-bottom:1.25rem;">Send Phil a Message</h3>
-      <form id="ctaForm">
+      <form id="ctaForm" novalidate>
         <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
-          <input class="chat-input" style="background:rgba(255,255,255,0.92);border:2px solid rgba(201,168,76,0.4);color:#1f2937;" type="text" name="name" placeholder="Your Name" required />
-          <input class="chat-input" style="background:rgba(255,255,255,0.92);border:2px solid rgba(201,168,76,0.4);color:#1f2937;" type="tel" name="phone" placeholder="(304) 555-1234" />
+          <div>
+            <label for="cta-name" class="sr-only">Your Name</label>
+            <input class="chat-input" style="background:rgba(255,255,255,0.92);border:2px solid rgba(201,168,76,0.4);color:#1f2937;" id="cta-name" type="text" name="name" placeholder="Your Name" required autocomplete="name" />
+          </div>
+          <div>
+            <label for="cta-phone" class="sr-only">Phone</label>
+            <input class="chat-input" style="background:rgba(255,255,255,0.92);border:2px solid rgba(201,168,76,0.4);color:#1f2937;" id="cta-phone" type="tel" name="phone" placeholder="(304) 555-1234" autocomplete="tel" />
+          </div>
         </div>
-        <input class="chat-input" style="background:rgba(255,255,255,0.92);border:2px solid rgba(201,168,76,0.4);color:#1f2937;width:100%;margin-bottom:0.75rem;" type="email" name="email" placeholder="Email Address" required />
-        <textarea class="chat-input" style="background:rgba(255,255,255,0.92);border:2px solid rgba(201,168,76,0.4);color:#1f2937;width:100%;min-height:90px;margin-bottom:0.75rem;" name="message" placeholder="What kind of property are you looking for? (county, acreage, budget...)"></textarea>
+        <label for="cta-email" class="sr-only">Email Address</label>
+        <input class="chat-input" style="background:rgba(255,255,255,0.92);border:2px solid rgba(201,168,76,0.4);color:#1f2937;width:100%;margin-bottom:0.75rem;" id="cta-email" type="email" name="email" placeholder="Email Address" required autocomplete="email" />
+        <label for="cta-message" class="sr-only">Message</label>
+        <textarea class="chat-input" style="background:rgba(255,255,255,0.92);border:2px solid rgba(201,168,76,0.4);color:#1f2937;width:100%;min-height:90px;margin-bottom:0.75rem;" id="cta-message" name="message" placeholder="What kind of property are you looking for? (county, acreage, budget...)"></textarea>
         <input type="hidden" name="source" value="website_contact" />
         <button type="submit" class="btn-submit" style="background:var(--gold);color:var(--green);">Send Message</button>
         <p class="consent-text" style="color:rgba(255,255,255,0.45);">By submitting, you consent to receive calls and texts from MalickLand. Reply STOP to opt out.</p>
       </form>
-      <div class="form-success" id="ctaSuccess" style="color:var(--gold);">
+      <div class="form-success" id="ctaSuccess" style="color:var(--gold);" role="status">
         ✅ Message received! Phil will follow up as soon as practical.
       </div>
+      <div class="form-error" id="ctaError" role="alert" tabindex="-1" style="color:#f9c84c;"></div>
     </div>
   </div>
 </section>
@@ -1441,7 +1494,7 @@
 <footer>
   <div class="footer-inner">
     <div class="footer-brand">
-      <img src="/public/brand/logo-secondary.jpg" alt="MalickLand" class="footer-logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+      <img src="/public/brand/logo-secondary.jpg" alt="MalickLand" class="footer-logo-img" width="180" height="80" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
       <h4 style="display:none">🏡 MalickLand</h4>
       <p>West Virginia's land &amp; home specialist. Land, acreage, rural homes, and rural property across all 55 WV counties.</p>
     </div>
@@ -1454,7 +1507,6 @@
         <li><a href="#sell">Sell Property</a></li>
         <li><a href="#guide">Free Land Guide</a></li>
         <li><a href="#why">About MalickLand</a></li>
-        <li><a href="/admin">Admin Login</a></li>
       </ul>
     </div>
     <div class="footer-contact">
@@ -1478,62 +1530,120 @@
 </footer>
 
 <!-- CHAT WIDGET -->
-<button class="chat-btn" onclick="openChat()" title="Chat with MalickLand">💬</button>
+<button class="chat-btn" id="chatToggleBtn" type="button" onclick="openChat()" title="Chat with MalickLand" aria-label="Open MalickLand assistant chat" aria-expanded="false" aria-controls="chatPanel">💬</button>
 
-<div class="chat-panel" id="chatPanel">
+<div class="chat-panel" id="chatPanel" aria-label="MalickLand assistant chat">
   <div class="chat-header">
     <div class="chat-avatar">🏡</div>
     <div class="chat-header-text">
       <h4>MalickLand Assistant</h4>
       <p>Usually responds in minutes</p>
     </div>
-    <button class="chat-close" onclick="document.getElementById('chatPanel').classList.remove('open')">✕</button>
+    <button class="chat-close" type="button" aria-label="Close chat" onclick="closeChat()">✕</button>
   </div>
-  <div class="chat-body" id="chatBody">
+  <div class="chat-body" id="chatBody" aria-live="polite">
     <!-- Injected by JS -->
   </div>
 </div>
 
 <!-- LEAD MODAL -->
-<div class="modal-overlay" id="leadModal">
+<div class="modal-overlay" id="leadModal" role="dialog" aria-modal="true" aria-labelledby="lead-modal-heading">
   <div class="modal">
-    <button class="modal-close" onclick="closeModal()">✕</button>
-    <h3>🏡 Get Property Alerts First</h3>
+    <button class="modal-close" type="button" onclick="closeModal()" aria-label="Close property alerts modal">✕</button>
+    <h3 id="lead-modal-heading">🏡 Get Property Alerts First</h3>
     <p>Be the first to know when new WV land hits the market — before it goes public.</p>
-    <form id="modalForm">
+    <form id="modalForm" novalidate>
       <div class="form-group">
-        <label>Name *</label>
-        <input type="text" name="name" placeholder="Your Name" required />
+        <label for="modal-name">Name *</label>
+        <input type="text" id="modal-name" name="name" placeholder="Your Name" required autocomplete="name" />
       </div>
       <div class="form-group">
-        <label>Email *</label>
-        <input type="email" name="email" placeholder="you@email.com" required />
+        <label for="modal-email">Email *</label>
+        <input type="email" id="modal-email" name="email" placeholder="you@email.com" required autocomplete="email" />
       </div>
       <div class="form-group">
-        <label>Phone</label>
-        <input type="tel" name="phone" placeholder="(304) 555-1234" />
+        <label for="modal-phone">Phone</label>
+        <input type="tel" id="modal-phone" name="phone" placeholder="(304) 555-1234" autocomplete="tel" />
       </div>
       <input type="hidden" name="source" value="website_modal" />
       <button type="submit" class="btn-submit">Get My Land Alerts</button>
       <p class="consent-text">By submitting, you consent to receive calls and texts from MalickLand. Reply STOP to opt out.</p>
     </form>
-    <div class="form-success" id="modalSuccess">
+    <div class="form-success" id="modalSuccess" role="status">
       ✅ You're on the list! Phil will be in touch soon.
     </div>
+    <div class="form-error" id="modalError" role="alert" tabindex="-1"></div>
   </div>
 </div>
 
 <script>
 // ---- MODAL ----
+let activeDialog = null;
+let activeDialogTrigger = null;
+
+function dialogFocusables(container) {
+  return Array.from(container.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])'));
+}
+
+function focusDialog(container, trigger) {
+  activeDialog = container;
+  activeDialogTrigger = trigger || document.activeElement;
+  const focusTarget = dialogFocusables(container)[0] || container;
+  window.setTimeout(() => focusTarget.focus?.(), 0);
+}
+
+function clearDialog(container) {
+  if (activeDialog === container) {
+    const restore = activeDialogTrigger;
+    activeDialog = null;
+    activeDialogTrigger = null;
+    restore?.focus?.();
+  }
+}
+
+document.addEventListener('keydown', function(e) {
+  if (!activeDialog) return;
+  if (e.key === 'Escape') {
+    const dialogId = activeDialog.id;
+    if (dialogId === 'leadModal') closeModal();
+    if (dialogId === 'propModal') closePropertyModal();
+    return;
+  }
+  if (e.key !== 'Tab') return;
+  const items = dialogFocusables(activeDialog);
+  if (!items.length) return;
+  const first = items[0];
+  const last = items[items.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+});
+
 function openModal() {
-  document.getElementById('leadModal').classList.add('open');
+  const modal = document.getElementById('leadModal');
+  modal.classList.add('open');
+  focusDialog(modal);
 }
 function closeModal() {
-  document.getElementById('leadModal').classList.remove('open');
+  const modal = document.getElementById('leadModal');
+  modal.classList.remove('open');
+  clearDialog(modal);
 }
 document.getElementById('leadModal').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
 });
+
+function toggleNav(btn) {
+  const links = document.getElementById('navLinks');
+  const isOpen = links.style.display === 'flex';
+  links.style.display = isOpen ? '' : 'flex';
+  btn.setAttribute('aria-expanded', String(!isOpen));
+  btn.setAttribute('aria-label', isOpen ? 'Open navigation menu' : 'Close navigation menu');
+}
 
 // ---- HTML SAFETY ----
 function esc(str) {
@@ -1551,11 +1661,20 @@ function jsArg(str) {
 }
 
 // ---- FORM SUBMISSION ----
-async function submitForm(form, successId) {
+async function submitForm(form, successId, errorId) {
+  if (!form.checkValidity()) {
+    form.reportValidity();
+    return;
+  }
   const data = {};
   new FormData(form).forEach((v, k) => data[k] = v);
   const btn = form.querySelector('[type="submit"]');
   const btnLabel = btn ? btn.textContent : null;
+  const errorEl = errorId ? document.getElementById(errorId) : null;
+  if (errorEl) {
+    errorEl.textContent = '';
+    errorEl.style.display = 'none';
+  }
   if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
   try {
     const r = await fetch('/api/contacts', {
@@ -1566,7 +1685,15 @@ async function submitForm(form, successId) {
     if (!r.ok) throw new Error('HTTP ' + r.status);
   } catch(e) {
     if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
-    alert("Sorry — something went wrong sending that. Please call Phil at (540) 246-1421 or email phil@malickland.net.");
+    const message = "Sorry, something went wrong sending that. Please call Phil at (540) 246-1421 or email phil@malickland.net.";
+    if (errorEl) {
+      errorEl.textContent = message;
+      errorEl.style.display = 'block';
+      errorEl.tabIndex = -1;
+      errorEl.focus?.();
+    } else {
+      alert(message);
+    }
     return;
   }
   pixelEvent('Lead', { content_name: 'contact_form' });
@@ -1579,9 +1706,10 @@ async function submitForm(form, successId) {
   const form = document.getElementById(id);
   if (!form) return;
   const successId = {heroForm:'heroSuccess',alertsForm:'alertsSuccess',ctaForm:'ctaSuccess',modalForm:'modalSuccess'}[id];
+  const errorId = {heroForm:'heroError',alertsForm:'alertsError',ctaForm:'ctaError',modalForm:'modalError'}[id];
   form.addEventListener('submit', function(e) {
     e.preventDefault();
-    submitForm(this, successId);
+    submitForm(this, successId, errorId);
   });
 });
 
@@ -1608,13 +1736,18 @@ function featureBadges(featStr) {
 let _listingType = '';
 function setListingType(btn, type) {
   _listingType = type;
-  document.querySelectorAll('.ltab').forEach(b => b.classList.remove('ltab-active'));
+  document.querySelectorAll('.ltab').forEach(b => {
+    b.classList.remove('ltab-active');
+    b.setAttribute('aria-pressed', 'false');
+  });
   btn.classList.add('ltab-active');
+  btn.setAttribute('aria-pressed', 'true');
   loadListings();
 }
 
 async function loadListings() {
   const grid = document.getElementById('listingsGrid');
+  grid.setAttribute('aria-busy', 'true');
   try {
     const url = `/api/properties?limit=6${_listingType ? '&type='+encodeURIComponent(_listingType) : ''}`;
     const res = await fetch(url);
@@ -1629,8 +1762,9 @@ async function loadListings() {
       const address = esc(p.address);
       const city = esc(p.city);
       const county = esc(p.county);
+      const imageAlt = `${address}${city ? ', ' + city : ''} property photo`;
       const imgHtml = p.image_url
-        ? `<img src="${esc(p.image_url)}" alt="${address}" loading="lazy" />`
+        ? `<img src="${esc(p.image_url)}" alt="${imageAlt}" width="400" height="200" loading="lazy" />`
         : `<span style="font-size:3.5rem">${isLand ? '🌲' : '🏡'}</span>`;
       const price = p.price ? `$${Number(p.price).toLocaleString()}` : 'Contact for Price';
       // Land: acreage first; Home: beds/sqft first
@@ -1666,6 +1800,8 @@ async function loadListings() {
     }).join('');
   } catch(e) {
     grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--gray)">Unable to load listings. Please try refreshing.</div>';
+  } finally {
+    grid.setAttribute('aria-busy', 'false');
   }
 }
 loadListings();
@@ -1676,12 +1812,17 @@ async function showPropertyModal(id) {
   if (!overlay) {
     overlay = document.createElement('div');
     overlay.id = 'propModal';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', 'Property details');
+    overlay.setAttribute('tabindex', '-1');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
-    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.style.display='none'; });
+    overlay.addEventListener('click', e => { if (e.target === overlay) closePropertyModal(); });
     document.body.appendChild(overlay);
   }
   overlay.innerHTML = '<div style="background:#fff;border-radius:12px;padding:2rem;color:#1a1a1a;font-size:1rem">Loading...</div>';
   overlay.style.display = 'flex';
+  focusDialog(overlay);
 
   try {
     const p = await fetch(`/api/properties/${encodeURIComponent(id)}`).then(r => r.json());
@@ -1711,9 +1852,9 @@ async function showPropertyModal(id) {
     const price = p.price ? `$${Number(p.price).toLocaleString()}` : 'Contact for Price';
     overlay.innerHTML = `
       <div style="background:#fff;border-radius:14px;max-width:680px;width:100%;max-height:90vh;overflow-y:auto;position:relative;">
-        <button onclick="document.getElementById('propModal').style.display='none'"
+        <button type="button" aria-label="Close property details" onclick="closePropertyModal()"
           style="position:absolute;top:.75rem;right:.75rem;background:#1B4332;color:#fff;border:none;border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer;z-index:1">✕</button>
-        ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${address}" style="width:100%;max-height:300px;object-fit:cover;border-radius:14px 14px 0 0">` : ''}
+        ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${address}${city?', '+city:''} property photo" width="680" height="300" style="width:100%;max-height:300px;object-fit:cover;border-radius:14px 14px 0 0">` : ''}
         <div style="padding:1.5rem">
           <h2 style="font-size:1.9rem;font-weight:900;color:#0a0a0a;margin-bottom:.25rem">${esc(price)}</h2>
           <p style="color:#555;margin-bottom:.75rem">${address}${city?', '+city:''}, ${county} County${zip?' '+zip:''}</p>
@@ -1760,26 +1901,54 @@ async function showPropertyModal(id) {
               &nbsp;·&nbsp;
               ✉️ <a href="mailto:phil@malickland.net" style="color:#1B4332;font-weight:600">Email</a>
             </p>
-            <input id="pm_name"  type="text"  placeholder="Your Name"  style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
-            <input id="pm_email" type="email" placeholder="Email"      style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
-            <input id="pm_phone" type="tel"   placeholder="Phone (optional)" style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
+            <label for="pm_name" style="display:block;font-size:.78rem;font-weight:700;color:#555;margin-bottom:.25rem">Your Name *</label>
+            <input id="pm_name"  type="text"  autocomplete="name" placeholder="Your Name" required aria-required="true" style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
+            <label for="pm_email" style="display:block;font-size:.78rem;font-weight:700;color:#555;margin-bottom:.25rem">Email *</label>
+            <input id="pm_email" type="email" autocomplete="email" placeholder="Email" required aria-required="true" style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
+            <label for="pm_phone" style="display:block;font-size:.78rem;font-weight:700;color:#555;margin-bottom:.25rem">Phone</label>
+            <input id="pm_phone" type="tel" autocomplete="tel" placeholder="Phone (optional)" style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
+            <label for="pm_msg" style="display:block;font-size:.78rem;font-weight:700;color:#555;margin-bottom:.25rem">Message</label>
             <textarea id="pm_msg" placeholder="Message" style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.75rem;min-height:80px;font-size:.9rem;font-family:inherit;resize:vertical">I'd like more information about ${address}.</textarea>
-            <button onclick="pmSend(${jsArg(p.id)},this)" style="width:100%;padding:.85rem;background:#D4AF37;color:#0a0a0a;border:none;border-radius:8px;font-size:1rem;font-weight:800;cursor:pointer">Send Inquiry</button>
+            <button type="button" onclick="pmSend(${jsArg(p.id)},this)" style="width:100%;padding:.85rem;background:#D4AF37;color:#0a0a0a;border:none;border-radius:8px;font-size:1rem;font-weight:800;cursor:pointer">Send Inquiry</button>
+            <p id="pm_error" role="alert" style="display:none;color:#b42318;font-size:.78rem;margin-top:.5rem"></p>
             <p style="font-size:.72rem;color:#999;margin-top:.5rem;line-height:1.5">By submitting, you consent to receive calls and texts from MalickLand at the number provided. Message &amp; data rates may apply. Reply STOP to opt out.</p>
           </div>
         </div>
       </div>`;
+    focusDialog(overlay);
   } catch(e) {
     overlay.innerHTML = '<div style="background:#fff;padding:2rem;border-radius:12px;color:#c00">Failed to load property. Please try again.</div>';
   }
 }
 
+function closePropertyModal() {
+  const overlay = document.getElementById('propModal');
+  if (!overlay) return;
+  overlay.style.display = 'none';
+  clearDialog(overlay);
+}
+
 async function pmSend(propertyId, btn) {
-  const name  = document.getElementById('pm_name')?.value.trim();
-  const email = document.getElementById('pm_email')?.value.trim();
+  const nameInput = document.getElementById('pm_name');
+  const emailInput = document.getElementById('pm_email');
+  if (nameInput && !nameInput.reportValidity()) return;
+  if (emailInput && !emailInput.reportValidity()) return;
+  const name  = nameInput?.value.trim();
+  const email = emailInput?.value.trim();
   const phone = document.getElementById('pm_phone')?.value.trim();
   const msg   = document.getElementById('pm_msg')?.value.trim();
-  if (!name || !email) { alert('Name and email are required.'); return; }
+  const error = document.getElementById('pm_error');
+  if (error) {
+    error.textContent = '';
+    error.style.display = 'none';
+  }
+  if (!name || !email) {
+    if (error) {
+      error.textContent = 'Name and email are required.';
+      error.style.display = 'block';
+    }
+    return;
+  }
   btn.disabled = true; btn.textContent = 'Sending...';
   try {
     const r = await fetch('/api/contacts', {
@@ -1791,8 +1960,20 @@ async function pmSend(propertyId, btn) {
       btn.style.background='#1B4332'; btn.style.color='#D4AF37';
       pixelEvent('Lead', { content_name: 'property_inquiry' });
       if (window.gtag) gtag('event', 'generate_lead');
-    } else { btn.disabled=false; btn.textContent='Send Inquiry'; alert('Failed. Please try again.'); }
-  } catch { btn.disabled=false; btn.textContent='Send Inquiry'; }
+    } else {
+      btn.disabled=false; btn.textContent='Send Inquiry';
+      if (error) {
+        error.textContent = 'Failed. Please try again or call Phil at (540) 246-1421.';
+        error.style.display = 'block';
+      }
+    }
+  } catch {
+    btn.disabled=false; btn.textContent='Send Inquiry';
+    if (error) {
+      error.textContent = 'Connection issue. Please call Phil at (540) 246-1421 or email phil@malickland.net.';
+      error.style.display = 'block';
+    }
+  }
 }
 
 // ---- STICKY NAV SHADOW ----
@@ -1812,8 +1993,15 @@ let chatConnectShown = false;
 
 function openChat() {
   const panel = document.getElementById('chatPanel');
+  const toggle = document.getElementById('chatToggleBtn');
   panel.classList.add('open');
+  toggle?.setAttribute('aria-expanded', 'true');
   if (!chatReady) initChat();
+}
+
+function closeChat() {
+  document.getElementById('chatPanel').classList.remove('open');
+  document.getElementById('chatToggleBtn')?.setAttribute('aria-expanded', 'false');
 }
 
 function initChat() {
@@ -1826,8 +2014,9 @@ function initChat() {
 
 function chatInputHtml() {
   return `<div class="chat-input-row" id="chatInputRow">
+    <label for="chatUserInput" class="sr-only">Ask a question</label>
     <input class="chat-input" id="chatUserInput" placeholder="Ask about listings, counties, pricing..." onkeydown="if(event.key==='Enter')sendChatMsg()"/>
-    <button class="chat-send" onclick="sendChatMsg()">→</button>
+    <button class="chat-send" type="button" aria-label="Send chat message" onclick="sendChatMsg()">→</button>
   </div>`;
 }
 
@@ -1875,7 +2064,7 @@ async function sendChatMsg() {
       const body = document.getElementById('chatBody');
       const connectEl = document.createElement('div');
       connectEl.style.cssText = 'align-self:center;margin:.5rem 0';
-      connectEl.innerHTML = `<button onclick="showChatContact()" style="background:var(--gold);color:var(--black);border:none;border-radius:8px;padding:.6rem 1.2rem;font-weight:700;cursor:pointer;font-size:.85rem">📞 Connect with Phil directly →</button>`;
+      connectEl.innerHTML = `<button type="button" onclick="showChatContact()" style="background:var(--gold);color:var(--black);border:none;border-radius:8px;padding:.6rem 1.2rem;font-weight:700;cursor:pointer;font-size:.85rem">📞 Connect with Phil directly →</button>`;
       const inputRow = document.getElementById('chatInputRow');
       if (inputRow) body.insertBefore(connectEl, inputRow);
       else body.appendChild(connectEl);
@@ -1894,10 +2083,14 @@ function showChatContact() {
   formEl.style.cssText = 'background:#f9f6f0;border-radius:10px;padding:.9rem;margin:.25rem 0';
   formEl.innerHTML = `
     <p style="font-size:.82rem;color:#555;margin-bottom:.6rem">Leave your info and Phil will call you:</p>
-    <input id="chatLeadName" class="chat-input" placeholder="Your Name" style="margin-bottom:.4rem"/>
-    <input id="chatLeadEmail" class="chat-input" type="email" placeholder="Email" style="margin-bottom:.4rem"/>
-    <input id="chatLeadPhone" class="chat-input" type="tel" placeholder="Phone (optional)" style="margin-bottom:.6rem"/>
-    <button onclick="submitChatLead(this)" style="width:100%;background:var(--green);color:var(--gold);border:none;border-radius:6px;padding:.6rem;font-weight:700;cursor:pointer;font-size:.88rem">Send to Phil →</button>
+    <label for="chatLeadName" class="sr-only">Your Name</label>
+    <input id="chatLeadName" class="chat-input" autocomplete="name" placeholder="Your Name" required aria-required="true" style="margin-bottom:.4rem"/>
+    <label for="chatLeadEmail" class="sr-only">Email</label>
+    <input id="chatLeadEmail" class="chat-input" type="email" autocomplete="email" placeholder="Email" required aria-required="true" style="margin-bottom:.4rem"/>
+    <label for="chatLeadPhone" class="sr-only">Phone</label>
+    <input id="chatLeadPhone" class="chat-input" type="tel" autocomplete="tel" placeholder="Phone (optional)" style="margin-bottom:.6rem"/>
+    <button type="button" onclick="submitChatLead(this)" style="width:100%;background:var(--green);color:var(--gold);border:none;border-radius:6px;padding:.6rem;font-weight:700;cursor:pointer;font-size:.88rem">Send to Phil →</button>
+    <p id="chatLeadError" role="alert" tabindex="-1" style="display:none;color:#b42318;font-size:.72rem;margin-top:.4rem;line-height:1.4"></p>
     <p style="font-size:.7rem;color:#999;margin-top:.4rem;line-height:1.4">By submitting, you consent to receive communications from MalickLand. Reply STOP to opt out.</p>`;
   if (inputRow) body.insertBefore(formEl, inputRow);
   else body.appendChild(formEl);
@@ -1905,10 +2098,27 @@ function showChatContact() {
 }
 
 async function submitChatLead(btn) {
-  const name  = document.getElementById('chatLeadName')?.value.trim();
-  const email = document.getElementById('chatLeadEmail')?.value.trim();
+  const nameInput = document.getElementById('chatLeadName');
+  const emailInput = document.getElementById('chatLeadEmail');
+  if (nameInput && !nameInput.reportValidity()) return;
+  if (emailInput && !emailInput.reportValidity()) return;
+  const name  = nameInput?.value.trim();
+  const email = emailInput?.value.trim();
   const phone = document.getElementById('chatLeadPhone')?.value.trim();
-  if (!name || !email) { alert('Name and email are required.'); return; }
+  const error = document.getElementById('chatLeadError');
+  if (error) {
+    error.textContent = '';
+    error.style.display = 'none';
+  }
+  if (!name || !email) {
+    if (error) {
+      error.textContent = 'Name and email are required.';
+      error.style.display = 'block';
+      error.tabIndex = -1;
+      error.focus();
+    }
+    return;
+  }
   btn.disabled = true; btn.textContent = 'Sending…';
   const summary = aiMessages.filter(m=>m.role==='user').map(m=>m.content).slice(-5).join(' | ');
   try {
@@ -1919,7 +2129,12 @@ async function submitChatLead(btn) {
     if (!r.ok) throw new Error('HTTP ' + r.status);
   } catch(e) {
     btn.disabled = false; btn.textContent = 'Send to Phil →';
-    alert("Sorry — that didn't go through. Please call Phil at (540) 246-1421 or email phil@malickland.net.");
+    if (error) {
+      error.textContent = "Sorry, that didn't go through. Please call Phil at (540) 246-1421 or email phil@malickland.net.";
+      error.style.display = 'block';
+      error.tabIndex = -1;
+      error.focus();
+    }
     return;
   }
   pixelEvent('Lead', { content_name: 'ai_chat' });
