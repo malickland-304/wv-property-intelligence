@@ -29,7 +29,7 @@ Agents must use `PROJECT_STATE.md`, GitHub PR state, and live production checks 
 | $299 broker admin fee wording | ✅ Approved and live | Homepage and `/37-advent` disclose the fee; broker approval was confirmed before deploy |
 | Brokerage disclosure | ✅ Live | Footer / public pages show `WV Real Estate Agency, LLC | Sheila Judy, Broker` |
 | Production deploy | ✅ Live and verified | Hostinger VPS `31.97.58.203`, src @ `24ee74b`, container `wv-property-intelligence` healthy |
-| PRs #98, #100, #101, #102, #104, #106, #108, #109, #111, #112, #113 | ✅ Merged | Runtime deploy includes #113 squash `24ee74b`; later docs-only guardrail commits do not imply a runtime deploy |
+| PRs #98, #100, #101, #102, #104, #106, #108, #109, #111, #112, #113 | ✅ Merged and deployed as applicable | Runtime deploy includes #113 squash `24ee74b`; later repo-safe commits on `origin/main` do not imply a runtime deploy unless the VPS source/container proof also advances |
 | `scripts/smoke-prod.sh` | ✅ Fixed | #102 merged; script respects `PUBLIC_LISTINGS_ENABLED` via `/api/config` |
 | Railway twin | ✅ Deleted | `railway service status` reports the linked old service is not found in the project; old GitHub deployment environments are gone; `railway.json`/`railway.toml` removed |
 | WV real estate license # | ✅ `WV0029577` (active Salesperson) | WV REC Active Salesperson Roster (10.25), verified 2026-06-18 — `PHILIP MALICK · WV0029577 · Salesperson · WV Real Estate Agency · malickland@icloud.com · 501 E Main St, Romney, WV 26757` (name/brokerage/email/address all match) |
@@ -76,7 +76,7 @@ Before asking Phil anything, identify the open gate in the table above. If no op
 | **Last runtime deploy** | #113 `fix(homepage): escape dynamic listing HTML` at `24ee74b` |
 | **Live deploy target** | **Hostinger VPS** `srv1716268` / `31.97.58.203` (Docker + Traefik); deploy is **manual** — merge ≠ deploy. Not Railway. See `docs/CANONICAL_MAP.md` |
 
-The live VPS runtime source checkout is `24ee74b`. `origin/main` may advance with docs/guardrail-only work that does not require a runtime deploy. Compare future work against current `origin/main`, not a stale local `main`, and prove production with the VPS checkout/container/image state, not Railway deployment records.
+The live VPS runtime source checkout is `24ee74b`. `origin/main` may advance with repo-safe work that has not been deployed to the VPS; merge still does not equal deploy. Compare future work against current `origin/main`, not a stale local `main`, and prove production with the VPS checkout/container/image state, not Railway deployment records.
 
 ### Do not use as source of truth
 
@@ -92,7 +92,7 @@ Local `main` checkout may lag `origin/main`; always `git fetch origin` and compa
 
 ## GitHub / PR status (2026-06-18)
 
-Recent PRs #98, #100, #101, and #102 are merged. Open issue/PR counts must still be re-checked live in GitHub before acting; this document is not the live issue tracker.
+Recent PRs through #122 are merged except #116, which was still open at last check for homepage accessibility/SEO review-thread cleanup. Open issue/PR counts must still be re-checked live in GitHub before acting; this document is not the live issue tracker.
 
 | PR | Status |
 |----|--------|
@@ -118,6 +118,13 @@ Recent PRs #98, #100, #101, and #102 are merged. Open issue/PR counts must still
 | **#112** (`PUBLIC_ASSISTANT_ENABLED` cost-control flag) | ✅ Merged — `79064a9` on `origin/main`; deployed live |
 | **#113** (homepage dynamic HTML safety) | ✅ Merged — `24ee74b` on `origin/main`; deployed live |
 | **#114** (VPS SHA proof guardrail + Railway config cleanup) | Repo-only guardrail/docs cleanup; no runtime deploy required unless runtime files change |
+| **#116** (homepage accessibility and SEO) | Open at last check; owned by the homepage cleanup lane; do not duplicate work without live PR verification |
+| **#117** (HTTP integration smoke test) | ✅ Merged — `b28b0df` on `origin/main`; repo test/preflight coverage, not deployed |
+| **#118** (Document Registry Phase 1 spec) | ✅ Merged — `579dbb6` on `origin/main`; docs/spec only |
+| **#119** (CORS origin allowlist coverage) | ✅ Merged — `3aa0d0c` on `origin/main`; test coverage only |
+| **#120** (Document Registry Phase 1 skeleton) | ✅ Merged — `56647a8` on `origin/main`; runtime code queued for next VPS deploy |
+| **#121** (disabled Twilio path removal) | ✅ Merged — `8718a3f` on `origin/main`; runtime cleanup queued for next VPS deploy |
+| **#122** (integration-test backlog cleanup) | ✅ Merged — `56c2f51` on `origin/main`; docs/backlog cleanup only |
 
 ---
 
@@ -260,8 +267,8 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 
 ## Product roadmap (approved, per AGENTS.md)
 
-- **Phase 0** (current): OpenHands executor validation
-- **Phase 1**: Document Registry skeleton (SQLite tables) — spec required first
-- **Phase 2**: AI Review Queue
+- **Phase 0**: OpenHands executor validation — still awaiting developer action
+- **Phase 1**: Document Registry skeleton — spec and API/database skeleton merged in #118/#120; deploy pending
+- **Phase 2** (next): AI Review Queue
 - **Phase 3**: Drive event automation
 - **Phase 4**: Gmail intake (Pub/Sub)
