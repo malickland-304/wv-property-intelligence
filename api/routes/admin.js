@@ -47,10 +47,64 @@ const upload = multer({
 });
 
 const router = express.Router();
+const CLAIM_APPLY_FIELDS = new Map([
+  ['address', { column: 'address', type: 'text', label: 'Address' }],
+  ['parcel_id', { column: 'parcel_id', type: 'text', label: 'Parcel ID' }],
+  ['acreage', { column: 'acreage', type: 'number', label: 'Acreage' }],
+  ['annual_tax', { column: 'annual_tax', type: 'number', label: 'Annual Tax' }],
+  ['tax_assessed', { column: 'tax_assessed', type: 'number', label: 'Tax Assessed Value' }],
+  ['road_access', { column: 'road_access', type: 'text', label: 'Road Access' }],
+  ['flood_zone', { column: 'flood_zone', type: 'text', label: 'Flood Zone' }],
+  ['school_district', { column: 'school_district', type: 'text', label: 'School District' }],
+  ['listing_price', { column: 'price', type: 'number', label: 'List Price' }],
+  ['septic', { column: 'septic', type: 'boolean', label: 'Septic' }],
+]);
+const PROPERTY_UPDATE_COLUMNS = new Set(Array.from(CLAIM_APPLY_FIELDS.values()).map((field) => field.column));
+
+const insertAuditEvent = db.prepare(`
+  INSERT INTO audit_events (id,actor,action,entity_type,entity_id,before_json,after_json,reason)
+  VALUES (?,?,?,?,?,?,?,?)
+`);
 
 function cleanQuery(value, max = 120) {
   if (value == null) return '';
   return String(value).trim().slice(0, max);
+}
+
+function makeAuditId() {
+  return `audit_${crypto.randomBytes(12).toString('hex')}`;
+}
+
+function auditSafe(row) {
+  if (!row) return null;
+  const copy = { ...row };
+  for (const key of [
+    'source_uri',
+    'source_external_id',
+    'storage_uri',
+    'storage_external_id',
+    'ocr_text',
+    'claim_value_json',
+    'source_quote',
+    'source_location_json',
+    'review_note',
+  ]) {
+    if (copy[key] != null) copy[key] = '[redacted]';
+  }
+  return copy;
+}
+
+function writeAudit({ actor, action, entityType, entityId, before, after, reason }) {
+  insertAuditEvent.run(
+    makeAuditId(),
+    actor,
+    action,
+    entityType,
+    entityId,
+    before ? JSON.stringify(auditSafe(before)) : null,
+    after ? JSON.stringify(auditSafe(after)) : null,
+    cleanQuery(reason, 500) || null
+  );
 }
 
 function parseJsonField(raw) {
@@ -67,6 +121,28 @@ function displayJsonValue(raw) {
   if (value == null) return '';
   if (typeof value === 'string') return value;
   return JSON.stringify(value);
+}
+
+function claimValue(raw) {
+  return parseJsonField(raw);
+}
+
+function normalizeClaimValue(value, type) {
+  if (type === 'number') {
+    const raw = typeof value === 'string' ? value.replace(/[$,]/g, '').trim() : value;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return { error: 'Claim value is not a valid number.' };
+    return { value: n };
+  }
+  if (type === 'boolean') {
+    if (typeof value === 'boolean') return { value: value ? 1 : 0 };
+    if (typeof value === 'number' && (value === 0 || value === 1)) return { value };
+    const normalized = String(value ?? '').trim().toLowerCase();
+    if (['true', 'yes', 'y', '1'].includes(normalized)) return { value: 1 };
+    if (['false', 'no', 'n', '0'].includes(normalized)) return { value: 0 };
+    return { error: 'Claim value is not a valid boolean.' };
+  }
+  return { value: String(value ?? '').trim() };
 }
 
 function renderSelectOptions(values, selected) {
@@ -730,6 +806,12 @@ router.get('/document-claims', requireAuth, adminActionRateLimit, (req, res) => 
       || claim.effective_property_id
       || 'Unlinked';
     const sourceLocation = displayJsonValue(claim.source_location_json);
+    const applyField = CLAIM_APPLY_FIELDS.get(claim.claim_type);
+    const applyCell = claim.status === 'approved' && claim.effective_property_id && applyField
+      ? `<form method="POST" action="/admin/document-claims/${esc(claim.id)}/apply">
+          <button type="submit" class="btn-sm">Apply to ${esc(applyField.label)}</button>
+        </form>`
+      : `<span class="muted">${claim.status === 'approved' ? 'No mapped field' : 'Review first'}</span>`;
 
     return `
       <tr>
@@ -750,6 +832,7 @@ router.get('/document-claims', requireAuth, adminActionRateLimit, (req, res) => 
           ${sourceLocation ? `<div class="muted">${esc(sourceLocation)}</div>` : ''}
         </td>
         <td><span class="badge ${esc(statusBadgeClass(claim.status))}" data-status="${esc(claim.status)}">${esc(claim.status)}</span></td>
+        <td>${applyCell}</td>
       </tr>`;
   }).join('');
 
@@ -773,12 +856,103 @@ router.get('/document-claims', requireAuth, adminActionRateLimit, (req, res) => 
             <th>Confidence</th>
             <th>Source Evidence</th>
             <th>Status</th>
+            <th>Action</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
       </table>
     ` : '<div class="empty-state">No document claims match these filters.</div>'}
   `, csrfToken(req)));
+});
+
+router.post('/document-claims/:claimId/apply', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
+  const claim = db.prepare(`
+    SELECT
+      c.*,
+      d.property_id AS document_property_id,
+      COALESCE(c.property_id, d.property_id) AS effective_property_id,
+      d.title AS document_title,
+      v.approval_status AS version_approval_status
+    FROM extracted_claims c
+    JOIN documents d ON d.id = c.document_id
+    JOIN document_versions v ON v.id = c.document_version_id
+    WHERE c.id=?
+  `).get(req.params.claimId);
+
+  function applyError(message, status = 400) {
+    return res.status(status).send(adminShell('Apply Document Claim', `
+      <div class="dash-header">
+        <h1>Apply Document Claim</h1>
+        <a href="/admin/document-claims?status=approved" class="btn-outline">Back</a>
+      </div>
+      <div class="empty-state">${esc(message)}</div>
+    `, csrfToken(req)));
+  }
+
+  if (!claim) return applyError('Claim not found.', 404);
+  if (claim.status !== 'approved') return applyError('Only approved claims can be applied.');
+  if (['rejected', 'superseded'].includes(claim.version_approval_status)) {
+    return applyError('Claims from rejected or superseded versions cannot be applied.');
+  }
+  if (!claim.effective_property_id) return applyError('Claim is not linked to a property.');
+
+  const applyField = CLAIM_APPLY_FIELDS.get(claim.claim_type);
+  if (!applyField || !PROPERTY_UPDATE_COLUMNS.has(applyField.column)) {
+    return applyError('Claim type is not mapped to a listing field.');
+  }
+
+  const normalized = normalizeClaimValue(claimValue(claim.claim_value_json), applyField.type);
+  if (normalized.error) return applyError(normalized.error);
+  if (applyField.type === 'text' && !normalized.value) return applyError('Claim value is empty.');
+
+  const property = db.prepare('SELECT * FROM properties WHERE id=?').get(claim.effective_property_id);
+  if (!property) return applyError('Linked property not found.', 404);
+
+  const actor = cleanQuery(req.body.actor || req.body.applied_by, 80) || 'admin';
+  const reason = cleanQuery(req.body.review_note || req.body.reason, 500)
+    || `Applied ${claim.claim_type} from ${claim.document_title || 'document claim'}.`;
+
+  const applyClaim = db.transaction(() => {
+    const beforeProperty = db.prepare('SELECT * FROM properties WHERE id=?').get(property.id);
+    const beforeClaim = db.prepare('SELECT * FROM extracted_claims WHERE id=?').get(claim.id);
+
+    db.prepare(`
+      UPDATE properties
+      SET ${applyField.column}=?, updated_at=datetime('now')
+      WHERE id=?
+    `).run(normalized.value, property.id);
+
+    db.prepare(`
+      UPDATE extracted_claims
+      SET status='applied', reviewed_by=?, reviewed_at=datetime('now'), review_note=?
+      WHERE id=? AND status='approved'
+    `).run(actor, reason, claim.id);
+
+    const afterProperty = db.prepare('SELECT * FROM properties WHERE id=?').get(property.id);
+    const afterClaim = db.prepare('SELECT * FROM extracted_claims WHERE id=?').get(claim.id);
+
+    writeAudit({
+      actor,
+      action: 'property.claim_applied',
+      entityType: 'property',
+      entityId: property.id,
+      before: beforeProperty,
+      after: afterProperty,
+      reason,
+    });
+    writeAudit({
+      actor,
+      action: 'extracted_claim.applied',
+      entityType: 'extracted_claim',
+      entityId: claim.id,
+      before: beforeClaim,
+      after: afterClaim,
+      reason,
+    });
+  });
+
+  applyClaim();
+  res.redirect(`/admin/document-claims?status=applied&property_id=${encodeURIComponent(property.id)}`);
 });
 
 // ── Integrations ──────────────────────────────────────────

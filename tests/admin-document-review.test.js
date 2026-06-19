@@ -77,6 +77,33 @@ function cookieFrom(res) {
   return raw.split(';')[0];
 }
 
+function mergeCookies(current, res) {
+  const raw = res.headers.get('set-cookie');
+  if (!raw) return current;
+  const cookies = new Map(
+    current
+      .split(';')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const index = part.indexOf('=');
+        return [part.slice(0, index), part.slice(index + 1)];
+      })
+  );
+  for (const header of raw.split(/,(?=[^;,]+=)/)) {
+    const pair = header.split(';')[0].trim();
+    const index = pair.indexOf('=');
+    if (index > 0) cookies.set(pair.slice(0, index), pair.slice(index + 1));
+  }
+  return Array.from(cookies.entries()).map(([key, value]) => `${key}=${value}`).join('; ');
+}
+
+function csrfFrom(html) {
+  const match = html.match(/<meta name="csrf-token" content="([^"]*)">/);
+  assert(match, 'expected csrf token meta tag');
+  return match[1];
+}
+
 async function login(baseUrl) {
   const res = await fetch(`${baseUrl}/admin/login`, {
     method: 'POST',
@@ -156,7 +183,7 @@ function seedReviewData() {
     'ver_admin_review',
     PROPERTY_ID,
     'acreage',
-    JSON.stringify('12.5 acres approved'),
+    JSON.stringify(12.5),
     'Approved acreage source',
     JSON.stringify({ page: 4 })
   );
@@ -264,12 +291,81 @@ async function main() {
       assert.strictEqual(res.status, 200);
       const html = await res.text();
       assert(html.includes('Document Claims'));
-      assert(html.includes('12.5 acres approved'));
+      assert(html.includes('12.5'));
       assert(html.includes('Approved acreage source'));
       assert(html.includes('data-status="approved"'));
+      assert(html.includes('Apply to Acreage'));
       assert(!html.includes('14-09-012B-0096-0000'));
       assert(!html.includes('data-status="pending_review"'));
       assert(!html.includes('<td>0%</td>'), 'null confidence should render blank, not 0%');
+    });
+
+    await test('POST /admin/document-claims/:id/apply applies approved mapped claims with audit rows', async () => {
+      const pageRes = await fetch(`${baseUrl}/admin/document-claims?status=approved`, {
+        headers: { Cookie: cookie },
+      });
+      assert.strictEqual(pageRes.status, 200);
+      const pageHtml = await pageRes.text();
+      const csrf = csrfFrom(pageHtml);
+      const postCookie = mergeCookies(cookie, pageRes);
+
+      const applyRes = await fetch(`${baseUrl}/admin/document-claims/claim_admin_approved/apply`, {
+        method: 'POST',
+        headers: {
+          Cookie: postCookie,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          _csrf: csrf,
+          actor: 'test-admin',
+          review_note: 'Apply acreage from reviewed tax card.',
+        }),
+        redirect: 'manual',
+      });
+      assert.strictEqual(applyRes.status, 302);
+      assert.strictEqual(
+        applyRes.headers.get('location'),
+        `/admin/document-claims?status=applied&property_id=${encodeURIComponent(PROPERTY_ID)}`
+      );
+
+      const property = testDb.prepare('SELECT acreage FROM properties WHERE id=?').get(PROPERTY_ID);
+      assert.strictEqual(property.acreage, 12.5);
+      const claim = testDb.prepare('SELECT status, reviewed_by, review_note FROM extracted_claims WHERE id=?').get('claim_admin_approved');
+      assert.strictEqual(claim.status, 'applied');
+      assert.strictEqual(claim.reviewed_by, 'test-admin');
+      assert.strictEqual(claim.review_note, 'Apply acreage from reviewed tax card.');
+
+      const audits = testDb.prepare(`
+        SELECT action, entity_type, entity_id, before_json, after_json, reason
+        FROM audit_events
+        WHERE entity_id IN (?, ?)
+        ORDER BY created_at ASC, id ASC
+      `).all(PROPERTY_ID, 'claim_admin_approved');
+      assert(audits.some((event) => event.action === 'property.claim_applied' && event.entity_id === PROPERTY_ID));
+      assert(audits.some((event) => event.action === 'extracted_claim.applied' && event.entity_id === 'claim_admin_approved'));
+      assert(audits.every((event) => event.reason === 'Apply acreage from reviewed tax card.'));
+    });
+
+    await test('POST /admin/document-claims/:id/apply rejects non-approved claims', async () => {
+      const pageRes = await fetch(`${baseUrl}/admin/document-claims`, {
+        headers: { Cookie: cookie },
+      });
+      assert.strictEqual(pageRes.status, 200);
+      const csrf = csrfFrom(await pageRes.text());
+      const postCookie = mergeCookies(cookie, pageRes);
+      const res = await fetch(`${baseUrl}/admin/document-claims/claim_admin_parcel/apply`, {
+        method: 'POST',
+        headers: {
+          Cookie: postCookie,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({ _csrf: csrf }),
+      });
+      assert.strictEqual(res.status, 400);
+      const html = await res.text();
+      assert(html.includes('Only approved claims can be applied.'));
+      const claim = testDb.prepare('SELECT status FROM extracted_claims WHERE id=?').get('claim_admin_parcel');
+      assert.strictEqual(claim.status, 'pending_review');
     });
 
     await test('GET /admin/document-claims supports effective property and document type filters', async () => {

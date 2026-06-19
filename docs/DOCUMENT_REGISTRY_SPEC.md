@@ -302,6 +302,6 @@ A future implementation PR should satisfy all of these:
 |-------|-------|
 | Phase 1 spec | This document: schema, state machine, AI JSON contract, API skeleton. |
 | Phase 1 implementation | SQLite tables, helpers, API skeleton, tests. |
-| Phase 2 AI Review Queue | Review-queue API for extracted claims, read-only admin UI for reviewing claims, then audited application of approved facts. The queue API is implemented at `/api/documents/review/claims`; the read-only admin page is implemented at `/admin/document-claims`; audited apply workflow remains next. |
+| Phase 2 AI Review Queue | Review-queue API for extracted claims, read-only admin UI for reviewing claims, and audited application of approved facts. The queue API is implemented at `/api/documents/review/claims`; the admin review page is implemented at `/admin/document-claims`; approved, mapped claims can be applied through `/admin/document-claims/:claimId/apply`. |
 | Phase 3 Drive event automation | Drive watch/import pipeline into `documents` and `document_versions`. |
 | Phase 4 Gmail intake | Email attachment/message ingestion into the registry. |

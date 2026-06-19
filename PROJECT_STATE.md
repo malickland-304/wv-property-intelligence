@@ -271,6 +271,6 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 
 - **Phase 0**: OpenHands executor validation — still awaiting developer action
 - **Phase 1**: Document Registry skeleton — spec and API/database skeleton merged in #118/#120; deploy pending
-- **Phase 2** (current): AI Review Queue — backend queue API and read-only admin page added; audited apply workflow remains next
-- **Phase 3**: Drive event automation
+- **Phase 2**: AI Review Queue — backend queue API, read-only admin page, and audited apply workflow added; deploy pending
+- **Phase 3** (current): Drive event automation
 - **Phase 4**: Gmail intake (Pub/Sub)
