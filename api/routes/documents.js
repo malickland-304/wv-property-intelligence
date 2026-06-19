@@ -222,6 +222,43 @@ function createDocumentsRouter({ db }) {
     };
   }
 
+  function parseJsonField(raw, fallback = null) {
+    if (raw == null) return fallback;
+    try {
+      return JSON.parse(raw);
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  function claimForReview(row) {
+    return {
+      id: row.id,
+      document_id: row.document_id,
+      document_version_id: row.document_version_id,
+      property_id: row.effective_property_id,
+      claim_property_id: row.claim_property_id,
+      document_property_id: row.document_property_id,
+      property_label: [row.property_address, row.property_city].filter(Boolean).join(', ') || null,
+      document_title: row.document_title,
+      document_type: row.document_type,
+      document_status: row.document_status,
+      version_number: row.version_number,
+      version_approval_status: row.version_approval_status,
+      file_name: row.file_name,
+      claim_type: row.claim_type,
+      value: parseJsonField(row.claim_value_json),
+      source_quote: row.source_quote,
+      source_location: parseJsonField(row.source_location_json),
+      confidence: row.confidence,
+      status: row.status,
+      reviewed_by: row.reviewed_by,
+      reviewed_at: row.reviewed_at,
+      review_note: row.review_note,
+      created_at: row.created_at,
+    };
+  }
+
   router.get('/', (req, res) => {
     const conditions = [];
     const values = [];
@@ -244,6 +281,63 @@ function createDocumentsRouter({ db }) {
       ORDER BY updated_at DESC, created_at DESC
     `).all(...values);
     res.json({ documents });
+  });
+
+  router.get('/review/claims', (req, res) => {
+    const status = cleanString(req.query.status, 40) || 'pending_review';
+    if (!CLAIM_STATUSES.has(status)) return res.status(400).json({ error: 'status is invalid' });
+
+    const conditions = ['c.status=?'];
+    const values = [status];
+    const filters = { status };
+    const propertyId = cleanString(req.query.property_id, 120);
+    if (propertyId) {
+      filters.property_id = propertyId;
+      conditions.push('COALESCE(c.property_id, d.property_id)=?');
+      values.push(propertyId);
+    }
+    const claimType = cleanString(req.query.claim_type, 120);
+    if (claimType) {
+      filters.claim_type = claimType;
+      conditions.push('c.claim_type=?');
+      values.push(claimType);
+    }
+    const documentType = cleanString(req.query.document_type, 120);
+    if (documentType) {
+      filters.document_type = documentType;
+      conditions.push('d.document_type=?');
+      values.push(documentType);
+    }
+
+    const requestedLimit = Number(req.query.limit || 50);
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
+      ? Math.min(Math.floor(requestedLimit), 100)
+      : 50;
+    filters.limit = limit;
+
+    const claims = db.prepare(`
+      SELECT
+        c.id, c.document_id, c.document_version_id,
+        c.property_id AS claim_property_id,
+        d.property_id AS document_property_id,
+        COALESCE(c.property_id, d.property_id) AS effective_property_id,
+        c.claim_type,
+        c.claim_value_json, c.source_quote, c.source_location_json,
+        c.confidence, c.status, c.reviewed_by, c.reviewed_at, c.review_note, c.created_at,
+        d.title AS document_title, d.document_type, d.status AS document_status,
+        v.version_number, v.file_name, v.approval_status AS version_approval_status,
+        p.address AS property_address, p.city AS property_city
+      FROM extracted_claims c
+      JOIN documents d ON d.id = c.document_id
+      JOIN document_versions v ON v.id = c.document_version_id
+      LEFT JOIN properties p ON p.id = COALESCE(c.property_id, d.property_id)
+      WHERE ${conditions.join(' AND ')}
+        AND v.approval_status NOT IN ('rejected', 'superseded')
+      ORDER BY c.created_at ASC, c.id ASC
+      LIMIT ?
+    `).all(...values, limit).map(claimForReview);
+
+    res.json({ claims, filters });
   });
 
   router.post('/', (req, res) => {

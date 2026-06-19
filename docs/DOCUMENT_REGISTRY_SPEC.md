@@ -205,6 +205,7 @@ Implementation should add a new router under `/api/documents`. Mutating routes r
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
 | `GET` | `/api/documents` | API key | List documents with filters: `property_id`, `status`, `document_type`. |
+| `GET` | `/api/documents/review/claims` | API key | List extracted claims by review status for the human review queue. Defaults to `pending_review`; supports `status`, `property_id`, `claim_type`, `document_type`, and `limit`; property filtering falls back to the document property when the claim was extracted before the document was linked; rejected/superseded source versions are excluded. |
 | `POST` | `/api/documents` | API key | Create a logical document. |
 | `GET` | `/api/documents/:id` | API key | Read document, current version, versions, and claims. |
 | `PATCH` | `/api/documents/:id` | API key | Update title/type/status metadata. |
@@ -301,6 +302,6 @@ A future implementation PR should satisfy all of these:
 |-------|-------|
 | Phase 1 spec | This document: schema, state machine, AI JSON contract, API skeleton. |
 | Phase 1 implementation | SQLite tables, helpers, API skeleton, tests. |
-| Phase 2 AI Review Queue | Admin UI for reviewing extracted claims and applying approved facts. |
+| Phase 2 AI Review Queue | Review-queue API for extracted claims, then admin UI for reviewing claims and applying approved facts. The queue API is implemented at `/api/documents/review/claims`; admin UI/apply workflow remains next. |
 | Phase 3 Drive event automation | Drive watch/import pipeline into `documents` and `document_versions`. |
 | Phase 4 Gmail intake | Email attachment/message ingestion into the registry. |

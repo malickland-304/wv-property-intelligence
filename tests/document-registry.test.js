@@ -13,8 +13,11 @@ const API_DIR = path.join(ROOT, 'api');
 const TMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'wv-doc-registry-'));
 const DB_PATH = path.join(TMP_DIR, 'registry.db');
 const API_KEY = 'document-registry-test-key';
+const REVIEW_PROPERTY_ID = 'review-property-1';
+const Database = require(path.join(API_DIR, 'node_modules', 'better-sqlite3'));
 
 let server = null;
+let testDb = null;
 let passed = 0;
 let failed = 0;
 const failures = [];
@@ -119,6 +122,12 @@ async function main() {
 
   try {
     await waitForHealth(baseUrl, () => log);
+    testDb = new Database(DB_PATH);
+    const county = testDb.prepare("SELECT id FROM counties WHERE name='Hampshire'").get();
+    testDb.prepare(`
+      INSERT INTO properties (id, county_id, address, city, property_type, status, listing_slug)
+      VALUES (?, ?, ?, ?, 'land', 'draft', ?)
+    `).run(REVIEW_PROPERTY_ID, county.id, 'Review Queue Road', 'Romney', 'review-queue-road');
 
     let document = null;
     let version = null;
@@ -150,6 +159,7 @@ async function main() {
         body: {
           title: 'Advent Tax Card',
           document_type: 'tax_card',
+          property_id: REVIEW_PROPERTY_ID,
           source_provider: 'manual',
           source_uri: 'manual://advent-tax-card.pdf',
           actor: 'test-suite',
@@ -270,6 +280,110 @@ async function main() {
       assert.strictEqual(approvedClaim.status, 'pending_review');
     });
 
+    await test('GET /api/documents/review/claims lists pending claims for human review', async () => {
+      const res = await api(baseUrl, '/api/documents/review/claims');
+      assert.strictEqual(res.status, 200);
+      const body = await json(res);
+      assert.strictEqual(body.filters.status, 'pending_review');
+      assert(Array.isArray(body.claims));
+      assert.strictEqual(body.claims.length, 2);
+      const parcelClaim = body.claims.find((claim) => claim.id === approvedClaim.id);
+      assert(parcelClaim, 'expected parcel claim in review queue');
+      assert.strictEqual(parcelClaim.document_title, 'Advent Tax Card');
+      assert.strictEqual(parcelClaim.document_type, 'tax_card');
+      assert.strictEqual(parcelClaim.property_id, REVIEW_PROPERTY_ID);
+      assert.strictEqual(parcelClaim.property_label, 'Review Queue Road, Romney');
+      assert.strictEqual(parcelClaim.version_number, 1);
+      assert.strictEqual(parcelClaim.file_name, 'advent-tax-card.pdf');
+      assert.deepStrictEqual(parcelClaim.value, '14-09-012B-0096-0000');
+      assert.deepStrictEqual(parcelClaim.source_location, { page: 1, section: 'Tax parcel' });
+      assert(!Object.prototype.hasOwnProperty.call(parcelClaim, 'source_uri'), 'review queue must not expose source_uri');
+    });
+
+    await test('GET /api/documents/review/claims rejects invalid status filters', async () => {
+      const res = await api(baseUrl, '/api/documents/review/claims?status=needs_human');
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual((await json(res)).error, 'status is invalid');
+    });
+
+    await test('GET /api/documents/review/claims falls back to document property and excludes rejected versions', async () => {
+      const docRes = await api(baseUrl, '/api/documents', {
+        method: 'POST',
+        body: {
+          title: 'Late Linked Access Note',
+          document_type: 'seller_note',
+          source_provider: 'manual',
+          source_uri: 'manual://late-linked-access-note.txt',
+          actor: 'test-suite',
+        },
+      });
+      assert.strictEqual(docRes.status, 201);
+      const lateDocument = await json(docRes);
+
+      const versionRes = await api(baseUrl, `/api/documents/${lateDocument.id}/versions`, {
+        method: 'POST',
+        body: {
+          file_name: 'late-linked-access-note.txt',
+          sha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          storage_uri: 'manual://late-linked-access-note.txt',
+          actor: 'test-suite',
+        },
+      });
+      assert.strictEqual(versionRes.status, 201);
+      const lateVersion = await json(versionRes);
+
+      const claimRes = await api(baseUrl, `/api/documents/${lateDocument.id}/claims`, {
+        method: 'POST',
+        body: {
+          document_version_id: lateVersion.id,
+          actor: 'test-suite',
+          claims: [{
+            claim_type: 'road_access',
+            value: 'Deeded gravel access',
+            value_type: 'string',
+            confidence: 0.81,
+          }],
+        },
+      });
+      assert.strictEqual(claimRes.status, 201);
+      const lateClaim = (await json(claimRes)).claims[0];
+      assert.strictEqual(lateClaim.property_id, null);
+
+      const patchRes = await api(baseUrl, `/api/documents/${lateDocument.id}`, {
+        method: 'PATCH',
+        body: { property_id: REVIEW_PROPERTY_ID, actor: 'test-suite' },
+      });
+      assert.strictEqual(patchRes.status, 200);
+
+      const fallbackRes = await api(
+        baseUrl,
+        `/api/documents/review/claims?property_id=${encodeURIComponent(REVIEW_PROPERTY_ID)}&claim_type=road_access`
+      );
+      assert.strictEqual(fallbackRes.status, 200);
+      const fallback = await json(fallbackRes);
+      assert.strictEqual(fallback.filters.property_id, REVIEW_PROPERTY_ID);
+      const queuedLateClaim = fallback.claims.find((claim) => claim.id === lateClaim.id);
+      assert(queuedLateClaim, 'expected late-linked claim to use document property fallback');
+      assert.strictEqual(queuedLateClaim.property_id, REVIEW_PROPERTY_ID);
+      assert.strictEqual(queuedLateClaim.claim_property_id, null);
+      assert.strictEqual(queuedLateClaim.document_property_id, REVIEW_PROPERTY_ID);
+      assert.strictEqual(queuedLateClaim.version_approval_status, 'pending_review');
+
+      const rejectVersionRes = await api(baseUrl, `/api/documents/${lateDocument.id}/versions/${lateVersion.id}/reject`, {
+        method: 'POST',
+        body: { actor: 'test-suite', reason: 'Invalid source file.' },
+      });
+      assert.strictEqual(rejectVersionRes.status, 200);
+
+      const rejectedVersionQueueRes = await api(
+        baseUrl,
+        `/api/documents/review/claims?property_id=${encodeURIComponent(REVIEW_PROPERTY_ID)}&claim_type=road_access`
+      );
+      assert.strictEqual(rejectedVersionQueueRes.status, 200);
+      const rejectedVersionQueue = await json(rejectedVersionQueueRes);
+      assert(!rejectedVersionQueue.claims.some((claim) => claim.id === lateClaim.id));
+    });
+
     await test('POST /api/documents/:id/claims/:claimId/approve approves a pending claim', async () => {
       const res = await api(baseUrl, `/api/documents/${document.id}/claims/${approvedClaim.id}/approve`, {
         method: 'POST',
@@ -280,6 +394,41 @@ async function main() {
       assert.strictEqual(body.status, 'approved');
       assert.strictEqual(body.reviewed_by, 'test-suite');
       assert(body.reviewed_at && !body.reviewed_at.includes('T'), 'reviewed_at should use SQLite datetime format');
+    });
+
+    await test('GET /api/documents/review/claims filters reviewed claims by status and supported fields', async () => {
+      const pendingRes = await api(baseUrl, '/api/documents/review/claims?status=pending_review');
+      assert.strictEqual(pendingRes.status, 200);
+      const pending = await json(pendingRes);
+      assert(!pending.claims.some((claim) => claim.id === approvedClaim.id));
+
+      const approvedRes = await api(baseUrl, '/api/documents/review/claims?status=approved&claim_type=parcel_id');
+      assert.strictEqual(approvedRes.status, 200);
+      const approved = await json(approvedRes);
+      assert(approved.claims.some((claim) => claim.id === approvedClaim.id));
+      assert(!approved.claims.some((claim) => claim.id === rejectedClaim.id));
+      assert.strictEqual(approved.filters.status, 'approved');
+      assert.strictEqual(approved.filters.claim_type, 'parcel_id');
+
+      const propertyFilterRes = await api(
+        baseUrl,
+        `/api/documents/review/claims?status=approved&property_id=${encodeURIComponent(REVIEW_PROPERTY_ID)}`
+      );
+      assert.strictEqual(propertyFilterRes.status, 200);
+      const propertyFiltered = await json(propertyFilterRes);
+      assert.strictEqual(propertyFiltered.filters.property_id, REVIEW_PROPERTY_ID);
+      assert(propertyFiltered.claims.some((claim) => claim.id === approvedClaim.id));
+      assert(propertyFiltered.claims.every((claim) => claim.property_id === REVIEW_PROPERTY_ID));
+
+      const documentTypeFilterRes = await api(
+        baseUrl,
+        '/api/documents/review/claims?status=approved&document_type=tax_card'
+      );
+      assert.strictEqual(documentTypeFilterRes.status, 200);
+      const documentTypeFiltered = await json(documentTypeFilterRes);
+      assert.strictEqual(documentTypeFiltered.filters.document_type, 'tax_card');
+      assert(documentTypeFiltered.claims.some((claim) => claim.id === approvedClaim.id));
+      assert(documentTypeFiltered.claims.every((claim) => claim.document_type === 'tax_card'));
     });
 
     await test('POST /api/documents/:id/claims/:claimId/reject rejects a pending claim', async () => {
@@ -337,6 +486,10 @@ async function main() {
       assert(audit.events.every((event) => !String(event.after_json || '').includes('manual://')));
     });
   } finally {
+    if (testDb) {
+      testDb.close();
+      testDb = null;
+    }
     if (server && server.exitCode == null) {
       server.kill();
       await new Promise((resolve) => server.once('exit', resolve));
