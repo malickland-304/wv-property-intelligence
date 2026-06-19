@@ -1,6 +1,6 @@
 # PROJECT_STATE.md — Malickland 2.0
 
-> **Last verified:** 2026-06-18 (live prod = Hostinger VPS, src @ `24ee74b` from #113, container healthy, image rebuilt no-cache; Railway twin deleted; WV license `WV0029577` verified vs WV REC roster)
+> **Last verified:** 2026-06-19 (GitHub `origin/main` = `349034d` from #116; live prod remains Hostinger VPS src @ `24ee74b` from #113 until Phil approves a manual deploy; Railway twin deleted; WV license `WV0029577` verified vs WV REC roster)
 > **Authority:** Product completeness, repo workspace truth, resolved facts, and open gates. Use `docs/CANONICAL_MAP.md` for repo/domain/stack disambiguation. Deployment runbooks and guardrails remain in `docs/agent-handoff.md`.
 
 ---
@@ -38,6 +38,7 @@ Agents must use `PROJECT_STATE.md`, GitHub PR state, and live production checks 
 | `multer` DoS advisory | ✅ Patched live | PR #111 merged; VPS `api/package-lock.json` resolves `multer` to `2.2.0` |
 | Public assistant cost-control flag | ✅ Merged and deployed | PR #112 merged; VPS src @ `24ee74b`; `PUBLIC_ASSISTANT_ENABLED=false` returns fallback without provider calls |
 | Homepage dynamic HTML safety | ✅ Merged and deployed | PR #113 merged; VPS src @ `24ee74b`; homepage listing/property fields are escaped before insertion |
+| Repo-safe queue through #128 plus #116 | ✅ Merged to `origin/main` | `origin/main` is `349034d`; document-registry/API/admin/homepage improvements are queued for the next manual VPS deploy where runtime files changed |
 
 ### Closed gates — do not re-litigate
 
@@ -90,9 +91,9 @@ Local `main` checkout may lag `origin/main`; always `git fetch origin` and compa
 
 ---
 
-## GitHub / PR status (2026-06-18)
+## GitHub / PR status (2026-06-19)
 
-Recent PRs through #124 are merged except #116, which was still open at last check for homepage accessibility/SEO review-thread cleanup. Open issue/PR counts must still be re-checked live in GitHub before acting; this document is not the live issue tracker.
+Recent PRs through #128 and #116 are merged; `origin/main` is `349034d` at this verification point. Open issue/PR counts must still be re-checked live in GitHub before acting; this document is not the live issue tracker.
 
 | PR | Status |
 |----|--------|
@@ -117,8 +118,8 @@ Recent PRs through #124 are merged except #116, which was still open at last che
 | **#111** (`multer` DoS advisory) | ✅ Merged — `644f21b` on `origin/main`; deployed live (`multer` resolves to 2.2.0 on VPS) |
 | **#112** (`PUBLIC_ASSISTANT_ENABLED` cost-control flag) | ✅ Merged — `79064a9` on `origin/main`; deployed live |
 | **#113** (homepage dynamic HTML safety) | ✅ Merged — `24ee74b` on `origin/main`; deployed live |
-| **#114** (VPS SHA proof guardrail + Railway config cleanup) | Repo-only guardrail/docs cleanup; no runtime deploy required unless runtime files change |
-| **#116** (homepage accessibility and SEO) | Open at last check; owned by the homepage cleanup lane; do not duplicate work without live PR verification |
+| **#114** (VPS SHA proof guardrail + Railway config cleanup) | ✅ Merged — `4b1e401` on `origin/main`; repo-only guardrail/docs cleanup; no runtime deploy required |
+| **#116** (homepage accessibility and SEO) | ✅ Merged — `349034d` on `origin/main`; runtime homepage changes queued for next manual VPS deploy |
 | **#117** (HTTP integration smoke test) | ✅ Merged — `b28b0df` on `origin/main`; repo test/preflight coverage, not deployed |
 | **#118** (Document Registry Phase 1 spec) | ✅ Merged — `579dbb6` on `origin/main`; docs/spec only |
 | **#119** (CORS origin allowlist coverage) | ✅ Merged — `3aa0d0c` on `origin/main`; test coverage only |
@@ -127,6 +128,10 @@ Recent PRs through #124 are merged except #116, which was still open at last che
 | **#122** (integration-test backlog cleanup) | ✅ Merged — `56c2f51` on `origin/main`; docs/backlog cleanup only |
 | **#123** (project state refresh through #122) | ✅ Merged — `31b450e` on `origin/main`; docs/state cleanup only |
 | **#124** (Document Registry Phase 2 review queue API) | ✅ Merged — `15fa8a3` on `origin/main`; runtime API queued for next VPS deploy |
+| **#125** (project state refresh through #124) | ✅ Merged — `eed3997` on `origin/main`; docs/state cleanup only |
+| **#126** (Document Registry admin review page) | ✅ Merged — `73cd750` on `origin/main`; runtime admin UI queued for next VPS deploy |
+| **#127** (Document Registry claim apply workflow) | ✅ Merged — `c8789b8` on `origin/main`; runtime admin write workflow queued for next VPS deploy |
+| **#128** (Document integration event capture) | ✅ Merged — `ba03692` on `origin/main`; runtime API foundation queued for next VPS deploy |
 
 ---
 
@@ -271,6 +276,6 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 
 - **Phase 0**: OpenHands executor validation — still awaiting developer action
 - **Phase 1**: Document Registry skeleton — spec and API/database skeleton merged in #118/#120; deploy pending
-- **Phase 2**: AI Review Queue — backend queue API, read-only admin page, and audited apply workflow added; deploy pending
-- **Phase 3** (current): Drive event automation; sanitized integration event capture API is queued on `origin/main` after merge, while real Google Drive watch setup/import credentials remain pending
+- **Phase 2**: AI Review Queue — backend queue API (#124), read-only admin page (#126), and audited apply workflow (#127) added; deploy pending
+- **Phase 3** (current): Drive event automation; sanitized integration event capture API merged in #128 and queued on `origin/main`, while real Google Drive watch setup/import credentials remain pending
 - **Phase 4**: Gmail intake (Pub/Sub)

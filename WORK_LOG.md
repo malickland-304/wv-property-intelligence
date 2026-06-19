@@ -1118,3 +1118,27 @@ Start Phase 3 with a safe event-ingest foundation that can record Drive/Gmail/OC
 
 ### Remaining Risks
 - This records sanitized events only. It does not configure Google Drive watches, create webhook channels, import files, or deploy anything to the VPS.
+
+---
+
+## 2026-06-19 — Codex — State ledger refresh through #128 and #116
+
+### Objective
+Remove stale coordinator state after the repo-safe queue continued overnight, especially the outdated claim that #116 was still open and that the GitHub PR table only tracked through #124.
+
+### Changes Made
+- `PROJECT_STATE.md` — updated last-verified repo state to `origin/main` @ `349034d`, while preserving the live production boundary at VPS source `24ee74b`.
+- `PROJECT_STATE.md` — recorded #116 and #125-#128 as merged, with runtime changes explicitly queued for the next Phil-approved manual VPS deploy where applicable.
+- `PROJECT_STATE.md` — updated the Document Registry roadmap wording so Phase 2 includes #124/#126/#127 and Phase 3 notes #128 as the merged event-capture foundation.
+
+### Verification
+- `git fetch origin --prune` and `gh pr list --state open` confirmed `origin/main` current and zero open PRs before edits.
+- `bash scripts/agent-triage.sh` passed and reported the refreshed repo-safe queue plus live `/api/health` and `/api/config`; VPS SSH proof was unavailable in this run, so production remains documented at the previously verified `24ee74b`.
+- `git diff --check` passed.
+- `npm run validate-api-docs --if-present` completed successfully.
+- `bash scripts/preflight.sh` passed.
+- `node tests/verify-security-fixes.test.js` passed — 57/57.
+
+### Remaining Risks
+- This is docs/state cleanup only and does not deploy #116/#120/#121/#124/#126/#127/#128 runtime changes to the VPS.
+- Production remains on the last verified manual deploy (`24ee74b`) until Phil approves a VPS deploy and `scripts/verify-vps-prod.sh` proves the new SHA live.
