@@ -21,8 +21,6 @@
 ## Medium Priority
 
 - [ ] **Delete stale local branches** — remote branches are cleaned up; remove superseded local `copilot/*`, old `claude/*`, and merged fix branches after confirming no unpushed work — no deps — **Claude Code or developer**
-- [ ] **Add twilio to package.json or remove Twilio path** — optional SMS alert follow-up; current code fails gracefully when `twilio` is unavailable — no longer blocks lead route mounting
-
 ---
 
 ## Low Priority
@@ -36,6 +34,7 @@
 
 ## Completed
 
+- [x] **Remove disabled Twilio path** — deleted the unused dynamic Twilio sender, removed lead-route SMS calls, and updated docs so lead notifications are email/local persistence only until a future SMS provider is intentionally specified — 2026-06-18
 - [x] **CORS origin restriction review** — existing `CORS_ORIGIN` allowlist behavior verified and regression-covered in `tests/http-smoke.test.js`; trusted origins receive CORS headers and can submit guarded leads, untrusted origins do not receive CORS access and are rejected by same-origin lead guards — 2026-06-18
 - [x] **Phase 1: Document Registry implementation** — SQLite tables (`documents`, `document_versions`, `audit_events`, `integration_events`, `extracted_claims`), API-key protected `/api/documents` skeleton, state-transition validation, audit writes, AI claim validation, and `tests/document-registry.test.js` coverage — 2026-06-18
 - [x] **Phase 1: Document Registry spec** — schema, approval state machine, AI extraction JSON contract, API skeleton, and implementation acceptance criteria captured in `docs/DOCUMENT_REGISTRY_SPEC.md` — 2026-06-18

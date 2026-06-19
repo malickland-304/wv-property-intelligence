@@ -5,7 +5,6 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 
 const { append37AdventLead, appendPropertyLead, isLeadCaptureConfigured } = require('../services/googleSheets');
-const { isTwilioConfigured, sendLeadAlertSms } = require('../services/twilioService');
 const {
   isLeadEmailConfigured,
   sendLeadNotificationEmail,
@@ -126,7 +125,6 @@ async function handleLeadCapture({ payload, property, db, appendFn }) {
     return { status: 500, body: { error: 'Lead capture failed. Please try again.' } };
   }
 
-  sendLeadAlertSms(lead).catch(() => {});
   sendLeadNotificationEmail(lead).catch(() => {});
   sendLeadAutoReplyEmail(lead, followUps)
     .then((sent) => {

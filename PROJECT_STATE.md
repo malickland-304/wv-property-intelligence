@@ -179,7 +179,7 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 | Auth | `express-session` (admin) + Bearer API key (REST) |
 | CSRF | `csrf-csrf` v3 (double-submit cookie) |
 | Email | Resend (primary) or Gmail OAuth (fallback) — `api/services/email.js` |
-| SMS | Twilio — `api/services/twilioService.js` (twilio pkg NOT in package.json — feature disabled) |
+| SMS | Not implemented; lead capture records SMS consent only |
 | AI | OpenAI GPT-4o via HTTPS — `api/ai-generator.js` |
 | Google | Drive + Gmail via `api/google.js` (raw HTTPS, no googleapis SDK) |
 | Deploy | Hostinger VPS — Docker + Traefik (`api/Dockerfile`); manual deploy (merge ≠ deploy) |
@@ -210,7 +210,7 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 - `api/routes/leads.js` is mounted in `server.js`
 - Public lead/contact POSTs require JSON plus same-origin request headers
 - `api/services/googleSheets.js` is a no-op adapter until real Sheets append support is implemented
-- `twilio` is still optional and not in `package.json`; SMS alerts remain disabled unless that dependency and env are added
+- SMS provider integration is not implemented; lead capture records SMS consent and uses email/local persistence for alerts and follow-up.
 
 ### 🟢 Test suite — fixed on `main` (PR #73 governance merge)
 
@@ -220,8 +220,8 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 
 ### 🟡 MEDIUM — Services layer undocumented
 
-- `api/services/email.js` (Resend/Gmail), `twilioService.js`, `leadFollowupWorker.js` exist but are thinly documented in env-var lists
-- Env vars: `RESEND_API_KEY`, `FROM_EMAIL`, `NOTIFICATION_EMAIL`, `TWILIO_*`, `LEAD_ALERT_TO_NUMBER` — see `AGENTS.md`
+- `api/services/email.js`, `leadFollowupWorker.js`, and `leadNotifications.js` exist but are thinly documented in env-var lists
+- Env vars: `RESEND_API_KEY`, `FROM_EMAIL`, `NOTIFICATION_EMAIL` — see `AGENTS.md`
 
 ### 🟢 LOW — OpenHands runtime not activated
 
@@ -243,7 +243,7 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 
 - No critical security issues identified in recent validation pass
 - CORS: `cors()` without origin restriction — acceptable for public listing API; review if private data exposed
-- `twilio` dynamically required in `twilioService.js` — fail-graceful; package not installed
+- No SMS provider package is installed or dynamically required.
 
 ---
 
@@ -251,7 +251,7 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 
 - Routes: `server.js` → `routes/admin.js`, `routes/api.js` (`/api/health`), `routes/public.js`
 - `routes/leads.js` is mounted at `/api/leads` (JSON + same-origin guards)
-- Services: `email.js`, `twilioService.js`, `leadFollowupWorker.js`, `leadNotifications.js`
+- Services: `email.js`, `leadFollowupWorker.js`, `leadNotifications.js`
 - Utils: `validators.js`, `propertyMarketing.js`, `sqliteSessionStore.js`
 - DB: `db.js` — SQLite with migrations
 - CSRF: `req.csrfToken = () => generateToken(req, res)` polyfill before admin routes
