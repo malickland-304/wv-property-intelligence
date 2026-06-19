@@ -201,6 +201,18 @@ function seedReviewData() {
   );
 
   testDb.prepare(`
+    INSERT INTO document_versions (
+      id, document_id, version_number, file_name, sha256, storage_uri, approval_status
+    ) VALUES (?, ?, 3, ?, ?, ?, 'superseded')
+  `).run(
+    'ver_admin_superseded',
+    'doc_admin_review',
+    'superseded-tax-card.pdf',
+    'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
+    'manual://superseded-storage-tax-card.pdf'
+  );
+
+  testDb.prepare(`
     INSERT INTO extracted_claims (
       id, document_id, document_version_id, property_id, claim_type, claim_value_json,
       confidence, status
@@ -212,6 +224,34 @@ function seedReviewData() {
     PROPERTY_ID,
     'road_access',
     JSON.stringify('Rejected source claim')
+  );
+
+  testDb.prepare(`
+    INSERT INTO extracted_claims (
+      id, document_id, document_version_id, property_id, claim_type, claim_value_json,
+      confidence, status
+    ) VALUES (?, ?, ?, ?, ?, ?, 0.8, 'approved')
+  `).run(
+    'claim_admin_rejected_source',
+    'doc_admin_review',
+    'ver_admin_rejected',
+    PROPERTY_ID,
+    'road_access',
+    JSON.stringify('Rejected source approved claim')
+  );
+
+  testDb.prepare(`
+    INSERT INTO extracted_claims (
+      id, document_id, document_version_id, property_id, claim_type, claim_value_json,
+      confidence, status
+    ) VALUES (?, ?, ?, ?, ?, ?, 0.8, 'approved')
+  `).run(
+    'claim_admin_superseded_source',
+    'doc_admin_review',
+    'ver_admin_superseded',
+    PROPERTY_ID,
+    'road_access',
+    JSON.stringify('Superseded source approved claim')
   );
 }
 
@@ -295,6 +335,7 @@ async function main() {
       assert(html.includes('Approved acreage source'));
       assert(html.includes('data-status="approved"'));
       assert(html.includes('Apply to Acreage'));
+      assert(html.includes('name="_csrf"'));
       assert(!html.includes('14-09-012B-0096-0000'));
       assert(!html.includes('data-status="pending_review"'));
       assert(!html.includes('<td>0%</td>'), 'null confidence should render blank, not 0%');
@@ -342,7 +383,12 @@ async function main() {
         ORDER BY created_at ASC, id ASC
       `).all(PROPERTY_ID, 'claim_admin_approved');
       assert(audits.some((event) => event.action === 'property.claim_applied' && event.entity_id === PROPERTY_ID));
-      assert(audits.some((event) => event.action === 'extracted_claim.applied' && event.entity_id === 'claim_admin_approved'));
+      const claimAudit = audits.find((event) => event.action === 'extracted_claim.applied' && event.entity_id === 'claim_admin_approved');
+      assert(claimAudit);
+      assert(claimAudit.before_json.includes('[redacted]'));
+      assert(claimAudit.after_json.includes('[redacted]'));
+      assert(!claimAudit.before_json.includes('Approved acreage source'));
+      assert(!claimAudit.after_json.includes('Approved acreage source'));
       assert(audits.every((event) => event.reason === 'Apply acreage from reviewed tax card.'));
     });
 
@@ -366,6 +412,39 @@ async function main() {
       assert(html.includes('Only approved claims can be applied.'));
       const claim = testDb.prepare('SELECT status FROM extracted_claims WHERE id=?').get('claim_admin_parcel');
       assert.strictEqual(claim.status, 'pending_review');
+    });
+
+    await test('POST /admin/document-claims/:id/apply rejects rejected and superseded source versions', async () => {
+      const pageRes = await fetch(`${baseUrl}/admin/document-claims?status=approved`, {
+        headers: { Cookie: cookie },
+      });
+      assert.strictEqual(pageRes.status, 200);
+      const csrf = csrfFrom(await pageRes.text());
+      const postCookie = mergeCookies(cookie, pageRes);
+
+      for (const claimId of ['claim_admin_rejected_source', 'claim_admin_superseded_source']) {
+        const res = await fetch(`${baseUrl}/admin/document-claims/${claimId}/apply`, {
+          method: 'POST',
+          headers: {
+            Cookie: postCookie,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({ _csrf: csrf }),
+        });
+        assert.strictEqual(res.status, 400);
+        const html = await res.text();
+        assert(html.includes('Claims from rejected or superseded versions cannot be applied.'));
+        const claim = testDb.prepare('SELECT status FROM extracted_claims WHERE id=?').get(claimId);
+        assert.strictEqual(claim.status, 'approved');
+      }
+
+      const property = testDb.prepare('SELECT road_access FROM properties WHERE id=?').get(PROPERTY_ID);
+      assert.strictEqual(property.road_access, null);
+      const auditCount = testDb.prepare(`
+        SELECT COUNT(*) AS c FROM audit_events
+        WHERE entity_id IN ('claim_admin_rejected_source', 'claim_admin_superseded_source')
+      `).get().c;
+      assert.strictEqual(auditCount, 0);
     });
 
     await test('GET /admin/document-claims supports effective property and document type filters', async () => {

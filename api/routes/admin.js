@@ -65,6 +65,31 @@ const insertAuditEvent = db.prepare(`
   INSERT INTO audit_events (id,actor,action,entity_type,entity_id,before_json,after_json,reason)
   VALUES (?,?,?,?,?,?,?,?)
 `);
+const selectClaimForApply = db.prepare(`
+  SELECT
+    c.*,
+    d.property_id AS document_property_id,
+    COALESCE(c.property_id, d.property_id) AS effective_property_id,
+    d.title AS document_title,
+    v.approval_status AS version_approval_status
+  FROM extracted_claims c
+  JOIN documents d ON d.id = c.document_id
+  JOIN document_versions v ON v.id = c.document_version_id
+  WHERE c.id=?
+`);
+const selectPropertyById = db.prepare('SELECT * FROM properties WHERE id=?');
+const selectExtractedClaimById = db.prepare('SELECT * FROM extracted_claims WHERE id=?');
+const updateClaimApplied = db.prepare(`
+  UPDATE extracted_claims
+  SET status='applied', reviewed_by=?, reviewed_at=datetime('now'), review_note=?
+  WHERE id=? AND status='approved'
+`);
+const updatePropertyStatements = new Map(
+  Array.from(PROPERTY_UPDATE_COLUMNS).map((column) => [
+    column,
+    db.prepare(`UPDATE properties SET ${column}=?, updated_at=datetime('now') WHERE id=?`),
+  ])
+);
 
 function cleanQuery(value, max = 120) {
   if (value == null) return '';
@@ -129,7 +154,11 @@ function claimValue(raw) {
 
 function normalizeClaimValue(value, type) {
   if (type === 'number') {
+    if (value == null || Array.isArray(value) || typeof value === 'boolean' || typeof value === 'object') {
+      return { error: 'Claim value is not a valid number.' };
+    }
     const raw = typeof value === 'string' ? value.replace(/[$,]/g, '').trim() : value;
+    if (raw === '') return { error: 'Claim value is not a valid number.' };
     const n = Number(raw);
     if (!Number.isFinite(n)) return { error: 'Claim value is not a valid number.' };
     return { value: n };
@@ -141,6 +170,9 @@ function normalizeClaimValue(value, type) {
     if (['true', 'yes', 'y', '1'].includes(normalized)) return { value: 1 };
     if (['false', 'no', 'n', '0'].includes(normalized)) return { value: 0 };
     return { error: 'Claim value is not a valid boolean.' };
+  }
+  if (Array.isArray(value) || (value != null && typeof value === 'object')) {
+    return { error: 'Claim value is not valid text.' };
   }
   return { value: String(value ?? '').trim() };
 }
@@ -737,6 +769,7 @@ router.post('/ai/:id', requireAuth, requireCsrf, adminActionRateLimit, async (re
 
 // ── Document Claim Review Queue ───────────────────────────
 router.get('/document-claims', requireAuth, adminActionRateLimit, (req, res) => {
+  const token = csrfToken(req);
   const filters = {
     status: cleanQuery(req.query.status) || 'pending_review',
     property_id: cleanQuery(req.query.property_id, 80),
@@ -809,6 +842,7 @@ router.get('/document-claims', requireAuth, adminActionRateLimit, (req, res) => 
     const applyField = CLAIM_APPLY_FIELDS.get(claim.claim_type);
     const applyCell = claim.status === 'approved' && claim.effective_property_id && applyField
       ? `<form method="POST" action="/admin/document-claims/${esc(claim.id)}/apply">
+          <input type="hidden" name="_csrf" value="${esc(token)}" />
           <button type="submit" class="btn-sm">Apply to ${esc(applyField.label)}</button>
         </form>`
       : `<span class="muted">${claim.status === 'approved' ? 'No mapped field' : 'Review first'}</span>`;
@@ -862,22 +896,11 @@ router.get('/document-claims', requireAuth, adminActionRateLimit, (req, res) => 
         <tbody>${rows}</tbody>
       </table>
     ` : '<div class="empty-state">No document claims match these filters.</div>'}
-  `, csrfToken(req)));
+  `, token));
 });
 
 router.post('/document-claims/:claimId/apply', requireAuth, requireCsrf, adminActionRateLimit, (req, res) => {
-  const claim = db.prepare(`
-    SELECT
-      c.*,
-      d.property_id AS document_property_id,
-      COALESCE(c.property_id, d.property_id) AS effective_property_id,
-      d.title AS document_title,
-      v.approval_status AS version_approval_status
-    FROM extracted_claims c
-    JOIN documents d ON d.id = c.document_id
-    JOIN document_versions v ON v.id = c.document_version_id
-    WHERE c.id=?
-  `).get(req.params.claimId);
+  const claim = selectClaimForApply.get(req.params.claimId);
 
   function applyError(message, status = 400) {
     return res.status(status).send(adminShell('Apply Document Claim', `
@@ -905,7 +928,7 @@ router.post('/document-claims/:claimId/apply', requireAuth, requireCsrf, adminAc
   if (normalized.error) return applyError(normalized.error);
   if (applyField.type === 'text' && !normalized.value) return applyError('Claim value is empty.');
 
-  const property = db.prepare('SELECT * FROM properties WHERE id=?').get(claim.effective_property_id);
+  const property = selectPropertyById.get(claim.effective_property_id);
   if (!property) return applyError('Linked property not found.', 404);
 
   const actor = cleanQuery(req.body.actor || req.body.applied_by, 80) || 'admin';
@@ -913,23 +936,23 @@ router.post('/document-claims/:claimId/apply', requireAuth, requireCsrf, adminAc
     || `Applied ${claim.claim_type} from ${claim.document_title || 'document claim'}.`;
 
   const applyClaim = db.transaction(() => {
-    const beforeProperty = db.prepare('SELECT * FROM properties WHERE id=?').get(property.id);
-    const beforeClaim = db.prepare('SELECT * FROM extracted_claims WHERE id=?').get(claim.id);
+    const currentClaim = selectClaimForApply.get(claim.id);
+    if (!currentClaim || currentClaim.status !== 'approved') {
+      throw new Error('Only approved claims can be applied.');
+    }
+    if (['rejected', 'superseded'].includes(currentClaim.version_approval_status)) {
+      throw new Error('Claims from rejected or superseded versions cannot be applied.');
+    }
 
-    db.prepare(`
-      UPDATE properties
-      SET ${applyField.column}=?, updated_at=datetime('now')
-      WHERE id=?
-    `).run(normalized.value, property.id);
+    const beforeProperty = selectPropertyById.get(property.id);
+    const beforeClaim = selectExtractedClaimById.get(claim.id);
+    const claimUpdate = updateClaimApplied.run(actor, reason, claim.id);
+    if (claimUpdate.changes !== 1) throw new Error('Only approved claims can be applied.');
 
-    db.prepare(`
-      UPDATE extracted_claims
-      SET status='applied', reviewed_by=?, reviewed_at=datetime('now'), review_note=?
-      WHERE id=? AND status='approved'
-    `).run(actor, reason, claim.id);
+    updatePropertyStatements.get(applyField.column).run(normalized.value, property.id);
 
-    const afterProperty = db.prepare('SELECT * FROM properties WHERE id=?').get(property.id);
-    const afterClaim = db.prepare('SELECT * FROM extracted_claims WHERE id=?').get(claim.id);
+    const afterProperty = selectPropertyById.get(property.id);
+    const afterClaim = selectExtractedClaimById.get(claim.id);
 
     writeAudit({
       actor,
@@ -951,8 +974,12 @@ router.post('/document-claims/:claimId/apply', requireAuth, requireCsrf, adminAc
     });
   });
 
-  applyClaim();
-  res.redirect(`/admin/document-claims?status=applied&property_id=${encodeURIComponent(property.id)}`);
+  try {
+    applyClaim();
+  } catch (err) {
+    return applyError(err.message || 'Could not apply claim.');
+  }
+  return res.redirect(`/admin/document-claims?status=applied&property_id=${encodeURIComponent(property.id)}`);
 });
 
 // ── Integrations ──────────────────────────────────────────
