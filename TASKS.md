@@ -25,7 +25,7 @@
 
 ## Low Priority
 
-- [ ] **Phase 3: Drive event automation** — depends on Phase 2 — **Gemini leads**
+- [ ] **Phase 3: Drive event automation** — integration-event recording API is in place; remaining work is Google Drive watch setup/import worker and runtime credentials — **Gemini leads**
 - [ ] **Phase 4: Gmail intake** — depends on Phase 3 — **Gemini leads**
 
 ---
@@ -35,6 +35,7 @@
 - [x] **Phase 2: AI Review Queue API** — added `GET /api/documents/review/claims` for status-filtered extracted-claim review queues with HTTP coverage in `tests/document-registry.test.js` — 2026-06-18
 - [x] **Phase 2: AI Review Queue admin UI** — added an authenticated read-only `/admin/document-claims` page with filters, safe rendered evidence, source/storage URI redaction, and HTTP coverage in `tests/admin-document-review.test.js` — 2026-06-19
 - [x] **Phase 2: AI Review Queue apply workflow** — added CSRF-protected `/admin/document-claims/:claimId/apply` for approved, explicitly mapped claims; updates listing fields in a transaction, marks claims applied, and writes property + claim audit rows with HTTP coverage — 2026-06-19
+- [x] **Phase 3: Integration event capture API** — added API-key protected `GET/POST /api/documents/integration-events` for sanitized Drive/Gmail/OCR/AI/system event recording with HTTP coverage; does not create external watches or require Google credentials — 2026-06-19
 - [x] **Add integration/E2E tests** — `tests/http-smoke.test.js` starts the real Express app against a temporary SQLite database and is enforced by `scripts/preflight.sh`; covers health/config/listings-off/contact-origin/chat-fallback behavior over HTTP — 2026-06-18
 - [x] **Remove disabled Twilio path** — deleted the unused dynamic Twilio sender, removed lead-route SMS calls, and updated docs so lead notifications are email/local persistence only until a future SMS provider is intentionally specified — 2026-06-18
 - [x] **CORS origin restriction review** — existing `CORS_ORIGIN` allowlist behavior verified and regression-covered in `tests/http-smoke.test.js`; trusted origins receive CORS headers and can submit guarded leads, untrusted origins do not receive CORS access and are rejected by same-origin lead guards — 2026-06-18
