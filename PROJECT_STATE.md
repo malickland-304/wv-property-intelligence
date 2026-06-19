@@ -92,7 +92,7 @@ Local `main` checkout may lag `origin/main`; always `git fetch origin` and compa
 
 ## GitHub / PR status (2026-06-18)
 
-Recent PRs through #122 are merged except #116, which was still open at last check for homepage accessibility/SEO review-thread cleanup. Open issue/PR counts must still be re-checked live in GitHub before acting; this document is not the live issue tracker.
+Recent PRs through #124 are merged except #116, which was still open at last check for homepage accessibility/SEO review-thread cleanup. Open issue/PR counts must still be re-checked live in GitHub before acting; this document is not the live issue tracker.
 
 | PR | Status |
 |----|--------|
@@ -125,6 +125,8 @@ Recent PRs through #122 are merged except #116, which was still open at last che
 | **#120** (Document Registry Phase 1 skeleton) | ✅ Merged — `56647a8` on `origin/main`; runtime code queued for next VPS deploy |
 | **#121** (disabled Twilio path removal) | ✅ Merged — `8718a3f` on `origin/main`; runtime cleanup queued for next VPS deploy |
 | **#122** (integration-test backlog cleanup) | ✅ Merged — `56c2f51` on `origin/main`; docs/backlog cleanup only |
+| **#123** (project state refresh through #122) | ✅ Merged — `31b450e` on `origin/main`; docs/state cleanup only |
+| **#124** (Document Registry Phase 2 review queue API) | ✅ Merged — `15fa8a3` on `origin/main`; runtime API queued for next VPS deploy |
 
 ---
 
