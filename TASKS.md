@@ -28,12 +28,12 @@
 - [ ] **Phase 2: AI Review Queue** — depends on Phase 1 complete + ChatGPT spec
 - [ ] **Phase 3: Drive event automation** — depends on Phase 2 — **Gemini leads**
 - [ ] **Phase 4: Gmail intake** — depends on Phase 3 — **Gemini leads**
-- [ ] **Add integration/E2E tests** — currently only unit-style static-analysis tests; add real HTTP tests using supertest or similar
 
 ---
 
 ## Completed
 
+- [x] **Add integration/E2E tests** — `tests/http-smoke.test.js` starts the real Express app against a temporary SQLite database and is enforced by `scripts/preflight.sh`; covers health/config/listings-off/contact-origin/chat-fallback behavior over HTTP — 2026-06-18
 - [x] **Remove disabled Twilio path** — deleted the unused dynamic Twilio sender, removed lead-route SMS calls, and updated docs so lead notifications are email/local persistence only until a future SMS provider is intentionally specified — 2026-06-18
 - [x] **CORS origin restriction review** — existing `CORS_ORIGIN` allowlist behavior verified and regression-covered in `tests/http-smoke.test.js`; trusted origins receive CORS headers and can submit guarded leads, untrusted origins do not receive CORS access and are rejected by same-origin lead guards — 2026-06-18
 - [x] **Phase 1: Document Registry implementation** — SQLite tables (`documents`, `document_versions`, `audit_events`, `integration_events`, `extracted_claims`), API-key protected `/api/documents` skeleton, state-transition validation, audit writes, AI claim validation, and `tests/document-registry.test.js` coverage — 2026-06-18
