@@ -12,8 +12,8 @@
   <meta property="og:url" content="https://malickland.net" />
   <meta property="og:type" content="website" />
   <meta property="og:image" content="https://malickland.net/public/brand/og-image.jpg" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
+  <meta property="og:image:width" content="1024" />
+  <meta property="og:image:height" content="1024" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="MalickLand | West Virginia Land, Homes & Property" />
   <meta name="twitter:description" content="Find land, homes, farms, and rural property across all 55 WV counties. AI-assisted property research and local WV expertise." />
@@ -1254,7 +1254,7 @@
       <div class="form-success" id="heroSuccess" role="status">
         ✅ Got it! Phil will follow up as soon as practical. Call anytime: <strong>(540) 246-1421</strong>
       </div>
-      <div class="form-error" id="heroError" role="alert"></div>
+      <div class="form-error" id="heroError" role="alert" tabindex="-1"></div>
     </div>
   </div>
 </section>
@@ -1330,7 +1330,7 @@
       <div class="form-success" id="alertsSuccess" style="color:#c9a84c;" role="status">
         ✅ Checklist on the way! Check your email — and Phil may follow up personally.
       </div>
-      <div class="form-error" id="alertsError" role="alert" style="color:#f9c84c;"></div>
+      <div class="form-error" id="alertsError" role="alert" tabindex="-1" style="color:#f9c84c;"></div>
     </div>
   </div>
 </section>
@@ -1485,7 +1485,7 @@
       <div class="form-success" id="ctaSuccess" style="color:var(--gold);" role="status">
         ✅ Message received! Phil will follow up as soon as practical.
       </div>
-      <div class="form-error" id="ctaError" role="alert" style="color:#f9c84c;"></div>
+      <div class="form-error" id="ctaError" role="alert" tabindex="-1" style="color:#f9c84c;"></div>
     </div>
   </div>
 </section>
@@ -1532,7 +1532,7 @@
 <!-- CHAT WIDGET -->
 <button class="chat-btn" id="chatToggleBtn" type="button" onclick="openChat()" title="Chat with MalickLand" aria-label="Open MalickLand assistant chat" aria-expanded="false" aria-controls="chatPanel">💬</button>
 
-<div class="chat-panel" id="chatPanel" role="dialog" aria-modal="true" aria-label="MalickLand assistant chat">
+<div class="chat-panel" id="chatPanel" aria-label="MalickLand assistant chat">
   <div class="chat-header">
     <div class="chat-avatar">🏡</div>
     <div class="chat-header-text">
@@ -1572,17 +1572,66 @@
     <div class="form-success" id="modalSuccess" role="status">
       ✅ You're on the list! Phil will be in touch soon.
     </div>
-    <div class="form-error" id="modalError" role="alert"></div>
+    <div class="form-error" id="modalError" role="alert" tabindex="-1"></div>
   </div>
 </div>
 
 <script>
 // ---- MODAL ----
+let activeDialog = null;
+let activeDialogTrigger = null;
+
+function dialogFocusables(container) {
+  return Array.from(container.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])'));
+}
+
+function focusDialog(container, trigger) {
+  activeDialog = container;
+  activeDialogTrigger = trigger || document.activeElement;
+  const focusTarget = dialogFocusables(container)[0] || container;
+  window.setTimeout(() => focusTarget.focus?.(), 0);
+}
+
+function clearDialog(container) {
+  if (activeDialog === container) {
+    const restore = activeDialogTrigger;
+    activeDialog = null;
+    activeDialogTrigger = null;
+    restore?.focus?.();
+  }
+}
+
+document.addEventListener('keydown', function(e) {
+  if (!activeDialog) return;
+  if (e.key === 'Escape') {
+    const dialogId = activeDialog.id;
+    if (dialogId === 'leadModal') closeModal();
+    if (dialogId === 'propModal') closePropertyModal();
+    return;
+  }
+  if (e.key !== 'Tab') return;
+  const items = dialogFocusables(activeDialog);
+  if (!items.length) return;
+  const first = items[0];
+  const last = items[items.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+});
+
 function openModal() {
-  document.getElementById('leadModal').classList.add('open');
+  const modal = document.getElementById('leadModal');
+  modal.classList.add('open');
+  focusDialog(modal);
 }
 function closeModal() {
-  document.getElementById('leadModal').classList.remove('open');
+  const modal = document.getElementById('leadModal');
+  modal.classList.remove('open');
+  clearDialog(modal);
 }
 document.getElementById('leadModal').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
@@ -1591,7 +1640,7 @@ document.getElementById('leadModal').addEventListener('click', function(e) {
 function toggleNav(btn) {
   const links = document.getElementById('navLinks');
   const isOpen = links.style.display === 'flex';
-  links.style.display = isOpen ? 'none' : 'flex';
+  links.style.display = isOpen ? '' : 'flex';
   btn.setAttribute('aria-expanded', String(!isOpen));
   btn.setAttribute('aria-label', isOpen ? 'Open navigation menu' : 'Close navigation menu');
 }
@@ -1613,6 +1662,10 @@ function jsArg(str) {
 
 // ---- FORM SUBMISSION ----
 async function submitForm(form, successId, errorId) {
+  if (!form.checkValidity()) {
+    form.reportValidity();
+    return;
+  }
   const data = {};
   new FormData(form).forEach((v, k) => data[k] = v);
   const btn = form.querySelector('[type="submit"]');
@@ -1636,6 +1689,7 @@ async function submitForm(form, successId, errorId) {
     if (errorEl) {
       errorEl.textContent = message;
       errorEl.style.display = 'block';
+      errorEl.tabIndex = -1;
       errorEl.focus?.();
     } else {
       alert(message);
@@ -1761,12 +1815,14 @@ async function showPropertyModal(id) {
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
     overlay.setAttribute('aria-label', 'Property details');
+    overlay.setAttribute('tabindex', '-1');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
-    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.style.display='none'; });
+    overlay.addEventListener('click', e => { if (e.target === overlay) closePropertyModal(); });
     document.body.appendChild(overlay);
   }
   overlay.innerHTML = '<div style="background:#fff;border-radius:12px;padding:2rem;color:#1a1a1a;font-size:1rem">Loading...</div>';
   overlay.style.display = 'flex';
+  focusDialog(overlay);
 
   try {
     const p = await fetch(`/api/properties/${encodeURIComponent(id)}`).then(r => r.json());
@@ -1796,7 +1852,7 @@ async function showPropertyModal(id) {
     const price = p.price ? `$${Number(p.price).toLocaleString()}` : 'Contact for Price';
     overlay.innerHTML = `
       <div style="background:#fff;border-radius:14px;max-width:680px;width:100%;max-height:90vh;overflow-y:auto;position:relative;">
-        <button type="button" aria-label="Close property details" onclick="document.getElementById('propModal').style.display='none'"
+        <button type="button" aria-label="Close property details" onclick="closePropertyModal()"
           style="position:absolute;top:.75rem;right:.75rem;background:#1B4332;color:#fff;border:none;border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer;z-index:1">✕</button>
         ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${address}${city?', '+city:''} property photo" width="680" height="300" style="width:100%;max-height:300px;object-fit:cover;border-radius:14px 14px 0 0">` : ''}
         <div style="padding:1.5rem">
@@ -1846,9 +1902,9 @@ async function showPropertyModal(id) {
               ✉️ <a href="mailto:phil@malickland.net" style="color:#1B4332;font-weight:600">Email</a>
             </p>
             <label for="pm_name" style="display:block;font-size:.78rem;font-weight:700;color:#555;margin-bottom:.25rem">Your Name *</label>
-            <input id="pm_name"  type="text"  autocomplete="name" placeholder="Your Name"  style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
+            <input id="pm_name"  type="text"  autocomplete="name" placeholder="Your Name" required aria-required="true" style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
             <label for="pm_email" style="display:block;font-size:.78rem;font-weight:700;color:#555;margin-bottom:.25rem">Email *</label>
-            <input id="pm_email" type="email" autocomplete="email" placeholder="Email"      style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
+            <input id="pm_email" type="email" autocomplete="email" placeholder="Email" required aria-required="true" style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
             <label for="pm_phone" style="display:block;font-size:.78rem;font-weight:700;color:#555;margin-bottom:.25rem">Phone</label>
             <input id="pm_phone" type="tel" autocomplete="tel" placeholder="Phone (optional)" style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;font-family:inherit">
             <label for="pm_msg" style="display:block;font-size:.78rem;font-weight:700;color:#555;margin-bottom:.25rem">Message</label>
@@ -1859,14 +1915,26 @@ async function showPropertyModal(id) {
           </div>
         </div>
       </div>`;
+    focusDialog(overlay);
   } catch(e) {
     overlay.innerHTML = '<div style="background:#fff;padding:2rem;border-radius:12px;color:#c00">Failed to load property. Please try again.</div>';
   }
 }
 
+function closePropertyModal() {
+  const overlay = document.getElementById('propModal');
+  if (!overlay) return;
+  overlay.style.display = 'none';
+  clearDialog(overlay);
+}
+
 async function pmSend(propertyId, btn) {
-  const name  = document.getElementById('pm_name')?.value.trim();
-  const email = document.getElementById('pm_email')?.value.trim();
+  const nameInput = document.getElementById('pm_name');
+  const emailInput = document.getElementById('pm_email');
+  if (nameInput && !nameInput.reportValidity()) return;
+  if (emailInput && !emailInput.reportValidity()) return;
+  const name  = nameInput?.value.trim();
+  const email = emailInput?.value.trim();
   const phone = document.getElementById('pm_phone')?.value.trim();
   const msg   = document.getElementById('pm_msg')?.value.trim();
   const error = document.getElementById('pm_error');
@@ -2016,13 +2084,13 @@ function showChatContact() {
   formEl.innerHTML = `
     <p style="font-size:.82rem;color:#555;margin-bottom:.6rem">Leave your info and Phil will call you:</p>
     <label for="chatLeadName" class="sr-only">Your Name</label>
-    <input id="chatLeadName" class="chat-input" autocomplete="name" placeholder="Your Name" style="margin-bottom:.4rem"/>
+    <input id="chatLeadName" class="chat-input" autocomplete="name" placeholder="Your Name" required aria-required="true" style="margin-bottom:.4rem"/>
     <label for="chatLeadEmail" class="sr-only">Email</label>
-    <input id="chatLeadEmail" class="chat-input" type="email" autocomplete="email" placeholder="Email" style="margin-bottom:.4rem"/>
+    <input id="chatLeadEmail" class="chat-input" type="email" autocomplete="email" placeholder="Email" required aria-required="true" style="margin-bottom:.4rem"/>
     <label for="chatLeadPhone" class="sr-only">Phone</label>
     <input id="chatLeadPhone" class="chat-input" type="tel" autocomplete="tel" placeholder="Phone (optional)" style="margin-bottom:.6rem"/>
     <button type="button" onclick="submitChatLead(this)" style="width:100%;background:var(--green);color:var(--gold);border:none;border-radius:6px;padding:.6rem;font-weight:700;cursor:pointer;font-size:.88rem">Send to Phil →</button>
-    <p id="chatLeadError" role="alert" style="display:none;color:#b42318;font-size:.72rem;margin-top:.4rem;line-height:1.4"></p>
+    <p id="chatLeadError" role="alert" tabindex="-1" style="display:none;color:#b42318;font-size:.72rem;margin-top:.4rem;line-height:1.4"></p>
     <p style="font-size:.7rem;color:#999;margin-top:.4rem;line-height:1.4">By submitting, you consent to receive communications from MalickLand. Reply STOP to opt out.</p>`;
   if (inputRow) body.insertBefore(formEl, inputRow);
   else body.appendChild(formEl);
@@ -2030,8 +2098,12 @@ function showChatContact() {
 }
 
 async function submitChatLead(btn) {
-  const name  = document.getElementById('chatLeadName')?.value.trim();
-  const email = document.getElementById('chatLeadEmail')?.value.trim();
+  const nameInput = document.getElementById('chatLeadName');
+  const emailInput = document.getElementById('chatLeadEmail');
+  if (nameInput && !nameInput.reportValidity()) return;
+  if (emailInput && !emailInput.reportValidity()) return;
+  const name  = nameInput?.value.trim();
+  const email = emailInput?.value.trim();
   const phone = document.getElementById('chatLeadPhone')?.value.trim();
   const error = document.getElementById('chatLeadError');
   if (error) {
@@ -2042,6 +2114,8 @@ async function submitChatLead(btn) {
     if (error) {
       error.textContent = 'Name and email are required.';
       error.style.display = 'block';
+      error.tabIndex = -1;
+      error.focus();
     }
     return;
   }
@@ -2058,6 +2132,8 @@ async function submitChatLead(btn) {
     if (error) {
       error.textContent = "Sorry, that didn't go through. Please call Phil at (540) 246-1421 or email phil@malickland.net.";
       error.style.display = 'block';
+      error.tabIndex = -1;
+      error.focus();
     }
     return;
   }
