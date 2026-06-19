@@ -277,5 +277,5 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 - **Phase 0**: OpenHands executor validation — still awaiting developer action
 - **Phase 1**: Document Registry skeleton — spec and API/database skeleton merged in #118/#120; deploy pending
 - **Phase 2**: AI Review Queue — backend queue API (#124), read-only admin page (#126), and audited apply workflow (#127) added; deploy pending
-- **Phase 3** (current): Drive event automation; sanitized integration event capture API merged in #128 and queued on `origin/main`, while real Google Drive watch setup/import credentials remain pending
+- **Phase 3** (current): Drive event automation; sanitized integration event capture API is merged, and local Drive-event document import foundation is implemented as repo-safe code. Real Google Drive watch setup, remote file fetch/OCR worker, and runtime credentials remain pending
 - **Phase 4**: Gmail intake (Pub/Sub)

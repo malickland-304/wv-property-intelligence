@@ -133,6 +133,7 @@ async function main() {
     let version = null;
     let approvedClaim = null;
     let rejectedClaim = null;
+    let importedDriveDocument = null;
 
     await test('GET /api/documents requires API key auth', async () => {
       const res = await api(baseUrl, '/api/documents', { auth: false });
@@ -322,6 +323,173 @@ async function main() {
       assert.strictEqual(audit.reason.length, 500);
       assert.strictEqual(audit.reason, longReason.slice(0, 500));
       assert(!String(audit.after_json || '').includes('should-not-persist'));
+    });
+
+    await test('POST /api/documents/integration-events/:id/import-document imports Drive file metadata', async () => {
+      const res = await api(baseUrl, '/api/documents/integration-events', {
+        method: 'POST',
+        body: {
+          provider: 'google_drive',
+          event_type: 'file_imported',
+          external_id: 'drive-file-import-456',
+          actor: 'drive-watch-test',
+          payload: {
+            name: 'Imported disclosure.pdf',
+            mimeType: 'application/pdf',
+            size: '54321',
+            sha256Checksum: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            webViewLink: 'https://drive.google.com/file/d/drive-file-import-456/view',
+            document_type: 'disclosure',
+            property_id: REVIEW_PROPERTY_ID,
+            created_by: 'drive-watch-test',
+          },
+        },
+      });
+      assert.strictEqual(res.status, 201);
+      const event = await json(res);
+      assert.strictEqual(event.document_id, null);
+      assert.strictEqual(event.status, 'recorded');
+
+      const importRes = await api(baseUrl, `/api/documents/integration-events/${event.id}/import-document`, {
+        method: 'POST',
+        body: { actor: 'drive-import-test', reason: 'Import already-recorded Drive metadata.' },
+      });
+      assert.strictEqual(importRes.status, 201);
+      const body = await json(importRes);
+      importedDriveDocument = body.document;
+      assert(importedDriveDocument.id.startsWith('doc_'));
+      assert.strictEqual(importedDriveDocument.status, 'draft');
+      assert.strictEqual(importedDriveDocument.document_type, 'disclosure');
+      assert.strictEqual(importedDriveDocument.source_provider, 'google_drive');
+      assert.strictEqual(importedDriveDocument.source_external_id, 'drive-file-import-456');
+      assert.strictEqual(importedDriveDocument.property_id, REVIEW_PROPERTY_ID);
+      assert.strictEqual(body.version.document_id, importedDriveDocument.id);
+      assert.strictEqual(body.version.version_number, 1);
+      assert.strictEqual(body.version.file_name, 'Imported disclosure.pdf');
+      assert.strictEqual(body.version.file_size_bytes, 54321);
+      assert.strictEqual(body.version.storage_external_id, 'drive-file-import-456');
+      assert.strictEqual(body.version.ocr_status, 'not_started');
+      assert.strictEqual(body.event.status, 'processed');
+      assert.strictEqual(body.event.document_id, importedDriveDocument.id);
+      assert.strictEqual(body.event.document_version_id, body.version.id);
+
+      const detailRes = await api(baseUrl, `/api/documents/${importedDriveDocument.id}`);
+      assert.strictEqual(detailRes.status, 200);
+      const detail = await json(detailRes);
+      assert.strictEqual(detail.document.id, importedDriveDocument.id);
+      assert.strictEqual(detail.versions.length, 1);
+
+      const auditRows = testDb.prepare(`
+        SELECT action, after_json FROM audit_events WHERE entity_id IN (?, ?, ?) ORDER BY created_at, id
+      `).all(importedDriveDocument.id, body.version.id, body.event.id);
+      assert(auditRows.some((row) => row.action === 'document.created'));
+      assert(auditRows.some((row) => row.action === 'document_version.created'));
+      assert(auditRows.some((row) => row.action === 'integration_event.processed'));
+      const sourceAudit = auditRows.filter((row) => row.action !== 'integration_event.processed');
+      assert(sourceAudit.every((row) => !String(row.after_json || '').includes('/drive-file-import-456/view')));
+
+      const repeatImport = await api(baseUrl, `/api/documents/integration-events/${event.id}/import-document`, {
+        method: 'POST',
+        body: { actor: 'drive-import-test' },
+      });
+      assert.strictEqual(repeatImport.status, 409);
+      assert.strictEqual((await json(repeatImport)).error, 'Integration event is already processed.');
+    });
+
+    await test('POST /api/documents/integration-events/:id/import-document rejects duplicate Drive files', async () => {
+      const res = await api(baseUrl, '/api/documents/integration-events', {
+        method: 'POST',
+        body: {
+          provider: 'google_drive',
+          event_type: 'file_imported',
+          external_id: 'drive-file-import-456',
+          actor: 'drive-watch-test',
+          payload: {
+            name: 'Imported disclosure duplicate.pdf',
+            mimeType: 'application/pdf',
+            webViewLink: 'https://drive.google.com/file/d/drive-file-import-456/view',
+            document_type: 'disclosure',
+          },
+        },
+      });
+      assert.strictEqual(res.status, 201);
+      const event = await json(res);
+      const importRes = await api(baseUrl, `/api/documents/integration-events/${event.id}/import-document`, {
+        method: 'POST',
+        body: { actor: 'drive-import-test' },
+      });
+      assert.strictEqual(importRes.status, 409);
+      assert.strictEqual((await json(importRes)).error, 'Drive document or version already exists.');
+    });
+
+    await test('POST /api/documents/integration-events/:id/import-document rejects non-file Drive events', async () => {
+      const res = await api(baseUrl, '/api/documents/integration-events', {
+        method: 'POST',
+        body: {
+          provider: 'google_drive',
+          event_type: 'watch_renewed',
+          external_id: 'drive-channel-1',
+          payload: {
+            name: 'Not a file.pdf',
+          },
+        },
+      });
+      assert.strictEqual(res.status, 201);
+      const event = await json(res);
+      const importRes = await api(baseUrl, `/api/documents/integration-events/${event.id}/import-document`, {
+        method: 'POST',
+        body: { actor: 'drive-import-test' },
+      });
+      assert.strictEqual(importRes.status, 400);
+      assert.strictEqual((await json(importRes)).error, 'Google Drive event type is not importable as a document.');
+    });
+
+    await test('POST /api/documents/integration-events/:id/import-document rejects invalid property links', async () => {
+      const res = await api(baseUrl, '/api/documents/integration-events', {
+        method: 'POST',
+        body: {
+          provider: 'google_drive',
+          event_type: 'file_imported',
+          external_id: 'drive-file-invalid-property',
+          payload: {
+            name: 'Invalid property disclosure.pdf',
+            document_type: 'disclosure',
+            property_id: 'missing-property-id',
+          },
+        },
+      });
+      assert.strictEqual(res.status, 201);
+      const event = await json(res);
+      const importRes = await api(baseUrl, `/api/documents/integration-events/${event.id}/import-document`, {
+        method: 'POST',
+        body: { actor: 'drive-import-test' },
+      });
+      assert.strictEqual(importRes.status, 400);
+      assert.strictEqual((await json(importRes)).error, 'property_id does not exist.');
+    });
+
+    await test('POST /api/documents/integration-events/:id/import-document rejects object-valued numeric payloads', async () => {
+      const res = await api(baseUrl, '/api/documents/integration-events', {
+        method: 'POST',
+        body: {
+          provider: 'google_drive',
+          event_type: 'file_imported',
+          external_id: 'drive-file-object-size',
+          payload: {
+            name: 'Object size disclosure.pdf',
+            document_type: 'disclosure',
+            size: { bytes: 123 },
+          },
+        },
+      });
+      assert.strictEqual(res.status, 201);
+      const event = await json(res);
+      const importRes = await api(baseUrl, `/api/documents/integration-events/${event.id}/import-document`, {
+        method: 'POST',
+        body: { actor: 'drive-import-test' },
+      });
+      assert.strictEqual(importRes.status, 400);
+      assert.strictEqual((await json(importRes)).error, 'size must be a non-negative number');
     });
 
     await test('POST /api/documents/integration-events rejects missing document links', async () => {
