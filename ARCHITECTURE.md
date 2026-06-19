@@ -22,7 +22,7 @@
 | CSRF | `csrf-csrf` v3 (double-submit cookie) | Replaced deprecated `csurf`; session-bound via `req.sessionID` |
 | Security | `helmet`, `cors`, `express-rate-limit` | Defense in depth |
 | Email | Resend API (primary) / Gmail OAuth2 (fallback) | Resend: zero OAuth setup; Gmail: existing integration |
-| SMS | Twilio (optional, feature-flagged) | `twilio` pkg NOT in package.json; feature disabled until leads system complete |
+| SMS | Not implemented | Lead capture records SMS consent, but no SMS provider is wired into runtime |
 | AI | OpenAI GPT-4o via raw HTTPS | No SDK — reduces dep surface |
 | Google APIs | Raw HTTPS (no `googleapis` SDK) | Fewer deps, smaller attack surface |
 | Images | `sharp` for compression | On-upload processing: 1200px/85q web, 1024px/80q MLS |
@@ -53,12 +53,11 @@ wv-property-intelligence/
 │   │   ├── admin.js            ← All /admin/* routes (624 LOC)
 │   │   ├── api.js              ← All /api/* routes (227 LOC)
 │   │   ├── public.js           ← robots.txt, sitemap.xml, /listing/:id, /properties/:id
-│   │   └── leads.js            ← Lead capture routes (NOT MOUNTED — missing deps)
+│   │   └── leads.js            ← Lead capture routes mounted at /api/leads
 │   ├── services/
 │   │   ├── email.js            ← Transactional email (Resend primary, Gmail fallback)
 │   │   ├── leadNotifications.js ← Lead alert + auto-reply email
 │   │   ├── leadFollowupWorker.js ← Lead follow-up scheduling
-│   │   └── twilioService.js    ← SMS alerts (disabled — twilio not in package.json)
 │   ├── utils/
 │   │   ├── validators.js       ← validateLeadPayload, buildLeadSchedule, buildPropertyLead
 │   │   ├── propertyMarketing.js ← Marketing copy helpers

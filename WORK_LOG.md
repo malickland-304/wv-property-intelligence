@@ -1021,3 +1021,22 @@ Implement the Phase 1 Document Registry skeleton described in `docs/DOCUMENT_REG
 
 ### Recommended Next Task
 After this PR merges, start Phase 2 only from a fresh spec: AI Review Queue/admin UI for reviewing extracted claims and deciding whether to apply approved facts.
+
+---
+
+## 2026-06-18 — Codex — Disabled Twilio path removal
+
+### Objective
+Close the backlog choice to either add the missing `twilio` dependency or remove the disabled Twilio path. Chose removal to avoid adding a new package and because lead capture already persists locally and sends email notifications when configured.
+
+### Changes Made
+- `api/routes/leads.js` — removed the unused Twilio service import and fire-and-forget SMS alert call.
+- `api/services/twilioService.js` — deleted the dead dynamic Twilio sender.
+- `ARCHITECTURE.md`, `PROJECT_STATE.md`, `AGENTS.md` — removed Twilio as an active/optional runtime integration and corrected lead-route documentation.
+- `TASKS.md` — moved the Twilio cleanup item to Completed.
+
+### Verification
+- Required before PR: `rg` for stale Twilio runtime references; `node --check api/routes/leads.js`; `bash scripts/preflight.sh`; `node tests/verify-security-fixes.test.js`.
+
+### Remaining Risks
+- SMS alerts are not implemented. Future SMS support should start from a fresh provider decision and package/env review.

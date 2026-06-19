@@ -167,7 +167,7 @@ OpenHands operates in **supervised sandboxed mode only**. These are permanent co
 ### Forbidden (hard stops — no exceptions)
 - ❌ Merge pull requests
 - ❌ Deploy to any production environment (Hostinger VPS or the dormant Railway twin)
-- ❌ Access or read production secrets (`SESSION_SECRET`, `ADMIN_PASSWORD`, `API_KEY`, `DATABASE_PATH`, `OPENAI_API_KEY`, `GOOGLE_*`, `RESEND_API_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `LEAD_ALERT_TO_NUMBER`)
+- ❌ Access or read production secrets (`SESSION_SECRET`, `ADMIN_PASSWORD`, `API_KEY`, `DATABASE_PATH`, `OPENAI_API_KEY`, `GOOGLE_*`, `RESEND_API_KEY`)
 - ❌ Push directly to `main`
 - ❌ Modify production environment variables (the VPS `.env`, or the dormant Railway twin)
 - ❌ Run smoke tests against production (`malickland.net`) without explicit human approval
@@ -277,12 +277,6 @@ Set in the production environment — the Hostinger VPS `.env` at `/docker/wv-pr
 - `RESEND_API_KEY`
 - `FROM_EMAIL`
 - `NOTIFICATION_EMAIL`
-
-**SMS (Twilio — optional, feature-flagged):**
-- `TWILIO_ACCOUNT_SID`
-- `TWILIO_AUTH_TOKEN`
-- `TWILIO_FROM_NUMBER`
-- `LEAD_ALERT_TO_NUMBER`
 
 **Analytics (optional):**
 - `GA_MEASUREMENT_ID`
