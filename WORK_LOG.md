@@ -1142,3 +1142,29 @@ Remove stale coordinator state after the repo-safe queue continued overnight, es
 ### Remaining Risks
 - This is docs/state cleanup only and does not deploy #116/#120/#121/#124/#126/#127/#128 runtime changes to the VPS.
 - Production remains on the last verified manual deploy (`24ee74b`) until Phil approves a VPS deploy and `scripts/verify-vps-prod.sh` proves the new SHA live.
+
+---
+
+## 2026-06-19 — Codex — Drive event document import foundation
+
+### Objective
+Advance Phase 3 without crossing into Google credentials or production infrastructure by converting already-recorded Google Drive integration event metadata into draft registry documents and first versions.
+
+### Changes Made
+- `api/routes/documents.js` — added `POST /api/documents/integration-events/:eventId/import-document` for API-key protected import of `google_drive` events in `recorded` state.
+- `api/routes/documents.js` — import runs in one transaction: create `documents` row, create version 1 in `document_versions`, mark the integration event `processed`, link event to the new document/version, and write audit rows.
+- `api/routes/documents.js` — tightened audit snapshots by redacting `payload_json`, preventing provider payload links/metadata from being duplicated into audit JSON.
+- `tests/document-registry.test.js` — added HTTP coverage for Drive event import, processed-event reimport rejection, duplicate Drive file rejection, and audit redaction.
+- `docs/DOCUMENT_REGISTRY_SPEC.md`, `TASKS.md`, `PROJECT_STATE.md` — recorded the repo-safe Phase 3 boundary: local import foundation complete; Drive watch setup, remote file fetch/OCR worker, and runtime credentials remain pending.
+
+### Verification
+- `node --check api/routes/documents.js && node --check tests/document-registry.test.js` passed.
+- `node tests/document-registry.test.js` passed — 28/28.
+- `git diff --check` passed.
+- `npm run validate-api-docs --if-present` completed successfully.
+- `bash scripts/preflight.sh` passed.
+- `node tests/verify-security-fixes.test.js` passed — 57/57.
+
+### Remaining Risks
+- This does not call Google APIs, create Drive watches, fetch remote files, run OCR, or configure runtime credentials.
+- Merge still does not deploy the new endpoint to the VPS; production remains on the last verified manual deploy until Phil approves a deployment and SHA proof is collected.

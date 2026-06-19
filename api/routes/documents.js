@@ -13,8 +13,10 @@ const DOCUMENT_TYPES = new Set([
 const SOURCE_PROVIDERS = new Set(['manual', 'google_drive', 'gmail', 'api', 'system']);
 const INTEGRATION_EVENT_PROVIDERS = new Set(['google_drive', 'gmail', 'ocr', 'ai_extraction', 'api', 'system']);
 const INTEGRATION_EVENT_STATUSES = new Set(['recorded', 'processed', 'failed', 'ignored']);
+const DRIVE_IMPORT_EVENT_TYPES = new Set(['file_imported', 'file_created', 'file_updated', 'file_changed']);
 const DOCUMENT_STATUSES = new Set(['draft', 'active', 'superseded', 'archived', 'rejected']);
 const VERSION_APPROVAL_STATUSES = new Set(['pending_review', 'approved', 'rejected', 'superseded']);
+const OCR_STATUSES = new Set(['not_started', 'pending', 'complete', 'failed']);
 const CLAIM_STATUSES = new Set(['pending_review', 'approved', 'rejected', 'superseded', 'applied']);
 const CLAIM_VALUE_TYPES = new Set(['string', 'number', 'boolean', 'date', 'money', 'area', 'list', 'object']);
 const CLAIM_TYPES = new Set([
@@ -74,6 +76,7 @@ function createDocumentsRouter({ db }) {
       'source_quote',
       'source_location_json',
       'review_note',
+      'payload_json',
     ]) {
       if (copy[key] != null) copy[key] = '[redacted]';
     }
@@ -284,6 +287,103 @@ function createDocumentsRouter({ db }) {
     } catch (_) {
       return fallback;
     }
+  }
+
+  function payloadString(payload, keys, max = 500) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+    for (const key of keys) {
+      const raw = payload[key];
+      if (raw != null && (typeof raw === 'object' || typeof raw === 'function')) continue;
+      const value = cleanString(raw, max);
+      if (value) return value;
+    }
+    return null;
+  }
+
+  function payloadNumber(payload, keys) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return { value: null };
+    for (const key of keys) {
+      if (payload[key] == null || payload[key] === '') continue;
+      if (typeof payload[key] === 'object' || typeof payload[key] === 'function') {
+        return { error: `${key} must be a non-negative number` };
+      }
+      const value = Number(payload[key]);
+      if (!Number.isFinite(value) || value < 0) return { error: `${key} must be a non-negative number` };
+      return { value: Math.floor(value) };
+    }
+    return { value: null };
+  }
+
+  function prepareDriveDocumentImport(event) {
+    if (event.provider !== 'google_drive') {
+      return { status: 400, error: 'Only google_drive events can be imported as Drive documents.' };
+    }
+    if (!DRIVE_IMPORT_EVENT_TYPES.has(event.event_type)) {
+      return { status: 400, error: 'Google Drive event type is not importable as a document.' };
+    }
+    if (event.status === 'processed') {
+      return { status: 409, error: 'Integration event is already processed.' };
+    }
+    if (event.status !== 'recorded') {
+      return { status: 400, error: `Integration event status must be recorded, not ${event.status}.` };
+    }
+    if (event.document_id || event.document_version_id) {
+      return { status: 409, error: 'Integration event is already linked to a document.' };
+    }
+
+    const parsedPayload = parseJsonField(event.payload_json, {});
+    const payload = parsedPayload && typeof parsedPayload === 'object' && !Array.isArray(parsedPayload)
+      ? parsedPayload
+      : {};
+    const externalId = cleanString(
+      event.external_id || payloadString(payload, ['id', 'fileId', 'file_id', 'external_id'], 300),
+      300
+    );
+    if (!externalId) return { status: 400, error: 'Drive event external_id is required.' };
+
+    const fileName = payloadString(payload, ['file_name', 'fileName', 'name', 'title'], 300);
+    if (!fileName) return { status: 400, error: 'Drive event payload must include a file name.' };
+
+    const documentType = payloadString(payload, ['document_type', 'documentType'], 80) || 'other';
+    if (!DOCUMENT_TYPES.has(documentType)) return { status: 400, error: 'document_type is invalid' };
+
+    const fileSize = payloadNumber(payload, ['file_size_bytes', 'fileSizeBytes', 'size']);
+    if (fileSize.error) return { status: 400, error: fileSize.error };
+
+    const sha256 = payloadString(payload, ['sha256', 'sha256Checksum', 'sha256_checksum'], 128);
+    if (sha256 && !/^[a-f0-9]{64}$/i.test(sha256)) {
+      return { status: 400, error: 'sha256 must be a 64-character hex digest' };
+    }
+
+    const ocrStatus = payloadString(payload, ['ocr_status', 'ocrStatus'], 40) || 'not_started';
+    if (!OCR_STATUSES.has(ocrStatus)) return { status: 400, error: 'ocr_status is invalid' };
+
+    const sourceUri = payloadString(
+      payload,
+      ['webViewLink', 'web_view_link', 'alternateLink', 'drive_url', 'url'],
+      2048
+    ) || `google-drive://${externalId}`;
+    const title = payloadString(payload, ['document_title', 'documentTitle'], 200) || fileName;
+
+    return {
+      values: {
+        document_id: makeId('doc'),
+        version_id: makeId('ver'),
+        title,
+        document_type: documentType,
+        property_id: payloadString(payload, ['property_id', 'propertyId'], 80),
+        source_uri: sourceUri,
+        source_external_id: externalId,
+        file_name: fileName,
+        mime_type: payloadString(payload, ['mime_type', 'mimeType'], 120),
+        file_size_bytes: fileSize.value,
+        sha256,
+        storage_uri: sourceUri,
+        storage_external_id: externalId,
+        ocr_status: ocrStatus,
+        created_by: payloadString(payload, ['created_by', 'createdBy'], 80),
+      },
+    };
   }
 
   function claimForReview(row) {
@@ -521,6 +621,104 @@ function createDocumentsRouter({ db }) {
       }
       console.error(err);
       res.status(500).json({ error: 'Failed to record integration event' });
+    }
+  });
+
+  router.post('/integration-events/:eventId/import-document', (req, res) => {
+    const event = getIntegrationEvent(req.params.eventId);
+    if (!event) return res.status(404).json({ error: 'Integration event not found' });
+
+    const prepared = prepareDriveDocumentImport(event);
+    if (prepared.error) return res.status(prepared.status).json({ error: prepared.error });
+    const f = prepared.values;
+    const actor = actorFrom(req);
+
+    try {
+      const tx = db.transaction(() => {
+        db.prepare(`
+          INSERT INTO documents (
+            id, property_id, title, document_type, source_provider, source_uri,
+            source_external_id, status, created_by
+          ) VALUES (?,?,?,?,?,?,?,?,?)
+        `).run(
+          f.document_id,
+          f.property_id,
+          f.title,
+          f.document_type,
+          'google_drive',
+          f.source_uri,
+          f.source_external_id,
+          'draft',
+          f.created_by || actor
+        );
+        const document = getDocument(f.document_id);
+        if (!document) throw new Error('Drive document import failed to read created document');
+        writeAudit({
+          actor,
+          action: 'document.created',
+          entityType: 'document',
+          entityId: f.document_id,
+          after: document,
+          reason: req.body.reason || `Imported from integration event ${event.id}`,
+        });
+
+        db.prepare(`
+          INSERT INTO document_versions (
+            id, document_id, version_number, file_name, mime_type, file_size_bytes, sha256,
+            storage_uri, storage_external_id, ocr_text, ocr_status
+          ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+        `).run(
+          f.version_id,
+          f.document_id,
+          1,
+          f.file_name,
+          f.mime_type,
+          f.file_size_bytes,
+          f.sha256,
+          f.storage_uri,
+          f.storage_external_id,
+          null,
+          f.ocr_status
+        );
+        const version = getVersion(f.version_id);
+        if (!version) throw new Error('Drive document import failed to read created version');
+        writeAudit({
+          actor,
+          action: 'document_version.created',
+          entityType: 'document_version',
+          entityId: f.version_id,
+          after: version,
+          reason: req.body.reason || `Imported from integration event ${event.id}`,
+        });
+
+        db.prepare(`
+          UPDATE integration_events
+          SET document_id=?, document_version_id=?, status='processed'
+          WHERE id=?
+        `).run(f.document_id, f.version_id, event.id);
+        const processedEvent = getIntegrationEvent(event.id);
+        writeAudit({
+          actor,
+          action: 'integration_event.processed',
+          entityType: 'integration_event',
+          entityId: event.id,
+          before: event,
+          after: processedEvent,
+          reason: req.body.reason || `Imported Drive file ${f.source_external_id}`,
+        });
+
+        return { document, version, event: processedEvent };
+      });
+      res.status(201).json(tx());
+    } catch (err) {
+      if (err && err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        return res.status(409).json({ error: 'Drive document or version already exists.' });
+      }
+      if (err && err.code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
+        return res.status(400).json({ error: 'property_id does not exist.' });
+      }
+      console.error(err);
+      res.status(500).json({ error: 'Failed to import Drive document event' });
     }
   });
 
