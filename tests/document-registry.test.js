@@ -243,7 +243,28 @@ async function main() {
       assert.strictEqual((await json(res)).error, 'provider is invalid');
     });
 
+    await test('POST /api/documents/integration-events validates event type and status', async () => {
+      const missingType = await api(baseUrl, '/api/documents/integration-events', {
+        method: 'POST',
+        body: { provider: 'google_drive' },
+      });
+      assert.strictEqual(missingType.status, 400);
+      assert.strictEqual((await json(missingType)).error, 'event_type is required');
+
+      const invalidStatus = await api(baseUrl, '/api/documents/integration-events', {
+        method: 'POST',
+        body: {
+          provider: 'google_drive',
+          event_type: 'file_imported',
+          status: 'unknown',
+        },
+      });
+      assert.strictEqual(invalidStatus.status, 400);
+      assert.strictEqual((await json(invalidStatus)).error, 'status is invalid');
+    });
+
     await test('POST /api/documents/integration-events records redacted Drive event metadata', async () => {
+      const longReason = `Drive watch import ${'x'.repeat(800)}`;
       const res = await api(baseUrl, '/api/documents/integration-events', {
         method: 'POST',
         body: {
@@ -262,6 +283,7 @@ async function main() {
               safe_value: 'kept',
             },
           },
+          reason: longReason,
         },
       });
       assert.strictEqual(res.status, 201);
@@ -294,6 +316,8 @@ async function main() {
       `).get(event.id);
       assert(audit);
       assert.strictEqual(audit.action, 'integration_event.recorded');
+      assert.strictEqual(audit.reason.length, 500);
+      assert.strictEqual(audit.reason, longReason.slice(0, 500));
       assert(!String(audit.after_json || '').includes('should-not-persist'));
     });
 
