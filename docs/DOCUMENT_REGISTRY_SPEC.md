@@ -206,6 +206,8 @@ Implementation should add a new router under `/api/documents`. Mutating routes r
 |--------|------|------|---------|
 | `GET` | `/api/documents` | API key | List documents with filters: `property_id`, `status`, `document_type`. |
 | `GET` | `/api/documents/review/claims` | API key | List extracted claims by review status for the human review queue. Defaults to `pending_review`; supports `status`, `property_id`, `claim_type`, `document_type`, and `limit`; property filtering falls back to the document property when the claim was extracted before the document was linked; rejected/superseded source versions are excluded. |
+| `GET` | `/api/documents/integration-events` | API key | List sanitized integration events with filters: `provider`, `event_type`, `status`, `document_id`, `document_version_id`, `external_id`, and `limit`. |
+| `POST` | `/api/documents/integration-events` | API key | Record a sanitized external event from Drive/Gmail/OCR/AI/system automation. This is event capture only; it does not create Google watches or fetch external files. |
 | `POST` | `/api/documents` | API key | Create a logical document. |
 | `GET` | `/api/documents/:id` | API key | Read document, current version, versions, and claims. |
 | `PATCH` | `/api/documents/:id` | API key | Update title/type/status metadata. |
@@ -303,5 +305,5 @@ A future implementation PR should satisfy all of these:
 | Phase 1 spec | This document: schema, state machine, AI JSON contract, API skeleton. |
 | Phase 1 implementation | SQLite tables, helpers, API skeleton, tests. |
 | Phase 2 AI Review Queue | Review-queue API for extracted claims, read-only admin UI for reviewing claims, and audited application of approved facts. The queue API is implemented at `/api/documents/review/claims`; the admin review page is implemented at `/admin/document-claims`; approved, mapped claims can be applied through `/admin/document-claims/:claimId/apply`. |
-| Phase 3 Drive event automation | Drive watch/import pipeline into `documents` and `document_versions`. |
+| Phase 3 Drive event automation | Drive watch/import pipeline into `documents` and `document_versions`; integration event capture is available at `/api/documents/integration-events` as the safe ingest foundation. |
 | Phase 4 Gmail intake | Email attachment/message ingestion into the registry. |

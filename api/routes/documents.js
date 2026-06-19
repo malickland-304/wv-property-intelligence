@@ -11,6 +11,8 @@ const DOCUMENT_TYPES = new Set([
 ]);
 
 const SOURCE_PROVIDERS = new Set(['manual', 'google_drive', 'gmail', 'api', 'system']);
+const INTEGRATION_EVENT_PROVIDERS = new Set(['google_drive', 'gmail', 'ocr', 'ai_extraction', 'api', 'system']);
+const INTEGRATION_EVENT_STATUSES = new Set(['recorded', 'processed', 'failed', 'ignored']);
 const DOCUMENT_STATUSES = new Set(['draft', 'active', 'superseded', 'archived', 'rejected']);
 const VERSION_APPROVAL_STATUSES = new Set(['pending_review', 'approved', 'rejected', 'superseded']);
 const CLAIM_STATUSES = new Set(['pending_review', 'approved', 'rejected', 'superseded', 'applied']);
@@ -37,6 +39,7 @@ function createDocumentsRouter({ db }) {
     INSERT INTO audit_events (id,actor,action,entity_type,entity_id,before_json,after_json,reason)
     VALUES (?,?,?,?,?,?,?,?)
   `);
+  const selectIntegrationEvent = db.prepare('SELECT * FROM integration_events WHERE id=?');
   const selectDocument = db.prepare('SELECT * FROM documents WHERE id=?');
   const selectVersion = db.prepare('SELECT * FROM document_versions WHERE id=?');
   const selectClaim = db.prepare('SELECT * FROM extracted_claims WHERE id=?');
@@ -92,6 +95,10 @@ function createDocumentsRouter({ db }) {
 
   function getDocument(id) {
     return selectDocument.get(id);
+  }
+
+  function getIntegrationEvent(id) {
+    return selectIntegrationEvent.get(id);
   }
 
   function getVersion(id) {
@@ -218,6 +225,54 @@ function createDocumentsRouter({ db }) {
         source_quote: quote,
         source_location_json: sourceLocationJson,
         confidence,
+      },
+    };
+  }
+
+  function redactIntegrationPayload(value) {
+    if (Array.isArray(value)) return value.map(redactIntegrationPayload);
+    if (!value || typeof value !== 'object') return value;
+    const redacted = {};
+    for (const [key, child] of Object.entries(value)) {
+      if (/token|secret|authorization|credential|password|cookie|api_?key|source_uri|storage_uri/i.test(key)) {
+        redacted[key] = '[redacted]';
+      } else {
+        redacted[key] = redactIntegrationPayload(child);
+      }
+    }
+    return redacted;
+  }
+
+  function validateIntegrationEventInput(body) {
+    const provider = cleanString(body.provider, 40);
+    const eventType = cleanString(body.event_type, 120);
+    const status = cleanString(body.status, 40) || 'recorded';
+
+    const providerErr = ensureKnown(provider, INTEGRATION_EVENT_PROVIDERS, 'provider');
+    if (providerErr) return { error: providerErr };
+    if (!eventType) return { error: 'event_type is required' };
+    const statusErr = ensureKnown(status, INTEGRATION_EVENT_STATUSES, 'status');
+    if (statusErr) return { error: statusErr };
+
+    let payloadJson = null;
+    if (body.payload != null) {
+      try {
+        payloadJson = JSON.stringify(redactIntegrationPayload(body.payload));
+      } catch (_) {
+        return { error: 'payload must be JSON serializable' };
+      }
+    }
+
+    return {
+      values: {
+        provider,
+        event_type: eventType,
+        document_id: cleanString(body.document_id, 120),
+        document_version_id: cleanString(body.document_version_id, 120),
+        external_id: cleanString(body.external_id, 300),
+        status,
+        payload_json: payloadJson,
+        error_message: cleanString(body.error_message, 500),
       },
     };
   }
@@ -382,6 +437,90 @@ function createDocumentsRouter({ db }) {
       }
       console.error(err);
       res.status(500).json({ error: 'Failed to create document' });
+    }
+  });
+
+  router.get('/integration-events', (req, res) => {
+    const conditions = [];
+    const values = [];
+    const filters = {};
+    for (const [key, column] of [
+      ['provider', 'provider'],
+      ['event_type', 'event_type'],
+      ['status', 'status'],
+      ['document_id', 'document_id'],
+      ['document_version_id', 'document_version_id'],
+      ['external_id', 'external_id'],
+    ]) {
+      const value = cleanString(req.query[key], 300);
+      if (!value) continue;
+      if (key === 'provider' && !INTEGRATION_EVENT_PROVIDERS.has(value)) {
+        return res.status(400).json({ error: 'provider is invalid' });
+      }
+      if (key === 'status' && !INTEGRATION_EVENT_STATUSES.has(value)) {
+        return res.status(400).json({ error: 'status is invalid' });
+      }
+      filters[key] = value;
+      conditions.push(`${column}=?`);
+      values.push(value);
+    }
+
+    const requestedLimit = Number(req.query.limit || 50);
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
+      ? Math.min(Math.floor(requestedLimit), 100)
+      : 50;
+    filters.limit = limit;
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const events = db.prepare(`
+      SELECT id, provider, event_type, document_id, document_version_id, external_id,
+             status, payload_json, error_message, created_at
+      FROM integration_events
+      ${where}
+      ORDER BY created_at DESC, id DESC
+      LIMIT ?
+    `).all(...values, limit);
+    res.json({ events, filters });
+  });
+
+  router.post('/integration-events', (req, res) => {
+    const validated = validateIntegrationEventInput(req.body || {});
+    if (validated.error) return res.status(400).json({ error: validated.error });
+    const f = validated.values;
+    const id = makeId('evt');
+    try {
+      db.prepare(`
+        INSERT INTO integration_events (
+          id, provider, event_type, document_id, document_version_id, external_id,
+          status, payload_json, error_message
+        ) VALUES (?,?,?,?,?,?,?,?,?)
+      `).run(
+        id,
+        f.provider,
+        f.event_type,
+        f.document_id,
+        f.document_version_id,
+        f.external_id,
+        f.status,
+        f.payload_json,
+        f.error_message
+      );
+      const row = getIntegrationEvent(id);
+      writeAudit({
+        actor: actorFrom(req),
+        action: 'integration_event.recorded',
+        entityType: 'integration_event',
+        entityId: id,
+        after: row,
+        reason: req.body && req.body.reason,
+      });
+      res.status(201).json(row);
+    } catch (err) {
+      if (err && err.code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
+        return res.status(400).json({ error: 'document_id or document_version_id does not exist.' });
+      }
+      console.error(err);
+      res.status(500).json({ error: 'Failed to record integration event' });
     }
   });
 

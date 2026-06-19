@@ -1100,3 +1100,21 @@ Complete Phase 2 by allowing a human admin to apply approved extracted claims to
 ### Remaining Risks
 - Only explicitly mapped property fields can be applied. Document-summary/public-copy application remains out of scope.
 - Merge still does not deploy this admin workflow to the VPS; production changes require Phil's manual deploy approval.
+
+---
+
+## 2026-06-19 — Codex — Document Registry Phase 3 integration event capture
+
+### Objective
+Start Phase 3 with a safe event-ingest foundation that can record Drive/Gmail/OCR/AI automation events without creating external watches, fetching remote files, or requiring new runtime credentials.
+
+### Changes Made
+- `api/routes/documents.js` — added API-key protected `GET /api/documents/integration-events` and `POST /api/documents/integration-events`; events validate provider/status values, preserve document/version links, redact secret-like payload fields, and write an `integration_event.recorded` audit row.
+- `tests/document-registry.test.js` — added HTTP coverage for invalid provider rejection, sanitized Google Drive event recording, filtered event listing, foreign-key validation, and audit redaction.
+- `docs/DOCUMENT_REGISTRY_SPEC.md`, `TASKS.md`, `PROJECT_STATE.md` — recorded the event-capture API as the safe Phase 3 foundation while leaving real Drive watch setup/import worker work open.
+
+### Verification
+- Required validation before PR: `node --check api/routes/documents.js`; `node tests/document-registry.test.js`; `bash scripts/preflight.sh`; `node tests/verify-security-fixes.test.js`; `git diff --check`.
+
+### Remaining Risks
+- This records sanitized events only. It does not configure Google Drive watches, create webhook channels, import files, or deploy anything to the VPS.

@@ -231,6 +231,112 @@ async function main() {
       assert.strictEqual((await json(res)).error, 'Document version file hash already exists.');
     });
 
+    await test('POST /api/documents/integration-events rejects invalid providers', async () => {
+      const res = await api(baseUrl, '/api/documents/integration-events', {
+        method: 'POST',
+        body: {
+          provider: 'dropbox',
+          event_type: 'file_imported',
+        },
+      });
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual((await json(res)).error, 'provider is invalid');
+    });
+
+    await test('POST /api/documents/integration-events validates event type and status', async () => {
+      const missingType = await api(baseUrl, '/api/documents/integration-events', {
+        method: 'POST',
+        body: { provider: 'google_drive' },
+      });
+      assert.strictEqual(missingType.status, 400);
+      assert.strictEqual((await json(missingType)).error, 'event_type is required');
+
+      const invalidStatus = await api(baseUrl, '/api/documents/integration-events', {
+        method: 'POST',
+        body: {
+          provider: 'google_drive',
+          event_type: 'file_imported',
+          status: 'unknown',
+        },
+      });
+      assert.strictEqual(invalidStatus.status, 400);
+      assert.strictEqual((await json(invalidStatus)).error, 'status is invalid');
+    });
+
+    await test('POST /api/documents/integration-events records redacted Drive event metadata', async () => {
+      const longReason = `Drive watch import ${'x'.repeat(800)}`;
+      const res = await api(baseUrl, '/api/documents/integration-events', {
+        method: 'POST',
+        body: {
+          provider: 'google_drive',
+          event_type: 'file_imported',
+          document_id: document.id,
+          document_version_id: version.id,
+          external_id: 'drive-file-123',
+          actor: 'drive-watch-test',
+          payload: {
+            name: 'advent-tax-card.pdf',
+            mimeType: 'application/pdf',
+            source_uri: 'https://drive.google.com/secret-file-link',
+            nested: {
+              access_token: 'should-not-persist',
+              api_key: 'also-should-not-persist',
+              safe_value: 'kept',
+            },
+          },
+          reason: longReason,
+        },
+      });
+      assert.strictEqual(res.status, 201);
+      const event = await json(res);
+      assert(event.id.startsWith('evt_'));
+      assert.strictEqual(event.provider, 'google_drive');
+      assert.strictEqual(event.status, 'recorded');
+      assert.strictEqual(event.document_id, document.id);
+      assert.strictEqual(event.document_version_id, version.id);
+      const payload = JSON.parse(event.payload_json);
+      assert.strictEqual(payload.name, 'advent-tax-card.pdf');
+      assert.strictEqual(payload.source_uri, '[redacted]');
+      assert.strictEqual(payload.nested.access_token, '[redacted]');
+      assert.strictEqual(payload.nested.api_key, '[redacted]');
+      assert.strictEqual(payload.nested.safe_value, 'kept');
+      assert(!event.payload_json.includes('should-not-persist'));
+      assert(!event.payload_json.includes('also-should-not-persist'));
+      assert(!event.payload_json.includes('secret-file-link'));
+
+      const listRes = await api(
+        baseUrl,
+        `/api/documents/integration-events?provider=google_drive&external_id=${encodeURIComponent('drive-file-123')}`
+      );
+      assert.strictEqual(listRes.status, 200);
+      const listed = await json(listRes);
+      assert.strictEqual(listed.filters.provider, 'google_drive');
+      assert.strictEqual(listed.filters.external_id, 'drive-file-123');
+      assert(listed.events.some((row) => row.id === event.id));
+
+      const audit = testDb.prepare(`
+        SELECT * FROM audit_events WHERE entity_type='integration_event' AND entity_id=?
+      `).get(event.id);
+      assert(audit);
+      assert.strictEqual(audit.action, 'integration_event.recorded');
+      assert.strictEqual(audit.reason.length, 500);
+      assert.strictEqual(audit.reason, longReason.slice(0, 500));
+      assert(!String(audit.after_json || '').includes('should-not-persist'));
+    });
+
+    await test('POST /api/documents/integration-events rejects missing document links', async () => {
+      const res = await api(baseUrl, '/api/documents/integration-events', {
+        method: 'POST',
+        body: {
+          provider: 'google_drive',
+          event_type: 'file_imported',
+          document_id: 'missing-document',
+        },
+      });
+      assert.strictEqual(res.status, 400);
+      assert.strictEqual((await json(res)).error, 'document_id or document_version_id does not exist.');
+    });
+
     await test('POST /api/documents/:id/claims rejects invalid AI extraction payloads', async () => {
       const res = await api(baseUrl, `/api/documents/${document.id}/claims`, {
         method: 'POST',
