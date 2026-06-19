@@ -1080,3 +1080,23 @@ Add the first admin-facing review surface for extracted document claims without 
 ### Remaining Risks
 - This is review-only. The audited workflow that applies approved claims into listing/property facts is still the next Phase 2 slice.
 - Merge still does not deploy this admin page to the VPS; production remains on the last manually deployed runtime until Phil approves a VPS deploy.
+
+---
+
+## 2026-06-19 — Codex — Document Registry Phase 2 audited apply workflow
+
+### Objective
+Complete Phase 2 by allowing a human admin to apply approved extracted claims to mapped listing fields without letting AI claims mutate public facts directly.
+
+### Changes Made
+- `api/routes/admin.js` — added an explicit claim-type to property-field mapping and CSRF-protected `POST /admin/document-claims/:claimId/apply`; the route requires an approved claim, rejects rejected/superseded source versions, coerces mapped values, updates the property and claim status in one transaction, and writes `property.claim_applied` plus `extracted_claim.applied` audit rows.
+- `api/routes/admin.js` — added an apply button for approved, mapped claims in `/admin/document-claims`; unmapped or not-yet-approved claims stay read-only.
+- `tests/admin-document-review.test.js` — expanded real HTTP admin coverage to 8 tests, including authenticated CSRF apply, property mutation, claim `applied` status, audit rows, and rejection of non-approved claim application.
+- `TASKS.md`, `docs/DOCUMENT_REGISTRY_SPEC.md`, `PROJECT_STATE.md` — recorded Phase 2 as complete and moved the registry roadmap to Phase 3 Drive event automation.
+
+### Verification
+- Required validation before PR: `node --check api/routes/admin.js`; `node --check tests/admin-document-review.test.js`; `node tests/admin-document-review.test.js`; `bash scripts/preflight.sh`; `node tests/verify-security-fixes.test.js`; `git diff --check`.
+
+### Remaining Risks
+- Only explicitly mapped property fields can be applied. Document-summary/public-copy application remains out of scope.
+- Merge still does not deploy this admin workflow to the VPS; production changes require Phil's manual deploy approval.
