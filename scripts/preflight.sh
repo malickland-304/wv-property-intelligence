@@ -60,6 +60,11 @@ node "$ROOT/tests/document-registry.test.js"
 echo "✓ Document registry smoke OK"
 echo
 
+echo "== Admin document review smoke =="
+node "$ROOT/tests/admin-document-review.test.js"
+echo "✓ Admin document review smoke OK"
+echo
+
 echo "== Startup smoke =="
 PORT="$PORT_TO_USE" DATABASE_PATH="$TMP_DIR/preflight.db" NODE_ENV=test PUBLIC_LISTINGS_ENABLED=true API_KEY=preflight-api-key SESSION_SECRET=preflight-session-secret ADMIN_PASSWORD=preflight-admin-password node server.js > "$APP_LOG" 2>&1 &
 PID=$!

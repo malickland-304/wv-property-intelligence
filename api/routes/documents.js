@@ -695,3 +695,5 @@ function createDocumentsRouter({ db }) {
 }
 
 module.exports = createDocumentsRouter;
+module.exports.DOCUMENT_TYPES = DOCUMENT_TYPES;
+module.exports.CLAIM_STATUSES = CLAIM_STATUSES;

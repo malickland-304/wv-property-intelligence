@@ -13,6 +13,7 @@ const { adminShell, listingForm, loginPageHtml, loginErrorHtml } = require('../v
 const { esc, slugify, initListingFolder, isSafePathComponent, normalizeAcreage, safeListingPath } = require('../helpers');
 const { uploadPhotoToDrive } = require('../google');
 const { generateListingContent, aiConfigured } = require('../ai-generator');
+const { CLAIM_STATUSES, DOCUMENT_TYPES } = require('./documents');
 
 let sharp;
 try { sharp = require('sharp'); } catch (_) { sharp = null; }
@@ -46,6 +47,82 @@ const upload = multer({
 });
 
 const router = express.Router();
+
+function cleanQuery(value, max = 120) {
+  if (value == null) return '';
+  return String(value).trim().slice(0, max);
+}
+
+function parseJsonField(raw) {
+  if (raw == null || raw === '') return null;
+  try {
+    return JSON.parse(raw);
+  } catch (_) {
+    return raw;
+  }
+}
+
+function displayJsonValue(raw) {
+  const value = parseJsonField(raw);
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
+  return JSON.stringify(value);
+}
+
+function renderSelectOptions(values, selected) {
+  return values.map((value) =>
+    `<option value="${esc(value)}" ${selected === value ? 'selected' : ''}>${esc(value)}</option>`
+  ).join('');
+}
+
+function renderReviewFilters(filters) {
+  const statuses = Array.from(CLAIM_STATUSES);
+  const documentTypes = ['', ...Array.from(DOCUMENT_TYPES).sort()];
+
+  return `
+    <div class="filter-panel">
+      <form method="GET" action="/admin/document-claims">
+        <div>
+          <label>Status</label>
+          <select name="status">
+            ${renderSelectOptions(statuses, filters.status)}
+          </select>
+        </div>
+        <div>
+          <label>Property ID</label>
+          <input type="text" name="property_id" value="${esc(filters.property_id)}" placeholder="Optional" />
+        </div>
+        <div>
+          <label>Claim Type</label>
+          <input type="text" name="claim_type" value="${esc(filters.claim_type)}" placeholder="parcel_id, acreage..." />
+        </div>
+        <div>
+          <label>Document Type</label>
+          <select name="document_type">
+            ${documentTypes.map((value) => {
+              const label = value || 'Any';
+              return `<option value="${esc(value)}" ${filters.document_type === value ? 'selected' : ''}>${esc(label)}</option>`;
+            }).join('')}
+          </select>
+        </div>
+        <button type="submit" class="btn">Filter</button>
+      </form>
+    </div>`;
+}
+
+function formatConfidence(value) {
+  if (value == null || value === '') return '';
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '';
+  return `${Math.round(n * 100)}%`;
+}
+
+function statusBadgeClass(status) {
+  if (status === 'approved' || status === 'applied') return 'active';
+  if (status === 'rejected') return 'sold';
+  if (status === 'superseded') return 'draft';
+  return 'pending';
+}
 
 // ── Login ─────────────────────────────────────────────────
 router.get('/login', (_req, res) => res.send(loginPageHtml));
@@ -580,6 +657,128 @@ router.post('/ai/:id', requireAuth, requireCsrf, adminActionRateLimit, async (re
     return res.status(500).send('AI generation failed: ' + esc(err.message));
   }
   res.redirect(`/admin/ai/${p.id}`);
+});
+
+// ── Document Claim Review Queue ───────────────────────────
+router.get('/document-claims', requireAuth, adminActionRateLimit, (req, res) => {
+  const filters = {
+    status: cleanQuery(req.query.status) || 'pending_review',
+    property_id: cleanQuery(req.query.property_id, 80),
+    claim_type: cleanQuery(req.query.claim_type, 120),
+    document_type: cleanQuery(req.query.document_type, 80),
+  };
+
+  if (!CLAIM_STATUSES.has(filters.status)) {
+    return res.status(400).send(adminShell('Document Claims', `
+      <div class="dash-header">
+        <h1>Document Claims</h1>
+        <a href="/admin" class="btn-outline">Back</a>
+      </div>
+      <div class="empty-state">Invalid status filter.</div>
+    `, csrfToken(req)));
+  }
+
+  if (filters.document_type && !DOCUMENT_TYPES.has(filters.document_type)) {
+    return res.status(400).send(adminShell('Document Claims', `
+      <div class="dash-header">
+        <h1>Document Claims</h1>
+        <a href="/admin" class="btn-outline">Back</a>
+      </div>
+      <div class="empty-state">Invalid document type filter.</div>
+    `, csrfToken(req)));
+  }
+
+  const conditions = ['c.status=?'];
+  const values = [filters.status];
+
+  if (filters.property_id) {
+    conditions.push('COALESCE(c.property_id, d.property_id)=?');
+    values.push(filters.property_id);
+  }
+  if (filters.claim_type) {
+    conditions.push('c.claim_type=?');
+    values.push(filters.claim_type);
+  }
+  if (filters.document_type) {
+    conditions.push('d.document_type=?');
+    values.push(filters.document_type);
+  }
+
+  const claims = db.prepare(`
+    SELECT
+      c.id, c.document_id, c.document_version_id,
+      c.property_id AS claim_property_id,
+      d.property_id AS document_property_id,
+      COALESCE(c.property_id, d.property_id) AS effective_property_id,
+      c.claim_type, c.claim_value_json, c.source_quote, c.source_location_json,
+      c.confidence, c.status, c.reviewed_by, c.reviewed_at, c.review_note, c.created_at,
+      d.title AS document_title, d.document_type, d.status AS document_status,
+      v.version_number, v.file_name, v.approval_status AS version_approval_status,
+      p.address AS property_address, p.city AS property_city
+    FROM extracted_claims c
+    JOIN documents d ON d.id = c.document_id
+    JOIN document_versions v ON v.id = c.document_version_id
+    LEFT JOIN properties p ON p.id = COALESCE(c.property_id, d.property_id)
+    WHERE ${conditions.join(' AND ')}
+      AND v.approval_status NOT IN ('rejected', 'superseded')
+    ORDER BY c.created_at ASC, c.id ASC
+    LIMIT 100
+  `).all(...values);
+
+  const rows = claims.map((claim) => {
+    const propertyLabel = [claim.property_address, claim.property_city].filter(Boolean).join(', ')
+      || claim.effective_property_id
+      || 'Unlinked';
+    const sourceLocation = displayJsonValue(claim.source_location_json);
+
+    return `
+      <tr>
+        <td>
+          <strong>${esc(propertyLabel)}</strong>
+          ${claim.effective_property_id ? `<div class="muted">${esc(claim.effective_property_id)}</div>` : ''}
+        </td>
+        <td>
+          <strong>${esc(claim.document_title)}</strong>
+          <div class="muted">${esc(claim.document_type)} · v${esc(claim.version_number)} · ${esc(claim.file_name || '')}</div>
+          <div class="muted">Document: ${esc(claim.document_status)} · Version: ${esc(claim.version_approval_status)}</div>
+        </td>
+        <td><span class="code-chip">${esc(claim.claim_type)}</span></td>
+        <td class="claim-value">${esc(displayJsonValue(claim.claim_value_json))}</td>
+        <td>${esc(formatConfidence(claim.confidence))}</td>
+        <td class="quote-cell">
+          ${claim.source_quote ? esc(claim.source_quote) : '<span class="muted">No quote</span>'}
+          ${sourceLocation ? `<div class="muted">${esc(sourceLocation)}</div>` : ''}
+        </td>
+        <td><span class="badge ${esc(statusBadgeClass(claim.status))}" data-status="${esc(claim.status)}">${esc(claim.status)}</span></td>
+      </tr>`;
+  }).join('');
+
+  res.send(adminShell('Document Claims', `
+    <div class="dash-header">
+      <h1>Document Claims</h1>
+      <a href="/admin" class="btn-outline">Back</a>
+    </div>
+    ${renderReviewFilters(filters)}
+    <p class="queue-meta">
+      Showing ${claims.length} claim${claims.length === 1 ? '' : 's'} for review. Storage and source URIs are intentionally hidden.
+    </p>
+    ${claims.length ? `
+      <table class="listings-table">
+        <thead>
+          <tr>
+            <th>Property</th>
+            <th>Document</th>
+            <th>Claim</th>
+            <th>Value</th>
+            <th>Confidence</th>
+            <th>Source Evidence</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    ` : '<div class="empty-state">No document claims match these filters.</div>'}
+  `, csrfToken(req)));
 });
 
 // ── Integrations ──────────────────────────────────────────
