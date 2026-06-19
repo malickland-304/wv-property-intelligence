@@ -280,6 +280,7 @@ async function main() {
             source_uri: 'https://drive.google.com/secret-file-link',
             nested: {
               access_token: 'should-not-persist',
+              api_key: 'also-should-not-persist',
               safe_value: 'kept',
             },
           },
@@ -297,8 +298,10 @@ async function main() {
       assert.strictEqual(payload.name, 'advent-tax-card.pdf');
       assert.strictEqual(payload.source_uri, '[redacted]');
       assert.strictEqual(payload.nested.access_token, '[redacted]');
+      assert.strictEqual(payload.nested.api_key, '[redacted]');
       assert.strictEqual(payload.nested.safe_value, 'kept');
       assert(!event.payload_json.includes('should-not-persist'));
+      assert(!event.payload_json.includes('also-should-not-persist'));
       assert(!event.payload_json.includes('secret-file-link'));
 
       const listRes = await api(

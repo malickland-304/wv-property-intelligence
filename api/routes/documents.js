@@ -234,7 +234,7 @@ function createDocumentsRouter({ db }) {
     if (!value || typeof value !== 'object') return value;
     const redacted = {};
     for (const [key, child] of Object.entries(value)) {
-      if (/token|secret|authorization|credential|password|cookie|source_uri|storage_uri/i.test(key)) {
+      if (/token|secret|authorization|credential|password|cookie|api_?key|source_uri|storage_uri/i.test(key)) {
         redacted[key] = '[redacted]';
       } else {
         redacted[key] = redactIntegrationPayload(child);
@@ -512,7 +512,7 @@ function createDocumentsRouter({ db }) {
         entityType: 'integration_event',
         entityId: id,
         after: row,
-        reason: req.body.reason,
+        reason: req.body && req.body.reason,
       });
       res.status(201).json(row);
     } catch (err) {
