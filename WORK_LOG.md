@@ -1040,3 +1040,22 @@ Close the backlog choice to either add the missing `twilio` dependency or remove
 
 ### Remaining Risks
 - SMS alerts are not implemented. Future SMS support should start from a fresh provider decision and package/env review.
+
+---
+
+## 2026-06-18 — Codex — Document Registry Phase 2 review queue API
+
+### Objective
+Start Phase 2 with a backend review-queue slice for extracted claims, without building the admin UI, applying approved facts to listings, enabling Drive/Gmail automation, or deploying to production.
+
+### Changes Made
+- `api/routes/documents.js` — added `GET /api/documents/review/claims`, defaulting to `pending_review` claims and supporting `status`, effective `property_id`, `claim_type`, `document_type`, and bounded `limit` filters; rejected/superseded source versions are excluded from the queue.
+- `tests/document-registry.test.js` — added real HTTP coverage for the review queue, invalid status rejection, parsed claim values/source locations, safe omission of source storage URIs, document-property fallback filtering, rejected-version exclusion, and reviewed-claim filtering.
+- `docs/DOCUMENT_REGISTRY_SPEC.md`, `TASKS.md`, `PROJECT_STATE.md` — recorded the Phase 2 queue API as complete while leaving admin UI and audited apply workflow open.
+
+### Verification
+- Required validation before PR: `node --check api/routes/documents.js`; `node tests/document-registry.test.js`; `bash scripts/preflight.sh`; `node tests/verify-security-fixes.test.js`; `git diff --check`.
+
+### Remaining Risks
+- This does not yet render the queue in `/admin`, mutate property/listing facts, or mark approved claims as `applied`.
+- The existing Phase 1 schema validates AI `value_type` but does not persist it; that should be a separate schema decision if the admin UI needs it.
