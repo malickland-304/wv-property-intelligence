@@ -10,7 +10,7 @@ const { publicReadRateLimit } = require('../middleware/rate-limits');
 const { publicListingsEnabled } = require('../featureFlags');
 
 const router = express.Router();
-const HOMEPAGE_DISCLOSURE = 'WV Real Estate Agency, LLC | Sheila Judy, Broker | 501 East Main Street, Romney, WV 26757 | (540) 246-1421';
+const HOMEPAGE_DISCLOSURE = 'WV Real Estate Agency, LLC | Broker: Sheila Judy | 501 East Main Street, Romney, WV 26757 | (540) 246-1421';
 let countyTemplate = null;
 
 function getCountyTemplate() {
@@ -116,12 +116,12 @@ router.get('/', publicReadRateLimit, (_req, res, next) => {
     html = replaceHomepageContent(
       html,
       'Licensed in West Virginia<br/>Broker: Sheila Judy<br/>Romney, West Virginia',
-      'Licensed in West Virginia<br/>WV Real Estate Agency, LLC<br/>Sheila Judy, Broker<br/>501 East Main Street, Romney, WV 26757<br/>(540) 246-1421'
+      'Licensed in West Virginia<br/>WV Real Estate Agency, LLC<br/>Broker: Sheila Judy<br/>501 East Main Street, Romney, WV 26757<br/>(540) 246-1421'
     );
     html = replaceHomepageContent(
       html,
       'MalickLand WV Real Estate | Phil Malick, Agent | Broker: Sheila Judy | <a href="tel:+15402461421">(540) 246-1421</a> | <a href="mailto:phil@malickland.net">phil@malickland.net</a> | Licensed in West Virginia',
-      'MalickLand | Phil Malick, Agent | WV Real Estate Agency, LLC | Sheila Judy, Broker | 501 East Main Street, Romney, WV 26757 | <a href="tel:+15402461421">(540) 246-1421</a> | <a href="mailto:phil@malickland.net">phil@malickland.net</a> | Licensed in West Virginia'
+      'MalickLand | Phil Malick, Agent | WV Real Estate Agency, LLC | Broker: Sheila Judy | 501 East Main Street, Romney, WV 26757 | <a href="tel:+15402461421">(540) 246-1421</a> | <a href="mailto:phil@malickland.net">phil@malickland.net</a> | Licensed in West Virginia'
     );
 
     res.type('html').send(html);
