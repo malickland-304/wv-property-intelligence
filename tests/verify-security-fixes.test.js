@@ -451,6 +451,11 @@ test('public navigation aliases avoid dead /contact, /about, and /search routes'
     'GET /search should preserve query params when listings are enabled');
 });
 
+test('public homepage disclosure includes exact broker label', () => {
+  assert(publicRoutesCode.includes('Broker: Sheila Judy'),
+    'Homepage disclosure should include the exact text "Broker: Sheila Judy"');
+});
+
 // ============================================================
 // Test Suite 7: Gmail Helper Integrity (api/google.js)
 // ============================================================
