@@ -32,6 +32,7 @@
 
 ## Completed
 
+- [x] **First-touch lead attribution for `/api/contacts`** — homepage shared forms, property modal, chat lead, listing detail form, and `/start` buyer-guide form now capture first-touch `utm_*`/referrer/landing data and POST it to `/api/contacts`; API sanitizes, persists in `contacts.attribution`, exposes it in the protected contacts list, and includes it in the existing email notification body without changing the email transport — 2026-06-28
 - [x] **Phase 2: AI Review Queue API** — added `GET /api/documents/review/claims` for status-filtered extracted-claim review queues with HTTP coverage in `tests/document-registry.test.js` — 2026-06-18
 - [x] **Phase 2: AI Review Queue admin UI** — added an authenticated read-only `/admin/document-claims` page with filters, safe rendered evidence, source/storage URI redaction, and HTTP coverage in `tests/admin-document-review.test.js` — 2026-06-19
 - [x] **Phase 2: AI Review Queue apply workflow** — added CSRF-protected `/admin/document-claims/:claimId/apply` for approved, explicitly mapped claims; updates listing fields in a transaction, marks claims applied, and writes property + claim audit rows with HTTP coverage — 2026-06-19

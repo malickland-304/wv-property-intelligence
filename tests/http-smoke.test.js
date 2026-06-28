@@ -207,6 +207,12 @@ async function main() {
     });
 
     await test('POST /api/contacts stores a same-origin lead', async () => {
+      const attribution = {
+        utm_source: 'google',
+        utm_medium: 'cpc',
+        referrer: 'https://referrer.example/path',
+        landing_page: '/?utm_source=google&utm_medium=cpc',
+      };
       const res = await fetch(`${baseUrl}/api/contacts`, {
         method: 'POST',
         headers: {
@@ -219,11 +225,22 @@ async function main() {
           phone: '304-555-0101',
           message: 'HTTP smoke contact',
           source: 'http_smoke',
+          attribution,
         }),
       });
       assert.strictEqual(res.status, 201);
       const body = await json(res);
       assert(Number.isInteger(body.id), 'response should include integer lead id');
+
+      const list = await fetch(`${baseUrl}/api/contacts`, {
+        headers: { Authorization: 'Bearer http-smoke-api-key' },
+      });
+      assert.strictEqual(list.status, 200);
+      const contacts = await json(list);
+      const stored = contacts.find((contact) => contact.id === body.id);
+      assert(stored, 'stored lead should be present in API-key contacts list');
+      assert.strictEqual(stored.source, 'http_smoke');
+      assert.deepStrictEqual(JSON.parse(stored.attribution), attribution);
     });
 
     await test('POST /api/chat returns disabled-assistant fallback over HTTP', async () => {

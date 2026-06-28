@@ -301,6 +301,14 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
   add('price',                'REAL');
 }
 
+// First-touch lead attribution (utm_*/referrer/landing), stored as JSON text.
+{
+  const cols = db.prepare('PRAGMA table_info(contacts)').all().map(r => r.name);
+  if (!cols.includes('attribution')) {
+    try { db.exec('ALTER TABLE contacts ADD COLUMN attribution TEXT'); } catch (_) {}
+  }
+}
+
 // ── Listing seed/migration: 37 Advent Dr ─────────────────
 {
   const hampshire = db.prepare("SELECT id FROM counties WHERE name='Hampshire'").get();

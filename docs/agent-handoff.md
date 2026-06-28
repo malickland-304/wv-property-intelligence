@@ -138,5 +138,5 @@ See `AGENTS.md` for full operating rules, forbidden actions, and workflow.
 - **Routes:** `/api/properties` and `/api/listings` are alias routes for the same handler. `/properties/:slug` and `/listing/:slug` are both active.
 - **Deploy:** Hostinger VPS (`31.97.58.203`) — Docker + Traefik via `api/Dockerfile`; **manual** deploy (merge ≠ deploy). See `docs/CANONICAL_MAP.md`. The old Railway twin is deleted and is not production proof.
 - **Smoke scripts:** `scripts/preflight.sh`, `scripts/smoke-admin.sh`, `scripts/smoke-prod.sh` (read-only), `scripts/check-env.sh`. For the lead capture→email path use the manual **`docs/SMOKE_CHECKLIST.md`** (it mutates prod: creates a row + sends a real email).
-- **Lead capture:** `/api/leads` is mounted; the Google Sheets adapter is local-safe when sheet credentials are absent
+- **Lead capture:** `/api/leads` is mounted; the Google Sheets adapter is local-safe when sheet credentials are absent. `/api/contacts` accepts sanitized first-touch attribution (`utm_*`, referrer, landing page/time), persists it as JSON in `contacts.attribution`, returns it from API-key `GET /api/contacts`, and includes it in the existing lead email body. This is repo-safe until manually deployed and live-smoked.
 - **CI:** `.github/workflows/preflight.yml` runs `preflight.sh` on all PRs and pushes to `main`.

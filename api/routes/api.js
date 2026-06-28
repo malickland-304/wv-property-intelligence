@@ -98,6 +98,21 @@ router.get('/analytics', publicReadRateLimit, (_req, res) => {
 });
 
 // ── Contacts ──────────────────────────────────────────────
+// First-touch attribution: client sends a flat object; we allow-list known
+// keys, coerce to short strings, and drop empties. Stored as JSON in
+// contacts.attribution and echoed into the lead notification (never executed).
+const ATTRIBUTION_KEYS = ['utm_source','utm_medium','utm_campaign','utm_term','utm_content','referrer','landing_page','landing_at'];
+function sanitizeAttribution(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const out = {};
+  for (const k of ATTRIBUTION_KEYS) {
+    if (raw[k] == null) continue;
+    const v = String(raw[k]).trim().slice(0, 300);
+    if (v) out[k] = v;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 router.post('/contacts', contactsRateLimit, (req, res) => {
   const { property_id, name, email, phone, message, interest } = req.body;
   const source = String(req.body.source || 'web').trim().slice(0, 80).replace(/[^a-zA-Z0-9_-]/g, '') || 'web';
@@ -105,19 +120,20 @@ router.post('/contacts', contactsRateLimit, (req, res) => {
   const combinedMessage = interestText
     ? `[Interest: ${interestText}] ${message || ''}`.trim()
     : message;
+  const attribution = sanitizeAttribution(req.body.attribution);
   if (!name || !email) return res.status(400).json({ error: 'Name and email required' });
   if (!isValidEmail(email)) return res.status(400).json({ error: 'Invalid email address' });
 
   const result = db.prepare(
-    'INSERT INTO contacts (property_id,name,email,phone,message,source) VALUES (?,?,?,?,?,?)'
-  ).run(property_id||null, name, email, phone, combinedMessage, source);
+    'INSERT INTO contacts (property_id,name,email,phone,message,source,attribution) VALUES (?,?,?,?,?,?,?)'
+  ).run(property_id||null, name, email, phone, combinedMessage, source, attribution ? JSON.stringify(attribution) : null);
 
   const property = property_id
     ? db.prepare(`SELECT p.id, p.address, p.city, c.name AS county
                   FROM properties p LEFT JOIN counties c ON c.id=p.county_id
                   WHERE p.id=?`).get(property_id)
     : null;
-  sendLeadNotification({ name, email, phone, message: combinedMessage, source }, property)
+  sendLeadNotification({ name, email, phone, message: combinedMessage, source, attribution }, property)
     .then((sent) => {
       if (!sent) {
         console.warn(`[Contacts] Lead #${result.lastInsertRowid} CAPTURED but NOT notified — email provider unconfigured or send failed.`);
@@ -132,7 +148,7 @@ router.post('/contacts', contactsRateLimit, (req, res) => {
 
 router.get('/contacts', apiWriteRateLimit, requireApiKey, (_req, res) => {
   const contacts = db.prepare(`
-    SELECT c.id, c.name, c.email, c.phone, c.property_id, c.message, c.source, c.created_at,
+    SELECT c.id, c.name, c.email, c.phone, c.property_id, c.message, c.source, c.attribution, c.created_at,
            p.address AS property_address
     FROM contacts c
     LEFT JOIN properties p ON p.id = c.property_id

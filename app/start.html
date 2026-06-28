@@ -163,6 +163,24 @@
       var successPanel = document.getElementById('successPanel');
       var utm = { utm_source: document.getElementById('utm_source'), utm_medium: document.getElementById('utm_medium'), utm_campaign: document.getElementById('utm_campaign') };
       Object.keys(utm).forEach(function (k) { if (utm[k]) utm[k].value = params.get(k) || ''; });
+
+      // First-touch attribution (self-contained; shares the `ml_attribution`
+      // localStorage key with the homepage; never overwritten). Best-effort.
+      try {
+        if (!localStorage.getItem('ml_attribution')) {
+          localStorage.setItem('ml_attribution', JSON.stringify({
+            utm_source: params.get('utm_source') || '', utm_medium: params.get('utm_medium') || '',
+            utm_campaign: params.get('utm_campaign') || '', utm_term: params.get('utm_term') || '',
+            utm_content: params.get('utm_content') || '', referrer: document.referrer || '',
+            landing_page: location.pathname + location.search, landing_at: new Date().toISOString()
+          }));
+        }
+      } catch (_) { /* storage unavailable — attribution is best-effort */ }
+      function getAttribution() {
+        try { return JSON.parse(localStorage.getItem('ml_attribution') || '{}'); }
+        catch (_) { return {}; }
+      }
+
       if (!form) return;
 
       form.addEventListener('submit', async function (event) {
@@ -189,7 +207,8 @@
           source: 'buyers-guide',
           utm_source: form.utm_source.value,
           utm_medium: form.utm_medium.value,
-          utm_campaign: form.utm_campaign.value
+          utm_campaign: form.utm_campaign.value,
+          attribution: getAttribution()
         };
 
         try {
