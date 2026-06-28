@@ -119,6 +119,16 @@ function buildLeadHtml(contact = {}, property) {
   const telHref = esc(sanitizePhoneForHref(contact.phone));              // safe tel: href
   const mailHref = esc(sanitizeEmailForHref(contact.email));             // safe mailto: href
 
+  // First-touch attribution row (all values escaped). Omitted when absent.
+  const att = contact.attribution && typeof contact.attribution === 'object' ? contact.attribution : null;
+  const attribLines = att
+    ? ['utm_source','utm_medium','utm_campaign','utm_term','utm_content','referrer','landing_page','landing_at']
+        .filter((k) => att[k]).map((k) => `${esc(k)}: ${esc(att[k])}`).join('<br>')
+    : '';
+  const attribRow = attribLines
+    ? `<tr><td style="padding:.4rem 0;color:#555;vertical-align:top;"><b>Attribution</b></td><td style="font-size:.82rem;color:#555;white-space:normal;">${attribLines}</td></tr>`
+    : '';
+
   return `<!DOCTYPE html>
 <html>
 <body style="font-family:Arial,sans-serif;background:#F9F6F0;padding:2rem;">
@@ -134,6 +144,7 @@ function buildLeadHtml(contact = {}, property) {
         <tr><td style="padding:.4rem 0;color:#555;"><b>Phone</b></td><td>${phone ? `<a href="tel:${telHref}">${phone}</a>` : '—'}</td></tr>
         <tr><td style="padding:.4rem 0;color:#555;vertical-align:top;"><b>Message</b></td><td style="white-space:pre-wrap;">${esc(contact.message) || '—'}</td></tr>
         <tr><td style="padding:.4rem 0;color:#555;"><b>Source</b></td><td>${esc(contact.source) || 'web'}</td></tr>
+        ${attribRow}
       </table>
       <div style="margin-top:1.5rem;">
         <a href="tel:${telHref}" style="background:#1B4332;color:#D4AF37;padding:.65rem 1.25rem;border-radius:6px;text-decoration:none;font-weight:700;margin-right:.5rem;">\u{1F4DE} Call Now</a>

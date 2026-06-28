@@ -5,6 +5,40 @@
 
 ---
 
+## 2026-06-28 — Codex
+
+### Objective
+Apply and verify Claude's corrected VPS lead-attribution patch on a clean `origin/main` worktree without touching the dirty local feature branch or production.
+
+### Changes Made
+- Added first-touch attribution capture to `app/index.html`, `app/listing.js`, and `app/start.html` using the shared `ml_attribution` localStorage key. Capture is first-touch, best-effort, and non-fatal if storage is unavailable.
+- Wired attribution into all known public `/api/contacts` POST paths: homepage shared `submitForm()` forms, `pmSend()`, `submitChatLead()`, listing detail `submitContact()`, and the `/start` buyer-guide form.
+- Added `contacts.attribution` as an idempotent SQLite migration in `api/db.js`.
+- Added `sanitizeAttribution()` to `api/routes/api.js`; it allow-lists known attribution keys, trims/caps values, rejects arrays/non-objects, persists JSON-or-null, and forwards sanitized attribution to `sendLeadNotification()`.
+- Included `c.attribution` in the protected `GET /api/contacts` list so API-key lead review can see persisted attribution.
+- Added an escaped Attribution row to the existing `api/services/email.js` lead email body. The email transport path was not changed.
+- Updated `tests/verify-security-fixes.test.js` and `tests/http-smoke.test.js` to cover attribution sanitization, persistence, notification pass-through, and HTTP-level storage/retrieval.
+- Updated `TASKS.md`, `docs/agent-handoff.md`, and this work log.
+
+### Verification (Truthfulness Rule)
+- `npm ci` in `api/` -> pass, 0 vulnerabilities reported by install audit.
+- `node --check api/db.js && node --check api/routes/api.js && node --check api/services/email.js && node --check app/listing.js` -> pass.
+- `node --check tests/http-smoke.test.js` -> pass.
+- `node tests/verify-security-fixes.test.js` -> 59/59 pass.
+- `node tests/http-smoke.test.js` -> 11/11 pass, including attribution persistence/retrieval through `/api/contacts`.
+- `node tests/email.test.js` -> 10 pass.
+- `node tests/lead-notifications.test.js` -> 6 pass.
+- `node tests/public-assistant-flag.test.js` -> 7 pass.
+- `node tests/admin-document-review.test.js` -> 9 pass.
+- `node tests/ai-generator-routing.test.js` -> 18 pass.
+- `node tests/chat-assistant.test.js` -> 14 pass.
+- `node tests/document-registry.test.js` -> 28 pass.
+- `cd api && npm test` -> syntax OK.
+
+### Remaining Risks
+- This is repo-safe only. No VPS deploy, live database mutation, live email, DNS, Vercel, Cloudflare Worker, or listing-route change was performed.
+- Production still requires a human-approved manual deploy and the mutating lead-pipeline smoke from `docs/SMOKE_CHECKLIST.md` to prove live email delivery.
+
 ## 2026-05-27 — Claude Code (Sonnet 4.6)
 
 ### Objective

@@ -377,12 +377,42 @@ test('contacts route preserves submitted source tag', () => {
     'POST /contacts should read the submitted source from req.body.source');
   assert(/\bsource\s*=.*\.replace\(\s*\/\[\^a-zA-Z0-9_-\]\//s.test(routeBody),
     'POST /contacts should sanitize source before storing or emailing it');
-  assert(/INSERT INTO contacts\s*\(property_id,name,email,phone,message,source\)/.test(routeBody),
+  assert(/INSERT INTO contacts\s*\(property_id,name,email,phone,message,source,attribution\)/.test(routeBody),
     'POST /contacts should insert the submitted source into contacts.source');
-  assert(/\.run\([^)]*combinedMessage,\s*source\)/s.test(routeBody),
+  assert(/combinedMessage,\s*source,\s*attribution\b/s.test(routeBody),
     'POST /contacts should pass the submitted source variable into the INSERT run call');
   assert(/combinedMessage/.test(routeBody) && /Interest:/.test(routeBody),
     'POST /contacts should preserve submitted interest in the saved contact message');
+});
+
+test('contacts route captures, sanitizes, persists and forwards lead attribution', () => {
+  const routeStart = apiRoutesCode.indexOf("router.post('/contacts'");
+  assert(routeStart !== -1, 'POST /contacts route not found in routes/api.js');
+  const routeEnd = apiRoutesCode.indexOf("\nrouter.get('/contacts'", routeStart);
+  const routeBody = apiRoutesCode.slice(routeStart, routeEnd);
+
+  // Reads + sanitizes the client-supplied attribution object
+  assert(/sanitizeAttribution\(\s*req\.body\.attribution\s*\)/.test(routeBody),
+    'POST /contacts should sanitize req.body.attribution');
+  // Persists it as the new contacts.attribution column (JSON or null)
+  assert(/attribution\s*\?\s*JSON\.stringify\(attribution\)\s*:\s*null/.test(routeBody),
+    'POST /contacts should store attribution as JSON (or null) in the INSERT');
+  // Forwards it through the existing lead notification path
+  assert(/sendLeadNotification\(\s*\{[^}]*\battribution\b[^}]*\}/s.test(routeBody),
+    'POST /contacts should pass attribution into sendLeadNotification');
+
+  // sanitizeAttribution allow-lists known keys and caps length (defensive)
+  const sanStart = apiRoutesCode.indexOf('function sanitizeAttribution');
+  assert(sanStart !== -1, 'sanitizeAttribution helper not found in routes/api.js');
+  const sanBody = apiRoutesCode.slice(sanStart, sanStart + 600);
+  ['utm_source', 'utm_medium', 'utm_campaign', 'referrer', 'landing_page'].forEach((k) => {
+    assert(new RegExp(`'${k}'`).test(apiRoutesCode.slice(0, sanStart + 600)),
+      `attribution allow-list should include ${k}`);
+  });
+  assert(/\.slice\(0,\s*300\)/.test(sanBody),
+    'sanitizeAttribution should cap each value length');
+  assert(/Array\.isArray\(raw\)/.test(sanBody),
+    'sanitizeAttribution should reject array payloads');
 });
 
 test('lead routes are mounted behind server-side origin and JSON guards', () => {

@@ -2,6 +2,31 @@
 
 const API = '/api';
 
+// First-touch attribution (self-contained so a direct landing on a listing
+// page still captures it). Shares the `ml_attribution` localStorage key with
+// the homepage; first-touch — never overwritten. All failures are non-fatal.
+(function captureFirstTouchAttribution() {
+  try {
+    if (localStorage.getItem('ml_attribution')) return;
+    const p = new URLSearchParams(location.search);
+    localStorage.setItem('ml_attribution', JSON.stringify({
+      utm_source:   p.get('utm_source')   || '',
+      utm_medium:   p.get('utm_medium')   || '',
+      utm_campaign: p.get('utm_campaign') || '',
+      utm_term:     p.get('utm_term')     || '',
+      utm_content:  p.get('utm_content')  || '',
+      referrer:     document.referrer || '',
+      landing_page: location.pathname + location.search,
+      landing_at:   new Date().toISOString()
+    }));
+  } catch (_) { /* storage unavailable — attribution is best-effort */ }
+})();
+
+function getAttribution() {
+  try { return JSON.parse(localStorage.getItem('ml_attribution') || '{}'); }
+  catch (_) { return {}; }
+}
+
 function listingIdentifierFromPath() {
   const parts = window.location.pathname.replace(/\/+$/, '').split('/').filter(Boolean);
   const idx = parts.indexOf('listing');
@@ -137,7 +162,7 @@ async function submitContact(propertyId) {
   const res = await fetch(`${API}/contacts`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ property_id: propertyId, name, email, phone, message }),
+    body: JSON.stringify({ property_id: propertyId, name, email, phone, message, attribution: getAttribution() }),
   });
 
   if (!res.ok) {

@@ -1660,6 +1660,34 @@ function jsArg(str) {
   return esc(JSON.stringify(String(str == null ? '' : str)));
 }
 
+// ---- FIRST-TOUCH ATTRIBUTION ----
+// Capture utm_*/referrer/landing ONCE on the visitor's first page view and
+// keep it in localStorage so it survives navigation to any form. Never
+// overwritten (first-touch). All failures are non-fatal (private mode etc.).
+(function captureFirstTouchAttribution() {
+  try {
+    var KEY = 'ml_attribution';
+    if (localStorage.getItem(KEY)) return; // first-touch: do not overwrite
+    var p = new URLSearchParams(location.search);
+    var att = {
+      utm_source:   p.get('utm_source')   || '',
+      utm_medium:   p.get('utm_medium')   || '',
+      utm_campaign: p.get('utm_campaign') || '',
+      utm_term:     p.get('utm_term')     || '',
+      utm_content:  p.get('utm_content')  || '',
+      referrer:     document.referrer || '',
+      landing_page: location.pathname + location.search,
+      landing_at:   new Date().toISOString()
+    };
+    localStorage.setItem(KEY, JSON.stringify(att));
+  } catch (_) { /* storage unavailable — attribution is best-effort */ }
+})();
+
+function getAttribution() {
+  try { return JSON.parse(localStorage.getItem('ml_attribution') || '{}'); }
+  catch (_) { return {}; }
+}
+
 // ---- FORM SUBMISSION ----
 async function submitForm(form, successId, errorId) {
   if (!form.checkValidity()) {
@@ -1668,6 +1696,7 @@ async function submitForm(form, successId, errorId) {
   }
   const data = {};
   new FormData(form).forEach((v, k) => data[k] = v);
+  data.attribution = getAttribution(); // first-touch marketing attribution
   const btn = form.querySelector('[type="submit"]');
   const btnLabel = btn ? btn.textContent : null;
   const errorEl = errorId ? document.getElementById(errorId) : null;
@@ -1953,7 +1982,7 @@ async function pmSend(propertyId, btn) {
   try {
     const r = await fetch('/api/contacts', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ property_id: propertyId, name, email, phone, message: msg, source: 'homepage_detail' })
+      body: JSON.stringify({ property_id: propertyId, name, email, phone, message: msg, source: 'homepage_detail', attribution: getAttribution() })
     });
     if (r.ok) {
       btn.textContent = "✅ Sent! Phil will be in touch.";
@@ -2124,7 +2153,7 @@ async function submitChatLead(btn) {
   try {
     const r = await fetch('/api/contacts', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ name, email, phone, message: 'Chat: ' + summary, source: 'website_chat' })
+      body: JSON.stringify({ name, email, phone, message: 'Chat: ' + summary, source: 'website_chat', attribution: getAttribution() })
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
   } catch(e) {
