@@ -313,7 +313,7 @@ test('listing storage root is configurable through LISTINGS_ROOT', () => {
 test('/images static files serve from the shared LISTINGS_ROOT', () => {
   assert(serverCode.includes("const { LISTINGS_ROOT } = require('./helpers')"),
     'server.js should import LISTINGS_ROOT from helpers.js');
-  assert(serverCode.includes("app.use('/images', express.static(LISTINGS_ROOT))"),
+  assert(serverCode.includes("app.use('/images', express.static(LISTINGS_ROOT"),
     '/images should serve from the same configurable listing root used by uploads');
 });
 

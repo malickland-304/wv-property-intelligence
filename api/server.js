@@ -146,7 +146,14 @@ const adminSession = session({
     secure:   process.env.NODE_ENV === 'production',
   },
 });
-app.use('/images', express.static(LISTINGS_ROOT));
+// Static assets cache for a week; HTML stays no-cache so content edits land immediately.
+const staticAssetCache = {
+  maxAge: '7d',
+  setHeaders(res, filePath) {
+    if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
+  },
+};
+app.use('/images', express.static(LISTINGS_ROOT, staticAssetCache));
 
 // CSRF: doubleCsrfProtection (csrf-csrf) guards all non-login admin routes.
 // cookieParser scoped here only — not applied globally.
@@ -163,7 +170,7 @@ app.use('/api/chat', requireLeadJson, requireLeadSameOrigin, createChatRouter())
 app.use('/api',   apiRoutes);
 app.use('/',      publicRoutes);
 
-app.use(express.static(path.join(PROJECT_ROOT, 'app'), { extensions: ['html'] }));
+app.use(express.static(path.join(PROJECT_ROOT, 'app'), { extensions: ['html'], ...staticAssetCache }));
 
 app.use((req, res) => {
   if (req.path.startsWith('/api')) return res.status(404).json({ error: 'Not found' });

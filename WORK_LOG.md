@@ -1202,3 +1202,30 @@ Advance Phase 3 without crossing into Google credentials or production infrastru
 ### Remaining Risks
 - This does not call Google APIs, create Drive watches, fetch remote files, run OCR, or configure runtime credentials.
 - Merge still does not deploy the new endpoint to the VPS; production remains on the last verified manual deploy until Phil approves a deployment and SHA proof is collected.
+
+---
+
+## 2026-07-01 — Claude (Claude Code)
+
+### Objective
+Full live-site audit of malickland.net (production, VPS) plus fixes for the confirmed issues, on a clean `origin/main` worktree.
+
+### Audit summary (live site, 2026-07-01)
+- Security headers strong (Helmet set: CSP, HSTS, XCTO, frame SAMEORIGIN); brotli compression on; www/http 301 to apex; /admin redirects to login; chat + public routes rate-limited.
+- SEO/compliance on `/` verified: title/meta/OG/JSON-LD present, single h1, all imgs have alt, first-screen brokerage disclosure + $299 fee disclosure served (runtime-injected by `public.js` — confirmed NOT VPS drift; live output matches origin/main transforms).
+- Live runtime confirmed ≥ 2d4d249 (serves the fixed "Broker: Sheila Judy" label). Whether 94c7801 (#131 attribution) is deployed is NOT externally verifiable — deploy + lead smoke still pending per ledger.
+
+### Issues found & fixed in this session
+- `sitemap.xml` advertised `/admin` while robots.txt disallows it → removed the `/admin` entry from `staticPages` in `api/routes/public.js`.
+- `app/public/brand/favicon.png` was a byte-identical copy of the 529 KB 1999×1742 logo → replaced with a 23.6 KB 180×180 center-crop derived from `logo-primary.png`.
+- Static assets served with `max-age=0` → added `staticAssetCache` (7-day maxAge, HTML forced no-cache) to both `express.static` mounts in `api/server.js`.
+- `tests/verify-security-fixes.test.js`: loosened the `/images` literal-string assertion to a prefix match so it still enforces LISTINGS_ROOT sourcing but tolerates the cache-options argument.
+
+### Verification
+- `node --check` on server.js/public.js OK; full local suite green: http-smoke 11/11, verify-security-fixes 59/59, public-assistant-flag 7/7, admin-document-review 9/9, ai-generator-routing 18/18, chat-assistant 14/14, document-registry 28/28, email 10/10, lead-notifications 6/6.
+- Booted server locally: sitemap has no /admin and is valid XML; favicon serves 23,658 bytes with `Cache-Control: public, max-age=604800`.
+
+### Not fixed (recommendations, no action taken)
+- og-image.jpg is 1024×1024/480 KB; `summary_large_image` wants ~1200×630 — needs a designed asset.
+- Homepage links 9 county pages that 302 → `/` while listings flag is off (intentional, but visible dead links to users).
+- MERGED ≠ DEPLOYED: #131 + this PR still need the manual VPS deploy + live lead smoke.
