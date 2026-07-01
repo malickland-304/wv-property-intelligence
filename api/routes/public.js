@@ -41,9 +41,10 @@ router.get('/sitemap.xml', publicReadRateLimit, (_req, res) => {
   const SITE = 'https://malickland.net';
   const now  = new Date().toISOString().split('T')[0];
 
+  // Admin panel is intentionally excluded — robots.txt disallows it and a sitemap
+  // entry would only advertise the login URL to crawlers and scanners.
   const staticPages = [
-    { loc: SITE + '/',      changefreq: 'weekly', priority: '1.0' },
-    { loc: SITE + '/admin', changefreq: 'never',  priority: '0.1' },
+    { loc: SITE + '/', changefreq: 'weekly', priority: '1.0' },
   ];
 
   let propertyPages = [];
