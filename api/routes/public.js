@@ -39,7 +39,7 @@ Sitemap: https://malickland.net/sitemap.xml`
 
 // Browsers request /favicon.ico on their own regardless of what the HTML
 // links, so serve the real favicon there instead of a 404.
-router.get('/favicon.ico', (_req, res) => {
+router.get('/favicon.ico', publicReadRateLimit, (_req, res) => {
   res.sendFile(path.join(PROJECT_ROOT, 'app', 'public', 'brand', 'favicon.png'), { maxAge: '7d' });
 });
 
