@@ -50,6 +50,7 @@ router.get('/favicon.ico', publicReadRateLimit, (_req, res) => {
 // path to its canonical route; pages with no standalone meaning go home.
 const HTML_CANONICAL = {
   '/index.html':     '/',
+  '/index':          '/',
   '/county.html':    '/',
   '/county':         '/',
   '/listing.html':   '/',
