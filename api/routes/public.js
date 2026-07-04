@@ -37,14 +37,29 @@ Sitemap: https://malickland.net/sitemap.xml`
   );
 });
 
+// Browsers request /favicon.ico on their own regardless of what the HTML
+// links, so serve the real favicon there instead of a 404.
+router.get('/favicon.ico', (_req, res) => {
+  res.sendFile(path.join(PROJECT_ROOT, 'app', 'public', 'brand', 'favicon.png'), { maxAge: '7d' });
+});
+
+// The '/' route injects the brokerage disclosures at serve time, but the
+// static middleware would happily serve app/index.html verbatim — without
+// them. Keep the raw file unreachable.
+router.get('/index.html', (_req, res) => {
+  res.redirect(301, '/');
+});
+
 router.get('/sitemap.xml', publicReadRateLimit, (_req, res) => {
   const SITE = 'https://malickland.net';
   const now  = new Date().toISOString().split('T')[0];
 
   // Admin panel is intentionally excluded — robots.txt disallows it and a sitemap
   // entry would only advertise the login URL to crawlers and scanners.
+  // /37-advent is a static page served unconditionally, so it is always listed.
   const staticPages = [
     { loc: SITE + '/', changefreq: 'weekly', priority: '1.0' },
+    { loc: SITE + '/37-advent', changefreq: 'monthly', priority: '0.8' },
   ];
 
   let propertyPages = [];
@@ -97,6 +112,14 @@ router.get('/', publicReadRateLimit, (_req, res, next) => {
     let html = fs.readFileSync(indexHtml, 'utf8');
     if (!publicListingsEnabled()) {
       html = html.replace('<html lang="en">', '<html lang="en" class="listings-off">');
+      // The listings-off CSS only hides the county/listings links from users;
+      // crawlers still see 12 links that 302 back home (soft-404s). Strip them
+      // from the markup while the feature is off — they all come back when the
+      // flag flips on, since this only edits the served copy.
+      html = html
+        .replace(/<!-- COUNTY LINKS -->[\s\S]*?<\/section>/, '')
+        .replace(/<li><a href="\/listings">[^<]*<\/a><\/li>/g, '')
+        .replace(/<a href="\/listings"[^>]*>[\s\S]*?<\/a>/g, '');
     }
 
     html = replaceHomepageContent(
