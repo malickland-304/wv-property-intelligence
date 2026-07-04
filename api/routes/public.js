@@ -43,11 +43,24 @@ router.get('/favicon.ico', publicReadRateLimit, (_req, res) => {
   res.sendFile(path.join(PROJECT_ROOT, 'app', 'public', 'brand', 'favicon.png'), { maxAge: '7d' });
 });
 
-// The '/' route injects the brokerage disclosures at serve time, but the
-// static middleware would happily serve app/index.html verbatim — without
-// them. Keep the raw file unreachable.
-router.get('/index.html', (_req, res) => {
-  res.redirect(301, '/');
+// The static middleware (extensions: ['html']) serves every app/*.html file
+// verbatim — bypassing the serve-time disclosure injections on '/', the
+// listings feature gate on /listings, and exposing the unrendered county
+// template (literal {{COUNTY_NAME}}) at /county. Redirect every direct-file
+// path to its canonical route; pages with no standalone meaning go home.
+const HTML_CANONICAL = {
+  '/index.html':     '/',
+  '/county.html':    '/',
+  '/county':         '/',
+  '/listing.html':   '/',
+  '/listing':        '/',
+  '/listings.html':  '/listings',
+  '/admin.html':     '/admin',
+  '/start.html':     '/start',
+  '/37-advent.html': '/37-advent',
+};
+router.get(Object.keys(HTML_CANONICAL), (req, res) => {
+  res.redirect(301, HTML_CANONICAL[req.path] || '/');
 });
 
 router.get('/sitemap.xml', publicReadRateLimit, (_req, res) => {
