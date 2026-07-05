@@ -21,6 +21,22 @@ West Virginia real estate listing platform. Admin panel, public listing pages, p
 
 ---
 
+## Architecture
+
+```mermaid
+flowchart LR
+  visitor[Visitor] --> publicPages[Public listing pages]
+  admin[Admin] --> adminPanel[Admin panel]
+  publicPages --> api[Express API]
+  adminPanel --> api
+  api --> db[(SQLite database)]
+  api --> ai[AI content generator]
+  api --> drive[Google Drive backup]
+  api --> gmail[Gmail notifications]
+```
+
+---
+
 ## Project Structure
 
 ```
@@ -73,6 +89,11 @@ npm run dev               # nodemon server.js
 
 Server: `http://localhost:3001`
 Admin: `http://localhost:3001/admin` (password from `ADMIN_PASSWORD` env)
+
+For local review, start with `SESSION_SECRET` and `ADMIN_PASSWORD`, then add
+optional Google, Gmail, and OpenAI credentials only for the integrations you are
+actively testing. The local SQLite database and local file storage are enough to
+exercise the core listing/admin flow.
 
 ### Local dev (with Docker)
 
