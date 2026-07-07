@@ -1,6 +1,6 @@
 # MalickLand — WV Property Intelligence
 
-West Virginia real estate listing platform. Admin panel, public listing pages, photo uploads, AI marketing content, and Google Drive/Gmail integration.
+West Virginia real estate listing platform. Admin panel, public listing pages, photo uploads, AI marketing content, Resend lead notifications, and optional Google Drive/Gmail integrations.
 
 **Live site:** [malickland.net](https://malickland.net)
 
@@ -15,8 +15,8 @@ West Virginia real estate listing platform. Admin panel, public listing pages, p
 | Database | SQLite via better-sqlite3 |
 | Auth | Session-based (admin panel) + API key (REST) |
 | Images | Local disk + Google Drive backup |
-| Email | Gmail API via OAuth2 |
-| AI | OpenAI GPT-4o (listing content generation) |
+| Email | Resend lead notifications; legacy Gmail helper remains available |
+| AI | Vercel AI Gateway, Anthropic, or OpenAI (listing content generation) |
 | Deploy | Hostinger VPS — Docker + Traefik (manual deploy) |
 
 ---
@@ -32,7 +32,7 @@ flowchart LR
   api --> db[(SQLite database)]
   api --> ai[Optional AI content generator]
   api --> drive[Optional Google Drive backup]
-  api --> email[Gmail / Resend notifications]
+  api --> email[Resend lead notifications]
 ```
 
 ---
@@ -45,12 +45,14 @@ wv-property-intelligence/
 │   ├── server.js           ← Entry point, middleware, static routes
 │   ├── db.js               ← SQLite connection, schema, migrations, seeding
 │   ├── helpers.js          ← Shared utilities (esc, slugify, etc.)
-│   ├── google.js           ← Gmail + Drive integration (no SDK)
-│   ├── ai-generator.js     ← OpenAI listing content engine
+│   ├── google.js           ← Gmail + Drive helper integration (no SDK)
 │   ├── db-migrate-ai.js    ← One-time migration script (ai_content columns)
 │   ├── middleware/
 │   │   ├── auth.js         ← requireAuth, requireCsrf, requireApiKey
 │   │   └── rate-limits.js  ← Per-route rate limiters
+│   ├── services/
+│   │   └── email.js        ← Resend transactional email transport
+│   ├── ai-generator.js     ← Multi-provider AI listing content engine
 │   ├── routes/
 │   │   ├── admin.js        ← /admin/* (session-protected)
 │   │   ├── api.js          ← /api/* (public + API-key endpoints)
@@ -112,9 +114,10 @@ Required to run:
 - `ADMIN_PASSWORD` — admin panel password
 
 Optional integrations:
-- **Gmail notifications:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `GOOGLE_GMAIL_USER`, `NOTIFICATION_EMAIL`
+- **Lead notifications:** `RESEND_API_KEY`, `NOTIFICATION_EMAIL` or `LEADS_NOTIFICATION_EMAIL`, optional `FROM_EMAIL`
+- **Legacy Gmail helper / OAuth:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `GOOGLE_GMAIL_USER`
 - **Drive photo backup:** `GOOGLE_DRIVE_FOLDER_ID`
-- **AI content generation:** `OPENAI_API_KEY` (optional `OPENAI_MODEL`)
+- **AI content generation:** `AI_GATEWAY_API_KEY`, `ANTHROPIC_API_KEY`, or `OPENAI_API_KEY` (optional provider-specific model overrides)
 - **REST API auth:** `API_KEY`
 
 ---
@@ -161,8 +164,8 @@ All require session auth (`/admin/login`).
 
 ## AI Listing Machine
 
-With `OPENAI_API_KEY` set, every listing gets a full marketing package via OpenAI.
-Default model is `gpt-4o` (override with `OPENAI_MODEL`), with automatic fallback to `gpt-4o-mini` when account access is limited:
+With an AI provider key set, every listing gets a full marketing package. Provider precedence is `AI_GATEWAY_API_KEY`, then `ANTHROPIC_API_KEY`, then `OPENAI_API_KEY`.
+Each provider supports optional model overrides; direct OpenAI defaults to `gpt-4o` with automatic fallback to `gpt-4o-mini` when account access is limited:
 MLS description, investor pitch, Facebook ad, Instagram caption, video script, email blast, SMS, landing page copy.
 
 Cost: ~$0.01–0.03 per listing. Access via **Admin → AI** button on any listing.
