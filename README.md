@@ -30,9 +30,9 @@ flowchart LR
   publicPages --> api[Express API]
   adminPanel --> api
   api --> db[(SQLite database)]
-  api --> ai[AI content generator]
-  api --> drive[Google Drive backup]
-  api --> gmail[Gmail notifications]
+  api --> ai[Optional AI content generator]
+  api --> drive[Optional Google Drive backup]
+  api --> email[Gmail / Resend notifications]
 ```
 
 ---
@@ -91,9 +91,9 @@ Server: `http://localhost:3001`
 Admin: `http://localhost:3001/admin` (password from `ADMIN_PASSWORD` env)
 
 For local review, start with `SESSION_SECRET` and `ADMIN_PASSWORD`, then add
-optional Google, Gmail, and OpenAI credentials only for the integrations you are
-actively testing. The local SQLite database and local file storage are enough to
-exercise the core listing/admin flow.
+optional Google, Gmail, Resend, and AI (OpenAI, Anthropic, or Vercel AI Gateway) credentials
+only for the integrations you are actively testing. The local SQLite database and local
+file storage are enough to exercise the core listing/admin flow.
 
 ### Local dev (with Docker)
 

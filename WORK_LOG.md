@@ -1229,3 +1229,25 @@ Full live-site audit of malickland.net (production, VPS) plus fixes for the conf
 - og-image.jpg is 1024×1024/480 KB; `summary_large_image` wants ~1200×630 — needs a designed asset.
 - Homepage links 9 county pages that 302 → `/` while listings flag is off (intentional, but visible dead links to users).
 - MERGED ≠ DEPLOYED: #131 + this PR still need the manual VPS deploy + live lead smoke.
+
+## 2026-07-07 — GitHub Copilot Coding Agent
+
+### Objective
+Apply exactly the requested PR #134 review-thread README corrections, with no unrelated code changes.
+
+### Changes Made
+- `README.md` — updated the architecture diagram to show `Gmail / Resend notifications` and marked AI/Drive dependencies as optional to match runtime behavior.
+- `README.md` — replaced the local review credential guidance paragraph with the reviewer-suggested text including Resend and AI provider options (OpenAI/Anthropic/Vercel AI Gateway).
+
+### Verification (Truthfulness Rule applies)
+- Command: `cd api && npm ci && node --check server.js && node --check middleware/auth.js && node --check routes/admin.js && node --check routes/api.js && node --check routes/public.js && cd .. && node tests/verify-security-fixes.test.js && bash scripts/preflight.sh` → Result: PASSED.
+- Command: `cd api && node --check server.js && node --check middleware/auth.js && node --check routes/admin.js && node --check routes/api.js && node --check routes/public.js && cd .. && node tests/verify-security-fixes.test.js && bash scripts/preflight.sh` → Result: PASSED after README edits.
+
+### Security Notes
+Documentation-only changes; no runtime logic, auth, routing, DB, or dependency changes.
+
+### Remaining Risks
+No known functional risk from this docs-only patch. Runtime behavior remains unchanged.
+
+### Recommended Next Task
+Resolve/close the linked PR review threads after confirming this README update in PR #134.
