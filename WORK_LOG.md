@@ -599,3 +599,35 @@ button 404'd in production. Implemented option (A): a public, rate-limited, same
 
 ### Recommended Next Task
 - Phil: review/approve the PR; if approved and merged, set `AI_GATEWAY_API_KEY` in Railway and smoke `POST /api/chat` on production with a same-origin request.
+
+---
+
+## 2026-06-14 — Codex
+
+### Objective
+Finish the repo-side follow-up for the public assistant cost-control flag and direct Anthropic configuration guidance, without touching Railway secrets or production deployment.
+
+### Changes Made
+- `api/routes/admin.js` — updated admin AI disabled-state copy, button tooltip, and POST error message to mention `ANTHROPIC_API_KEY` alongside `AI_GATEWAY_API_KEY` and `OPENAI_API_KEY`.
+- `api/routes/chat.js` — updated the safe-by-default route comment to include the direct Anthropic provider path.
+- `scripts/preflight.sh` — added the `tests/public-assistant-flag.test.js` regression to the preflight gate so CI proves `PUBLIC_ASSISTANT_ENABLED=false` returns the canned reply without calling the AI provider.
+
+### Verification (Truthfulness Rule applies)
+- Command: `cd api && npm ci` -> PASSED (added 177 packages, audited 178, found 0 vulnerabilities).
+- Command: `node --check server.js && node --check middleware/auth.js && node --check routes/admin.js && node --check routes/api.js && node --check routes/public.js` -> PASSED.
+- Command: `node tests/ai-generator-routing.test.js` -> PASSED (18/18).
+- Command: `node tests/chat-assistant.test.js` -> PASSED (14/14).
+- Command: `node tests/public-assistant-flag.test.js` -> PASSED (3/3).
+- Command: `node tests/verify-security-fixes.test.js` -> PASSED (52/52).
+- Command: `bash scripts/preflight.sh` -> PASSED, including the new public assistant flag regression and `/api/chat` no-key fallback smoke.
+- Command: `git diff --check` -> PASSED.
+
+### Security Notes
+- No secrets read, printed, committed, or modified.
+- No Railway variables, production deployment, production data, or schema changed.
+- The Railway env swap remains a human/owner secret action: remove the broken `AI_GATEWAY_API_KEY` path and set `ANTHROPIC_API_KEY` directly in Railway.
+
+### Remaining Risks / Requires Human Decision
+1. **Railway env swap** — still required to unblock the live 502 if production is currently selecting the broken gateway provider. Codex did not alter production secrets.
+2. **Merge/deploy** — branch `feat/listings-feature-flag` remains unmerged; per AGENTS.md, Phil approves merge and Railway deployment.
+3. **Untracked root lockfile** — `package-lock.json` exists at repo root and was left untouched; the canonical lockfile is `api/package-lock.json`.

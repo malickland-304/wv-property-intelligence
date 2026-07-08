@@ -274,26 +274,42 @@ Every agent session that makes changes must append an entry to `WORK_LOG.md`. Th
 
 ## External Assistant / Codex Handoff Protocol
 
-Codex (and any external reviewer that cannot attach to the Cursor account) gets all context **through the repository**, not through Cursor session state:
+Codex is the independent gatekeeper. GitHub and the live VPS state are the only final sources of truth.
+Claude (or any other implementing agent) **may not** call a PR "ready" based on its own summary. Ready means Codex has verified the live GitHub state and deployment state independently.
 
-- Paste relevant Cursor/agent output directly into the external assistant's chat when needed.
-- Share or attach the files the implementing agent created or changed.
-- Point the assistant at the same GitHub repo and branch so it can inspect committed or uncommitted changes locally. The canonical local checkout and remote are recorded in `PROJECT_STATE.md` and `docs/CANONICAL_MAP.md`.
-- Keep plans, rules, and decisions in tracked files (`.cursor/rules/`, `docs/`, and the root `*.md` coordination docs) so they survive across assistants — see the Repository Authority Rule above for which file owns which state.
+### Claude Handoff Format
+When an implementing agent completes work, hand off using this exact format:
 
-Every time an implementing agent finishes a chunk of work, hand off:
+```text
+CLAUDE HANDOFF
+PR: <url or number>
+Head SHA: <sha>
+What changed: <brief description>
+What was tested: <tests run>
+Known unresolved: <known issues/threads>
+Do not claim ready until Codex verifies:
+- gh pr view
+- gh pr checks
+- reviewThreads unresolved=0
+- VPS SHA unchanged unless deploy approved
+```
 
-- The **branch** worked on (`git branch --show-current`).
-- The **files touched** (`git status` / `git diff --name-only`).
-- **What changed and why** (link the relevant `*.md` doc or commit message).
+### Codex Verification Response
+Codex will independently verify against GitHub/VPS and reply **only** with this format:
 
-Quick commands to copy/paste for a handoff:
+```text
+VERDICT:
+READY / NOT READY
 
-```bash
-git branch --show-current        # current branch
-git status                       # uncommitted changes
-git diff --name-only             # changed file paths
-git log --oneline -10            # recent commits
+Blocking facts:
+- <list any blocking issues, failing checks, unresolved threads>
+
+Verified:
+- checks
+- threads
+- merge state
+- head SHA
+- VPS SHA
 ```
 
 ---

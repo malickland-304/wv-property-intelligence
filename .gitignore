@@ -22,6 +22,15 @@ secrets/
 # Build output
 dist/
 
+# Stray root lockfile — the real npm project lives in api/ (api/package-lock.json)
+/package-lock.json
+
+# Local-only Docker Compose override (machine-specific uid, localhost bind).
+# Docker auto-merges this file; keeping it out of git prevents it from
+# reaching the Traefik-fronted VPS and breaking production networking.
+compose.override.yml
+docker-compose.override.yml
+
 # Local agent/worktree state
 .claude/worktrees/
 .claire/

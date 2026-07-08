@@ -18,4 +18,19 @@ function publicListingsEnabled() {
   return v !== 'false';
 }
 
-module.exports = { publicListingsEnabled };
+// ─────────────────────────────────────────────────────────────
+// Public homepage AI assistant ("MalickLand Assistant" chat widget).
+// Default ON to preserve current behavior. Turn OFF to stop the
+// public bot from making any paid AI calls — the widget then returns
+// its built-in canned reply (no LLM spend on anonymous visitors).
+// The admin AI listing generator is unaffected either way.
+//
+//   • set env  PUBLIC_ASSISTANT_ENABLED=false   to disable (no code change)
+// ─────────────────────────────────────────────────────────────
+function publicAssistantEnabled() {
+  const v = process.env.PUBLIC_ASSISTANT_ENABLED;
+  if (v === undefined || v === '') return true; // default: ON
+  return v !== 'false';
+}
+
+module.exports = { publicListingsEnabled, publicAssistantEnabled };

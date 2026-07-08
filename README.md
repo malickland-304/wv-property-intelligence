@@ -16,8 +16,24 @@ West Virginia real estate listing platform. Admin panel, public listing pages, p
 | Auth | Session-based (admin panel) + API key (REST) |
 | Images | Local disk + Google Drive backup |
 | Email | Gmail API via OAuth2 |
-| AI | OpenAI GPT-4o (listing content generation) |
+| AI | Vercel AI Gateway / Anthropic / OpenAI (listing content generation) |
 | Deploy | Railway (Docker) |
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+  visitor[Visitor] --> publicPages[Public listing pages]
+  admin[Admin] --> adminPanel[Admin panel]
+  publicPages --> api[Express API]
+  adminPanel --> api
+  api --> db[(SQLite database)]
+  api --> ai[AI content generator]
+  api --> drive[Google Drive backup]
+  api --> gmail[Gmail notifications]
+```
 
 ---
 
@@ -30,7 +46,7 @@ wv-property-intelligence/
 │   ├── db.js               ← SQLite connection, schema, migrations, seeding
 │   ├── helpers.js          ← Shared utilities (esc, slugify, etc.)
 │   ├── google.js           ← Gmail + Drive integration (no SDK)
-│   ├── ai-generator.js     ← OpenAI listing content engine
+│   ├── ai-generator.js     ← AI listing content engine (Gateway / Anthropic / OpenAI)
 │   ├── db-migrate-ai.js    ← One-time migration script (ai_content columns)
 │   ├── middleware/
 │   │   ├── auth.js         ← requireAuth, requireCsrf, requireApiKey
@@ -75,6 +91,11 @@ npm run dev               # nodemon server.js
 Server: `http://localhost:3001`
 Admin: `http://localhost:3001/admin` (password from `ADMIN_PASSWORD` env)
 
+For local review, start with `SESSION_SECRET` and `ADMIN_PASSWORD`, then add
+optional Google, Gmail, and AI provider credentials only for the integrations you are
+actively testing. The local SQLite database and local file storage are enough to
+exercise the core listing/admin flow.
+
 ### Local dev (with Docker)
 
 ```bash
@@ -94,7 +115,7 @@ Required to run:
 Optional integrations:
 - **Gmail notifications:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `GOOGLE_GMAIL_USER`, `NOTIFICATION_EMAIL`
 - **Drive photo backup:** `GOOGLE_DRIVE_FOLDER_ID`
-- **AI content generation:** `OPENAI_API_KEY` (optional `OPENAI_MODEL`)
+- **AI content generation:** one of (in precedence order) `AI_GATEWAY_API_KEY` → `ANTHROPIC_API_KEY` → `OPENAI_API_KEY`, each with an optional model override
 - **REST API auth:** `API_KEY`
 
 ---
@@ -141,9 +162,11 @@ All require session auth (`/admin/login`).
 
 ## AI Listing Machine
 
-With `OPENAI_API_KEY` set, every listing gets a full marketing package via OpenAI.
-Default model is `gpt-4o` (override with `OPENAI_MODEL`), with automatic fallback to `gpt-4o-mini` when account access is limited:
-MLS description, investor pitch, Facebook ad, Instagram caption, video script, email blast, SMS, landing page copy.
+With an AI provider key set, every listing gets a full marketing package. The generator
+resolves one provider in precedence order — **Vercel AI Gateway** (`AI_GATEWAY_API_KEY`),
+then **direct Anthropic** (`ANTHROPIC_API_KEY`), then **direct OpenAI** (`OPENAI_API_KEY`) —
+each with its own default model and an optional override (see [`api/.env.example`](api/.env.example)).
+Output: MLS description, investor pitch, Facebook ad, Instagram caption, video script, email blast, SMS, landing page copy.
 
 Cost: ~$0.01–0.03 per listing. Access via **Admin → AI** button on any listing.
 
