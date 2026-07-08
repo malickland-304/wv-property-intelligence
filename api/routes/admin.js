@@ -984,9 +984,12 @@ router.post('/document-claims/:claimId/apply', requireAuth, requireCsrf, adminAc
 
 // ── Integrations ──────────────────────────────────────────
 router.get('/integrations', requireAuth, adminActionRateLimit, (req, res) => {
-  const gmailOk  = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_REFRESH_TOKEN);
-  const driveOk  = !!(process.env.GOOGLE_DRIVE_FOLDER_ID);
+  // Lead notifications are sent via Resend (api/services/email.js). Google OAuth
+  // is now used only for optional Drive photo backup (uploadPhotoToDrive).
+  const resendOk = !!(process.env.RESEND_API_KEY && process.env.NOTIFICATION_EMAIL);
+  const googleAuthOk = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REFRESH_TOKEN);
   const driveFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID || '';
+  const driveOk  = !!(googleAuthOk && driveFolderId);
 
   res.send(adminShell('Integrations', `
     <div class="dash-header">
@@ -995,28 +998,26 @@ router.get('/integrations', requireAuth, adminActionRateLimit, (req, res) => {
     </div>
     <div class="report-grid">
       <div class="report-card">
-        <h3>Gmail Notifications ${gmailOk ? '✅' : '⚠️'}</h3>
-        <p style="margin-bottom:1rem;color:${gmailOk?'#155724':'#856404'};font-size:.9rem">
-          ${gmailOk ? 'Connected — inquiry emails will be sent automatically.' : 'Not configured — set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN, GOOGLE_GMAIL_USER, NOTIFICATION_EMAIL in environment.'}
+        <h3>Lead Notifications (Resend) ${resendOk ? '✅' : '⚠️'}</h3>
+        <p style="margin-bottom:1rem;color:${resendOk?'#155724':'#856404'};font-size:.9rem">
+          ${resendOk ? 'Connected — new inquiry alerts are emailed automatically via Resend.' : 'Not configured — set RESEND_API_KEY and NOTIFICATION_EMAIL in environment to email inquiry alerts.'}
         </p>
       </div>
       <div class="report-card">
         <h3>Google Drive Backup ${driveOk ? '✅' : '⚠️'}</h3>
         <p style="margin-bottom:1rem;color:${driveOk?'#155724':'#856404'};font-size:.9rem">
-          ${driveOk ? `Connected — photos backup to folder ${esc(driveFolderId)}.` : 'Not configured — set GOOGLE_DRIVE_FOLDER_ID to enable photo backups.'}
+          ${driveOk ? `Connected — listing photos back up to Drive folder ${esc(driveFolderId)}.` : 'Not configured — set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN and GOOGLE_DRIVE_FOLDER_ID to back up listing photos to Google Drive.'}
         </p>
       </div>
       <div class="report-card full">
         <h3>Setup Instructions</h3>
         <ol style="padding-left:1.5rem;line-height:2">
-          <li>Go to <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer">Google Cloud Console</a> and create a project.</li>
-          <li>Enable the <strong>Gmail API</strong> and <strong>Google Drive API</strong>.</li>
+          <li><strong>Lead notifications (Resend):</strong> create an API key at <a href="https://resend.com/" target="_blank" rel="noopener noreferrer">resend.com</a>, then set <code>RESEND_API_KEY</code>, <code>NOTIFICATION_EMAIL</code> (address that receives alerts) and optionally <code>FROM_EMAIL</code> (a verified sender) in <code>api/.env</code>.</li>
+          <li><strong>Google Drive photo backup (optional):</strong> in the <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer">Google Cloud Console</a>, create a project and enable the <strong>Google Drive API</strong>.</li>
           <li>Create an <strong>OAuth 2.0 Client ID</strong> (Desktop application type).</li>
-          <li>Visit the <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener noreferrer">OAuth Playground</a>, authorise with scopes<br>
-            <code>https://www.googleapis.com/auth/gmail.send</code> and
-            <code>https://www.googleapis.com/auth/drive.file</code>.<br>
-            Exchange the authorisation code for a <strong>refresh token</strong>.</li>
-          <li>Copy the values into <code>api/.env</code> (see <code>api/.env.example</code> for all keys).</li>
+          <li>Visit the <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener noreferrer">OAuth Playground</a>, authorise scope
+            <code>https://www.googleapis.com/auth/drive.file</code>, and exchange the authorisation code for a <strong>refresh token</strong>.</li>
+          <li>Set <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>GOOGLE_REFRESH_TOKEN</code> and <code>GOOGLE_DRIVE_FOLDER_ID</code> in <code>api/.env</code> (see <code>api/.env.example</code> for all keys).</li>
           <li>Restart the server — the integrations activate automatically.</li>
         </ol>
       </div>
