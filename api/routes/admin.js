@@ -1013,11 +1013,15 @@ router.get('/integrations', requireAuth, adminActionRateLimit, (req, res) => {
         <h3>Setup Instructions</h3>
         <ol style="padding-left:1.5rem;line-height:2">
           <li><strong>Lead notifications (Resend):</strong> create an API key at <a href="https://resend.com/" target="_blank" rel="noopener noreferrer">resend.com</a>, then set <code>RESEND_API_KEY</code>, <code>NOTIFICATION_EMAIL</code> (address that receives alerts) and optionally <code>FROM_EMAIL</code> (a verified sender) in <code>api/.env</code>.</li>
-          <li><strong>Google Drive photo backup (optional):</strong> in the <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer">Google Cloud Console</a>, create a project and enable the <strong>Google Drive API</strong>.</li>
-          <li>Create an <strong>OAuth 2.0 Client ID</strong> (Desktop application type).</li>
-          <li>Visit the <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener noreferrer">OAuth Playground</a>, authorise scope
-            <code>https://www.googleapis.com/auth/drive.file</code>, and exchange the authorisation code for a <strong>refresh token</strong>.</li>
-          <li>Set <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>GOOGLE_REFRESH_TOKEN</code> and <code>GOOGLE_DRIVE_FOLDER_ID</code> in <code>api/.env</code> (see <code>api/.env.example</code> for all keys).</li>
+          <li><strong>Google Drive photo backup (optional):</strong>
+            <ol style="padding-left:1.5rem;list-style-type:lower-alpha;line-height:1.8">
+              <li>In the <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer">Google Cloud Console</a>, create a project and enable the <strong>Google Drive API</strong>.</li>
+              <li>Create an <strong>OAuth 2.0 Client ID</strong> (Desktop application type).</li>
+              <li>Visit the <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener noreferrer">OAuth Playground</a>, authorize scope
+                <code>https://www.googleapis.com/auth/drive.file</code>, and exchange the authorization code for a <strong>refresh token</strong>.</li>
+              <li>Set <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>GOOGLE_REFRESH_TOKEN</code> and <code>GOOGLE_DRIVE_FOLDER_ID</code> in <code>api/.env</code> (see <code>api/.env.example</code> for all keys).</li>
+            </ol>
+          </li>
           <li>Restart the server — the integrations activate automatically.</li>
         </ol>
       </div>
