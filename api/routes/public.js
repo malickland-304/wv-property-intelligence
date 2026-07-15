@@ -56,6 +56,7 @@ const HTML_CANONICAL = {
   '/listing.html':   '/',
   '/listing':        '/',
   '/listings.html':  '/listings',
+  '/search.html':    '/search',
   '/admin.html':     '/admin',
   '/start.html':     '/start',
   '/37-advent.html': '/37-advent',
@@ -188,10 +189,19 @@ router.get('/about', publicReadRateLimit, (_req, res) => {
 });
 
 router.get('/search', publicReadRateLimit, (req, res) => {
-  if (!publicListingsEnabled()) return res.redirect(302, '/');
-  const queryStart = req.originalUrl.indexOf('?');
-  const query = queryStart === -1 ? '' : req.originalUrl.slice(queryStart);
-  return res.redirect(302, `/listings${query}`);
+  // Listings ON → /search is a real results page: redirect to the listings
+  // browser, preserving any query. Listings OFF → don't silently bounce the
+  // visitor to the homepage (a search URL that dumps you elsewhere is a dead
+  // end); serve a real "listings temporarily unavailable" page that routes them
+  // to off-market alerts / a preferences form / direct contact. The page bakes
+  // in the brokerage disclosure, so it is safe to serve without the homepage's
+  // serve-time injection.
+  if (publicListingsEnabled()) {
+    const queryStart = req.originalUrl.indexOf('?');
+    const query = queryStart === -1 ? '' : req.originalUrl.slice(queryStart);
+    return res.redirect(302, `/listings${query}`);
+  }
+  return res.sendFile(path.join(PROJECT_ROOT, 'app', 'search.html'));
 });
 
 // County landing pages: /wv/<county>-county → server-rendered page listing that county's

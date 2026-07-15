@@ -481,6 +481,13 @@ test('public navigation aliases avoid dead /contact, /about, and /search routes'
     'GET /search should preserve query params when listings are enabled');
 });
 
+test('GET /search serves a real empty-state page (not a bounce home) when listings are disabled', () => {
+  assert(publicRoutesCode.includes("res.sendFile(path.join(PROJECT_ROOT, 'app', 'search.html'))"),
+    'GET /search should serve app/search.html when public listings are disabled, instead of redirecting to /');
+  assert(publicRoutesCode.includes("'/search.html'"),
+    '/search.html should canonicalize to /search (HTML_CANONICAL) to avoid raw static access to the page');
+});
+
 test('public homepage disclosure includes exact broker label', () => {
   assert(publicRoutesCode.includes('Broker: Sheila Judy'),
     'Homepage disclosure should include the exact text "Broker: Sheila Judy"');

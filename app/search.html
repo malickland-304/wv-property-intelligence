@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Property Search — MalickLand West Virginia</title>
+  <meta name="description" content="Public MalickLand listings are temporarily unavailable. Tell Phil what you're looking for and get first access to off-market and coming-soon West Virginia land and homes." />
+  <!-- Utility page: don't index a thin/transient state, but follow links out. -->
+  <meta name="robots" content="noindex,follow" />
+  <!-- Analytics + Meta Pixel — loaded from /api/config (GA_MEASUREMENT_ID, META_PIXEL_ID) -->
+  <script>
+    fetch('/api/config').then(r=>r.json()).then(cfg=>{
+      // Google Analytics 4
+      if (cfg.gaId) {
+        var s = document.createElement('script');
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=' + cfg.gaId;
+        s.async = true; document.head.appendChild(s);
+        window.dataLayer = window.dataLayer || [];
+        window.gtag = function(){dataLayer.push(arguments);};
+        gtag('js', new Date()); gtag('config', cfg.gaId);
+      }
+      // Meta Pixel
+      if (cfg.pixelId) {
+        !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+        n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}
+        (window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', cfg.pixelId);
+        fbq('track', 'PageView');
+      }
+    }).catch(()=>{});
+    window.pixelEvent = function(event, data){ if (window.fbq) fbq('track', event, data || {}); };
+  </script>
+  <link rel="icon" type="image/png" sizes="32x32" href="/public/brand/favicon.png" />
+  <link rel="apple-touch-icon" href="/public/brand/favicon.png" />
+  <style>
+    :root {
+      --green: #1B4332; --green-mid: #2d5c42; --gold: #D4AF37; --gold-bright: #f0c93a;
+      --cream: #F9F6F0; --gray: #6b7280; --radius: 12px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #1f2937; background: var(--cream); line-height: 1.6;
+    }
+    a { color: var(--green); }
+    /* Nav */
+    .nav {
+      display: flex; justify-content: space-between; align-items: center;
+      background: var(--green); padding: 0.85rem 1.5rem; position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    }
+    .nav-logo { display: flex; align-items: center; gap: 0.5rem; text-decoration: none; color: #fff; font-weight: 700; font-size: 1.2rem; letter-spacing: 0.3px; }
+    .nav-logo em { color: var(--gold); font-style: normal; }
+    .nav-logo img { height: 40px; width: auto; }
+    .nav-links { display: flex; gap: 1.25rem; align-items: center; }
+    .nav-links a { color: rgba(255,255,255,0.9); text-decoration: none; font-size: 0.95rem; }
+    .nav-links a:hover { color: var(--gold); }
+    @media (max-width: 640px) { .nav-links a.hide-sm { display: none; } }
+    /* Layout */
+    .wrap { max-width: 620px; margin: 0 auto; padding: 3rem 1.25rem 2rem; }
+    .badge {
+      display: inline-block; background: rgba(212,175,55,0.15); color: var(--green);
+      border: 1px solid rgba(212,175,55,0.5); border-radius: 999px;
+      padding: 0.3rem 0.9rem; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.5px;
+      text-transform: uppercase; margin-bottom: 1rem;
+    }
+    h1 { font-size: 1.85rem; color: var(--green); margin: 0 0 0.75rem; line-height: 1.25; }
+    .lede { font-size: 1.05rem; color: #374151; margin: 0 0 1.5rem; }
+    .card {
+      background: #fff; border: 1px solid rgba(27,67,50,0.12); border-radius: var(--radius);
+      padding: 1.75rem; box-shadow: 0 6px 24px rgba(0,0,0,0.06); margin-bottom: 1.5rem;
+    }
+    .card h2 { font-size: 1.15rem; color: var(--green); margin: 0 0 1rem; }
+    label { display: block; font-size: 0.85rem; font-weight: 600; color: #374151; margin: 0 0 0.3rem; }
+    .field { margin-bottom: 0.9rem; }
+    input, select, textarea {
+      width: 100%; padding: 0.7rem 0.8rem; border: 2px solid rgba(27,67,50,0.18);
+      border-radius: 8px; font-size: 1rem; font-family: inherit; background: #fff;
+    }
+    input:focus, select:focus, textarea:focus { outline: 2px solid var(--gold); border-color: var(--gold); }
+    textarea { min-height: 84px; resize: vertical; }
+    .row { display: flex; gap: 0.75rem; }
+    .row .field { flex: 1; }
+    @media (max-width: 480px) { .row { flex-direction: column; gap: 0; } }
+    .btn {
+      display: inline-block; width: 100%; background: var(--gold); color: var(--green);
+      border: none; border-radius: 8px; padding: 0.85rem 1rem; font-size: 1rem; font-weight: 700;
+      cursor: pointer; transition: background 0.15s, transform 0.15s;
+    }
+    .btn:hover { background: var(--gold-bright); transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.7; cursor: default; transform: none; }
+    .consent { font-size: 0.72rem; color: var(--gray); margin: 0.7rem 0 0; }
+    .ok, .err { display: none; border-radius: 8px; padding: 1rem; margin-top: 0.5rem; font-weight: 600; }
+    .ok { background: rgba(27,67,50,0.08); color: var(--green); }
+    .err { background: #fdecec; color: #9b1c1c; }
+    .alt { text-align: center; font-size: 0.95rem; color: #374151; }
+    .alt a { font-weight: 600; }
+    .disclosure { font-size: 0.8rem; color: var(--gray); line-height: 1.5; margin-top: 1.5rem; }
+    footer { background: var(--green); color: rgba(255,255,255,0.85); padding: 1.75rem 1.25rem; text-align: center; font-size: 0.82rem; line-height: 1.6; }
+    footer a { color: var(--gold); }
+    footer .fine { color: rgba(255,255,255,0.55); font-size: 0.76rem; margin-top: 0.75rem; }
+  </style>
+</head>
+<body>
+
+<nav class="nav" aria-label="Main navigation">
+  <a href="/" class="nav-logo" aria-label="MalickLand home">
+    <img src="/public/brand/logo-primary.png" alt="" width="40" height="40" onerror="this.style.display='none'" aria-hidden="true" />
+    <span>Malick<em>Land</em></span>
+  </a>
+  <div class="nav-links">
+    <a href="/">Home</a>
+    <a href="/37-advent" class="hide-sm">37 Advent</a>
+    <a href="/#contact-form">Contact</a>
+  </div>
+</nav>
+
+<main class="wrap">
+  <span class="badge">West Virginia Land &amp; Homes</span>
+  <h1>Our public listings are temporarily offline</h1>
+  <p class="lede">
+    We're refreshing the MalickLand listings feed right now, so there's nothing to browse on the
+    site this minute. But a lot of the best West Virginia land and homes never make it to a public
+    search anyway — they move as <strong>off-market and coming-soon</strong> opportunities. Tell Phil
+    what you're after and you'll be first to hear when something fits.
+  </p>
+
+  <div class="card">
+    <h2>Tell Phil what you're looking for</h2>
+    <form id="searchForm" novalidate>
+      <div class="row">
+        <div class="field">
+          <label for="s-name">Your Name *</label>
+          <input type="text" id="s-name" name="name" placeholder="Jane Smith" required autocomplete="name" />
+        </div>
+        <div class="field">
+          <label for="s-phone">Phone</label>
+          <input type="tel" id="s-phone" name="phone" placeholder="(304) 555-1234" autocomplete="tel" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="s-email">Email *</label>
+        <input type="email" id="s-email" name="email" placeholder="you@email.com" required autocomplete="email" />
+      </div>
+      <div class="field">
+        <label for="s-interest">What are you looking for?</label>
+        <select id="s-interest" name="interest">
+          <option value="Buying Land">Buying Land or Acreage</option>
+          <option value="Buying a Home">Buying a Home in WV</option>
+          <option value="Hunting / Recreation Land">Hunting / Recreation Land</option>
+          <option value="Cabin / Rural Retreat">Cabin or Rural Retreat</option>
+          <option value="Timberland / Rural Land">Timberland / Rural Land</option>
+          <option value="Selling Property">Selling My Property</option>
+          <option value="Just Browsing">Just Browsing</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="s-message">County or area of interest</label>
+        <input type="text" id="s-message" name="message" placeholder="Hampshire, Tucker, Pocahontas... or any WV county" />
+      </div>
+      <input type="hidden" name="source" value="website_search" />
+      <button type="submit" class="btn">📬 Send Me Matching Properties — It's Free</button>
+      <p class="consent">By submitting, you consent to receive calls and texts from MalickLand at the number provided. Message &amp; data rates may apply. Reply STOP to opt out at any time.</p>
+    </form>
+    <div class="ok" id="searchOk" role="status">
+      ✅ Got it! Phil will follow up as soon as practical with properties that match. Call anytime: <strong>(540) 246-1421</strong>
+    </div>
+    <div class="err" id="searchErr" role="alert" tabindex="-1"></div>
+  </div>
+
+  <p class="alt">
+    Prefer to talk? Call <a href="tel:+15402461421">(540) 246-1421</a> or email
+    <a href="mailto:phil@malickland.net">phil@malickland.net</a>.<br />
+    You can also see our most recent <a href="/37-advent">closed sale at 37 Advent</a> or head back <a href="/">home</a>.
+  </p>
+
+  <p class="disclosure">
+    WV Real Estate Agency, LLC | Broker: Sheila Judy | 501 East Main Street, Romney, WV 26757 | (540) 246-1421 · Licensed in West Virginia.
+  </p>
+</main>
+
+<footer>
+  <p>MalickLand | Phil Malick, Agent | WV Real Estate Agency, LLC | Broker: Sheila Judy | <a href="tel:+15402461421">(540) 246-1421</a> | <a href="mailto:phil@malickland.net">phil@malickland.net</a> | Licensed in West Virginia</p>
+  <p class="fine">Brokerage transactions handled by Phil may include a separate $299 transaction administration fee disclosed in writing before signing. Standalone consulting/advisory services are excluded.</p>
+</footer>
+
+<script>
+  // First-touch attribution (mirrors the homepage): capture utm_*/referrer once
+  // and reuse it on this form so /search leads carry marketing source too.
+  (function captureFirstTouchAttribution() {
+    try {
+      var KEY = 'ml_attribution';
+      if (localStorage.getItem(KEY)) return;
+      var p = new URLSearchParams(location.search);
+      localStorage.setItem(KEY, JSON.stringify({
+        utm_source: p.get('utm_source') || '', utm_medium: p.get('utm_medium') || '',
+        utm_campaign: p.get('utm_campaign') || '', utm_term: p.get('utm_term') || '',
+        utm_content: p.get('utm_content') || '', referrer: document.referrer || '',
+        landing_page: location.pathname + location.search, landing_at: new Date().toISOString()
+      }));
+    } catch (_) {}
+  })();
+  function getAttribution() {
+    try { return JSON.parse(localStorage.getItem('ml_attribution') || '{}'); }
+    catch (_) { return {}; }
+  }
+
+  document.getElementById('searchForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var form = this;
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+    var data = {};
+    new FormData(form).forEach(function (v, k) { data[k] = v; });
+    data.attribution = getAttribution();
+    var btn = form.querySelector('[type="submit"]');
+    var label = btn ? btn.textContent : null;
+    var errEl = document.getElementById('searchErr');
+    errEl.textContent = ''; errEl.style.display = 'none';
+    if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+    try {
+      var r = await fetch('/api/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+    } catch (err) {
+      if (btn) { btn.disabled = false; btn.textContent = label; }
+      errEl.textContent = 'Sorry, something went wrong sending that. Please call Phil at (540) 246-1421 or email phil@malickland.net.';
+      errEl.style.display = 'block';
+      errEl.focus && errEl.focus();
+      return;
+    }
+    if (window.fbq) fbq('track', 'Lead', { content_name: 'search_form' });
+    if (window.gtag) gtag('event', 'generate_lead');
+    form.style.display = 'none';
+    document.getElementById('searchOk').style.display = 'block';
+  });
+</script>
+</body>
+</html>

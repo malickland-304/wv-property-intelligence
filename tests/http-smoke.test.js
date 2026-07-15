@@ -149,6 +149,22 @@ async function main() {
       assert.strictEqual(res.headers.get('location'), '/');
     });
 
+    await test('GET /search serves the empty-state page (not a bounce home) when public listings are disabled', async () => {
+      const res = await fetch(`${baseUrl}/search`, { redirect: 'manual' });
+      assert.strictEqual(res.status, 200);
+      const body = await res.text();
+      assert.ok(body.includes('temporarily offline'),
+        '/search should render the listings-unavailable page, not redirect home');
+      assert.ok(body.includes('WV Real Estate Agency, LLC'),
+        '/search empty-state page should carry the brokerage disclosure');
+    });
+
+    await test('GET /search.html canonicalizes to /search', async () => {
+      const res = await fetch(`${baseUrl}/search.html`, { redirect: 'manual' });
+      assert.strictEqual(res.status, 301);
+      assert.strictEqual(res.headers.get('location'), '/search');
+    });
+
     await test('POST /api/contacts rejects non-JSON lead submissions', async () => {
       const res = await fetch(`${baseUrl}/api/contacts`, {
         method: 'POST',
