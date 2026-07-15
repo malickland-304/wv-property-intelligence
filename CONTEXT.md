@@ -61,6 +61,7 @@ api/
 app/
   index.html         — public listing search page
   listing.html       — single property detail page
+  search.html        — /search empty-state (served when PUBLIC_LISTINGS_ENABLED=false)
   admin.html         — admin login page stub
   app.js             — frontend JS for index.html
   listing.js         — frontend JS for listing.html
