@@ -1251,3 +1251,27 @@ No known functional risk from this docs-only patch. Runtime behavior remains unc
 
 ### Recommended Next Task
 Resolve/close the linked PR review threads after confirming this README update in PR #134.
+
+## 2026-09-11 — Codex
+
+### Objective
+Diagnose and repair PR #143's failed Sharp dependency update.
+
+### Changes Made
+- `api/package.json` — advanced the proposed Sharp update from vulnerable `0.35.0` to patched `0.35.4`.
+- `api/package-lock.json` — regenerated the canonical npm lock data for Sharp 0.35.4 and its platform packages.
+
+### Verification (Truthfulness Rule applies)
+- Command: `cd api && npm ci` → Result: PASSED; Sharp 0.35.4 installed from the lockfile.
+- Command: required syntax checks plus `node tests/verify-security-fixes.test.js` → Result: PASSED (60/60).
+- Command: `cd api && npm audit --omit=dev --json` → Result: Sharp finding cleared; unrelated current advisories remain in `ip-address`, `morgan`, `multer`, and `qs`.
+- Command: `unset OPENAI_API_KEY AI_GATEWAY_API_KEY ANTHROPIC_API_KEY; bash scripts/preflight.sh` → Result: PASSED. The initial run had failed because an inherited placeholder AI credential made the no-key fallback smoke call return 502.
+
+### Security Notes
+Sourcery's original blockers are license findings on optional Sharp/libvips platform artifacts, not executable-code vulnerabilities. LGPL permits commercial use and does not automatically require disclosure of the entire application. A fresh npm audit found a separate high-severity libheif advisory affecting Sharp versions below 0.35.4, which is why the PR should not retain 0.35.0.
+
+### Remaining Risks
+Current advisories outside this Sharp-only PR remain and should be handled in separate dependency updates. Production was not accessed or changed. The local CompText Guard policy blocks commit and GitHub-write operations until its policy profile is changed, so the verified changes remain staged in the isolated PR checkout and have not reached GitHub.
+
+### Recommended Next Task
+Push this scoped update to PR #143, rerun CI, and resolve the three stale Sourcery license threads with the documented false-positive rationale.
