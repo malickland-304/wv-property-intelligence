@@ -1,0 +1,31 @@
+name: Docker upload e2e
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'api/**'
+      - 'tests/upload-e2e.test.js'
+      - '.github/workflows/docker-upload-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upload-e2e:
+    runs-on: ubuntu-latest # x64 Linux, matching the production VPS architecture
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Build candidate image
+        run: docker build -f api/Dockerfile -t wv-candidate .
+
+      - name: Run multipart upload + sharp resize e2e inside the image
+        # Disposable storage only (test creates its own temp DB and listings folder).
+        # No production credentials or volumes are mounted.
+        run: |
+          docker run --rm --entrypoint node \
+            -e API_DIR=/workspace/api \
+            -v "$PWD/tests:/t:ro" \
+            wv-candidate /t/upload-e2e.test.js

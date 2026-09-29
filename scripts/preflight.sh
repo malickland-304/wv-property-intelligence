@@ -54,6 +54,10 @@ echo "== HTTP integration smoke =="
 node "$ROOT/tests/http-smoke.test.js"
 echo "✓ HTTP integration smoke OK"
 echo
+echo "== Upload + image resize e2e =="
+node "$ROOT/tests/upload-e2e.test.js"
+echo "✓ Upload e2e OK"
+echo
 
 echo "== Document registry smoke =="
 node "$ROOT/tests/document-registry.test.js"
