@@ -36,6 +36,7 @@ Agents must use `PROJECT_STATE.md`, GitHub PR state, and live production checks 
 | Content funnel pack | ✅ Finalized, publish-ready | `~/Documents/MalickLand_Content_Funnel_Pack_2026-06-17/`; footer disclosure aligned to the live broker block + `WV0029577` + Equal Housing; PDF text pypdf-verified |
 | `/start` buyer-guide funnel | ✅ Live on VPS | PR #109 merged and deployed; `/start` returns 200 and `/assets/MalickLand_WV_Buyers_Guide.pdf` returns 200 `application/pdf` on `malickland.net` |
 | `multer` DoS advisory | ✅ Patched live | PR #111 merged; VPS `api/package-lock.json` resolves `multer` to `2.2.0` |
+| Dependency advisories (2026-09-29) | ⚠️ Open — 15 Dependabot alerts (7 high) | VPS (`65a2b32d`) runs multer 2.2.0, sharp 0.33.5, ip-address 10.2.0, morgan 1.10.1. PR #144 moves `api/` to multer 2.4.0, sharp 0.35.4, morgan 1.12.1, ip-address 10.7.2, qs 6.16.0. Open gate: merge #144, then one approved VPS deploy with rollback. The PR #111 row above is historical. |
 | Public assistant cost-control flag | ✅ Merged and deployed | PR #112 merged; VPS src @ `24ee74b`; `PUBLIC_ASSISTANT_ENABLED=false` returns fallback without provider calls |
 | Homepage dynamic HTML safety | ✅ Merged and deployed | PR #113 merged; VPS src @ `24ee74b`; homepage listing/property fields are escaped before insertion |
 | Repo-safe queue through #128 plus #116 | ✅ Merged to `origin/main` | `origin/main` is `349034d`; document-registry/API/admin/homepage improvements are queued for the next manual VPS deploy where runtime files changed |
