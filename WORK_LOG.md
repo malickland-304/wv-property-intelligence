@@ -5,6 +5,33 @@
 
 ---
 
+## 2026-09-29 — Claude
+
+### Objective
+Move the `api/` runtime dependencies to the patched floors for the open Dependabot alerts, from a fresh clone of `origin/main` (`44b88dd`). Supersedes the sharp/multer targets of PR #143 (sharp 0.35.0 is below the 0.35.4 floor).
+
+### Changes Made
+- Refreshed current-state records (`PROJECT_STATE.md` dated rows, `TASKS.md` open task); the June "0 vulnerabilities" rows are marked historical.
+- Review follow-ups: reconciled `PROJECT_STATE.md` production SHA (VPS verified at `65a2b32d` on 2026-09-29; June `24ee74b` rows kept as dated history) and added a "VPS deploy of PR #144" open gate.
+- Added `tests/upload-e2e.test.js` (real `/admin/upload/:slug`, throwaway DB/listings folder, exact 400/403 assertions, verifies rejected requests leave no files), hooked into `scripts/preflight.sh`, plus `.github/workflows/docker-upload-e2e.yml` which builds `api/Dockerfile` on `ubuntu-latest` (x64) and runs the test inside the image with no production credentials or volumes.
+- `api/package.json`: `multer ^2.4.0`, `morgan ^1.12.1`, `sharp 0.35.4` (exact pin kept).
+- `api/package-lock.json` regenerated with npm: multer 2.2.0→2.4.0, morgan 1.11.0→1.12.1, sharp 0.33.5→0.35.4 (+ platform binaries, libvips 1.3.3), ip-address 10.2.0→10.7.2, qs 6.15.2→6.16.0; body-parser stays 2.3.0. Side effects: multer no longer pulls concat-stream; sharp swaps color/simple-swizzle for @img/colour.
+- No application code changed.
+
+### Verification (run in this session, Node 22.22.3, macOS arm64)
+- `npm ci --prefix api` then `./scripts/preflight.sh` -> PRE-FLIGHT PASSED.
+- All 9 files in `tests/` run with `node` -> pass.
+- sharp 0.35.4 resize (2400px PNG -> 1200px JPEG, the path used in `api/routes/admin.js`) -> OK.
+- `docker build -f api/Dockerfile .` succeeded; sharp 0.35.4 and multer load inside the Linux aarch64 image.
+- Upload e2e also run in the built image on Linux arm64 / Node 20.20.2 (pass). Not verified locally: linux x86_64 (no emulation available; covered by the new CI workflow once it runs), production behavior.
+
+### Remaining Risks
+- `npm audit` still lists dev-only `brace-expansion` (via nodemon); it is not among the open Dependabot alerts.
+- Not deployed. VPS runs `65a2b32d`; deploy needs a separate approved plan with rollback.
+- PR #143 should be closed as superseded after this merges.
+
+---
+
 ## 2026-06-28 — Codex
 
 ### Objective
