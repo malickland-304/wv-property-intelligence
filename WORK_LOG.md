@@ -11,6 +11,7 @@
 Move the `api/` runtime dependencies to the patched floors for the open Dependabot alerts, from a fresh clone of `origin/main` (`44b88dd`). Supersedes the sharp/multer targets of PR #143 (sharp 0.35.0 is below the 0.35.4 floor).
 
 ### Changes Made
+- Refreshed current-state records (`PROJECT_STATE.md` dated rows, `TASKS.md` open task); the June "0 vulnerabilities" rows are marked historical.
 - `api/package.json`: `multer ^2.4.0`, `morgan ^1.12.1`, `sharp 0.35.4` (exact pin kept).
 - `api/package-lock.json` regenerated with npm: multer 2.2.0→2.4.0, morgan 1.11.0→1.12.1, sharp 0.33.5→0.35.4 (+ platform binaries, libvips 1.3.3), ip-address 10.2.0→10.7.2, qs 6.15.2→6.16.0; body-parser stays 2.3.0. Side effects: multer no longer pulls concat-stream; sharp swaps color/simple-swizzle for @img/colour.
 - No application code changed.

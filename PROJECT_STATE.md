@@ -146,6 +146,7 @@ Recent PRs through #128 and #116 are merged; `origin/main` is `349034d` at this 
 | Live config | ✅ `/api/config` → `listingsEnabled:false` (public listing API routes are intentionally gated off) |
 | 37 Advent live DB row | ✅ `status='sold'`, `price=170000`, `sold_at='2026-05-29'` |
 | npm audit | ✅ 0 vulnerabilities — re-verified 2026-06-18 on `fix/multer-dos-advisory` (`npm audit` **and** `npm audit --omit=dev` both 0 high/critical). Supersedes the 2026-05-31 "0 vulns": a **high-sev `multer` DoS** advisory (GHSA-72gw-mp4g-v24j deeply-nested field names; GHSA-3p4h-7m6x-2hcm aborted-upload cleanup; affected ≤2.1.1) surfaced 2026-06-17 and was remediated by bumping `multer` 2.1.1→**2.2.0** (lockfile via `npm audit fix`) |
+| npm audit (2026-09-29) | ⚠️ `npm audit` on the PR #144 branch still lists dev-only `brace-expansion` (via nodemon) | Dependabot shows 15 open alerts on `main` (`api/package-lock.json`). The 2026-06-18 "0 vulnerabilities" row above and the 2026-05-31 "Dependabot alerts: 0" row are historical. |
 | Security test suite | ✅ **57/57** locally on 2026-06-18 (`node tests/verify-security-fixes.test.js`) |
 | Preflight + route smoke | ✅ `scripts/preflight.sh` passed locally on 2026-06-18; live `scripts/smoke-prod.sh https://malickland.net` passed from the VPS checkout |
 | CI gates | ✅ CodeQL, Semgrep, `preflight.yml` |
