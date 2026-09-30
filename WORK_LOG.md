@@ -5,6 +5,24 @@
 
 ---
 
+## 2026-09-30 — Claude (backup automation + cleanup)
+
+### Changes Made
+- Added `scripts/backup-db.sh` (WAL-safe online backup, verify, gzip+sha256, 14-day retention). Installed on the VPS at `/docker/wv-property-intelligence/backup-db.sh` with `/etc/cron.d/wv-db-backup` (03:17 UTC).
+- Removed `/docker/wv-property-intelligence/.env.codex-backup-20260622-152642` after a key-name/hash comparison against live `.env` (same 12 keys, identical values except `PUBLIC_ASSISTANT_ENABLED`); nothing unique was lost. Values were never printed.
+- Recorded three decisions in `DECISIONS.md` (nightly backup, LGPL sharp accepted, Express primary for now).
+
+### Verification (run in this session)
+- Manual run: `backup ok`, integrity ok, counts 2/3/55. sha256 check OK. Restore drill (gunzip, copy into container, integrity ok, contacts 3, `attribution` column present).
+- cron service active; entry present. Not verified: the first scheduled (03:17 UTC) run; off-host copy; failure alerting.
+- Container stayed healthy; `/api/health` 200 after cleanup.
+- Hostinger API (read-only): 2 weekly VM backups (2026-09-20, 2026-09-27); no snapshot present.
+
+### Remaining Risks / Next
+- Off-server nightly copy and failure alerting. June `wv-data-backup-*` folders and old `.db` files on the VPS kept until the nightly job has run successfully for several nights.
+
+---
+
 ## 2026-09-30 — Claude
 
 ### Objective

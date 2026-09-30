@@ -4,6 +4,34 @@
 
 ---
 
+## 2026-09-30 — Nightly WAL-safe SQLite backup on the VPS
+
+**Problem:** The production SQLite DB (leads, listings) had no automated backup; only manual pre-deploy copies on the same host plus Hostinger's weekly whole-VM backups (kept: 2, e.g. 2026-09-27 and 2026-09-20; restore is whole-VM and overwrites everything).
+**Decision:** Nightly host cron (03:17 UTC) runs `scripts/backup-db.sh`: SQLite online backup API inside the container (DB is in WAL mode, so never a raw file copy), `integrity_check` + row counts, gzip + sha256, 14-day retention, at `/docker/wv-property-intelligence/backups/`. Installed and restore-drilled 2026-09-30.
+**Reasoning:** Cheap, WAL-safe, verifiable. Does not depend on any new credential.
+**Known gap (open):** copies are still on the same server; nightly off-host copy is not done yet (candidate: reuse the app's existing Google Drive service account, or a private Supabase Storage bucket). Failure alerting is not set up; check `/var/log/wv-db-backup.log`.
+**Files:** `scripts/backup-db.sh`, `/etc/cron.d/wv-db-backup` (VPS)
+
+---
+
+## 2026-09-30 — sharp's LGPL libvips binaries are accepted
+
+**Problem:** Sourcery's license policy flags `@img/sharp-libvips-*` (LGPL-3.0-or-later) in `api/package-lock.json` on every dependency PR; the check is not a required status.
+**Decision:** Accept. sharp is an unmodified npm dependency used via its documented API; libvips is an unmodified dynamically-loaded library. Sourcery license findings on `@img/*` lockfile entries may be resolved without further review. Any other new copyleft license still needs a look.
+**Reasoning:** Standard, widely used commercial practice. This is an engineering judgment, not legal advice; revisit if the app ever redistributes the binaries or modifies libvips.
+**Owner call:** delegated by Phil on 2026-09-30.
+
+---
+
+## 2026-09-30 — Express/VPS stays the primary stack; the Next.js (Vercel) site is not cut over yet
+
+**Problem:** Two live stacks (this Express app on the VPS behind `malickland.net`, and the Next.js 2.0 rebuild on Vercel) double the patching and verification work.
+**Decision:** Keep this app as the primary production stack for now. Do not cut the apex DNS over until the Next.js site reaches parity on compliance disclosures, listings gating, admin/data needs, CI and branch protection. Longer term direction: one public front door (Vercel) with a small private back-office/API, data on a managed database; decide and document the cutover with a rollback plan before moving DNS.
+**Reasoning:** The Express stack is the verified, compliant, deployed one; the Next.js repo currently has no CI or branch protection. Moving early would trade a known system for an under-gated one.
+**Owner call:** delegated by Phil on 2026-09-30.
+
+---
+
 ## 2026-05-27 — csurf replaced with csrf-csrf
 
 **Problem:** `csurf` is deprecated and flagged by npm audit.
