@@ -14,7 +14,7 @@
 
 | Layer | Choice | Rationale |
 |-------|--------|-----------|
-| Runtime | Node.js 20 LTS | Long-term support; runs in Docker on the production VPS |
+| Runtime | Node.js 24 LTS | Long-term support; runs in Docker on the production VPS |
 | Framework | Express 5 | Active development, async error handling |
 | Database | SQLite via `better-sqlite3` | Zero infrastructure overhead, sufficient for current scale, synchronous API simplifies code |
 | Session store | `better-sqlite3-session-store` | Collocated with main DB; no Redis needed |

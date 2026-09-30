@@ -30,6 +30,7 @@ Agents must use `PROJECT_STATE.md`, GitHub PR state, and live production checks 
 | Brokerage disclosure | ✅ Live | Footer / public pages show `WV Real Estate Agency, LLC | Sheila Judy, Broker` |
 | Production deploy | ✅ Live and verified (deployed 2026-09-30) | Hostinger VPS `31.97.58.203`, src @ `b22a11930f73cf39786823fe6329622d50ed43ca` (PR #144 merge; previous `65a2b32d`), container `wv-property-intelligence` healthy; `verify-vps-prod.sh` passed. Pre-deploy backup `wv_property.pre-deploy-20260930.db` and `ROLLBACK_SHA_20260930.txt` in `/docker/wv-property-intelligence`. |
 | DB backups (2026-09-30) | ✅ Nightly local backup installed; ⚠️ off-host copy still open | Cron 03:17 UTC runs `backup-db.sh` (WAL-safe, integrity + counts, gzip+sha256, 14-day retention) into `/docker/wv-property-intelligence/backups/`; restore drill passed. Hostinger keeps weekly whole-VM backups (latest 2026-09-27). Not yet: nightly off-server copy, failure alerting. See DECISIONS.md. |
+| Runtime Node version (2026-09-30) | ⚠️ Repo moved to Node 24 LTS; live VPS still on Node 20 until deployed | Node 20 reached end-of-life 2026-04-30. Dockerfile (`node:24-bookworm-slim`), Node CI and Preflight workflows now use 24 (LTS, supported to 2028-04-30). Verified in Node 24 containers: full `preflight.sh` and all 10 `tests/*.test.js` pass (incl. upload e2e, better-sqlite3 12.8.0, sharp 0.35.4). Open gate: deploy to the VPS (needs Phil approval + the same backup/rollback runbook). |
 | PRs #98, #100, #101, #102, #104, #106, #108, #109, #111, #112, #113 | ✅ Merged and deployed as applicable | Runtime deploy includes #113 squash `24ee74b`; later repo-safe commits on `origin/main` do not imply a runtime deploy unless the VPS source/container proof also advances |
 | `scripts/smoke-prod.sh` | ✅ Fixed | #102 merged; script respects `PUBLIC_LISTINGS_ENABLED` via `/api/config` |
 | Railway twin | ✅ Deleted | `railway service status` reports the linked old service is not found in the project; old GitHub deployment environments are gone; `railway.json`/`railway.toml` removed |
@@ -165,7 +166,7 @@ Recent PRs through #128 and #116 are merged; `origin/main` is `349034d` at this 
 
 | Layer | Choice |
 |-------|--------|
-| **This repo** | Node.js 20 / **Express 5** monolith, **SQLite** (`better-sqlite3`), **vanilla HTML** in `app/` (no frontend build) |
+| **This repo** | Node.js 24 / **Express 5** monolith, **SQLite** (`better-sqlite3`), **vanilla HTML** in `app/` (no frontend build) |
 | **Deploy** | **Hostinger VPS** — Docker + Traefik (`api/Dockerfile`); **manual** deploy (merge ≠ deploy). Not Railway |
 | **Not this product** | The separate **malickland.net Next.js** tree under Documents — different codebase; do not conflate env or deploy |
 | **Not used** | **Supabase**, PostgreSQL, Vercel app router, etc. |
@@ -190,7 +191,7 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 
 | Layer | Choice |
 |-------|--------|
-| Runtime | Node.js 20 / Express 5 |
+| Runtime | Node.js 24 / Express 5 |
 | Database | SQLite via `better-sqlite3` |
 | Frontend | Vanilla HTML/JS/CSS (no build step) |
 | Auth | `express-session` (admin) + Bearer API key (REST) |
