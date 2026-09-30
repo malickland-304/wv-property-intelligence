@@ -5,6 +5,25 @@
 
 ---
 
+## 2026-09-30 — Claude (Node 24 LTS)
+
+### Objective
+Move off Node 20 (end-of-life 2026-04-30) to Node 24 LTS (supported to 2028-04-30).
+
+### Changes Made
+- `api/Dockerfile`: both stages `node:20-bookworm-slim` -> `node:24-bookworm-slim`. `.github/workflows/nodejs-ci.yml` and `preflight.yml`: `node-version: 24.x`. Docs that stated "Node.js 20" updated (README, AGENTS, ARCHITECTURE, CONTEXT, PROJECT_STATE). No dependency or application code changes.
+
+### Verification (run in this session, Docker `node:24-bookworm-slim` v24.21.0, Linux arm64)
+- `npm ci` in `api/`, then full `scripts/preflight.sh` -> PRE-FLIGHT PASSED (7+13+28+9 tests, upload/resize e2e 5/5, startup/health/property/assistant smoke).
+- All 10 files in `tests/` pass. `docker build -f api/Dockerfile` succeeds; image runs Node v24.21.0 with better-sqlite3 12.8.0 (627 MB).
+- Note: a first preflight attempt failed only because the slim image lacks `curl`; the server started fine on Node 22 and 24 (not a Node issue).
+- Not verified: Linux x64 locally (the `Docker upload e2e` CI job runs it on the PR), production runtime, deploy.
+
+### Remaining Risks / Next
+- Live VPS still runs Node 20 until deployed. Deploy after merge with the backup + rollback runbook (rollback = previous SHA rebuild).
+
+---
+
 ## 2026-09-30 — Claude (backup automation + cleanup)
 
 ### Changes Made
