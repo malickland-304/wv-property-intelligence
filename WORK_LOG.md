@@ -5,6 +5,28 @@
 
 ---
 
+## 2026-09-30 — Claude
+
+### Objective
+Deploy PR #144 (merge `b22a119`) to the Hostinger VPS with a verified backup and rollback point, on Phil's explicit go-ahead.
+
+### Changes Made (production)
+- Pre-checks: src clean at `65a2b32d`, container healthy, 89G free, SQLite in WAL mode (so backup used the online backup API, not a file copy).
+- Wrote `ROLLBACK_SHA_20260930.txt` (`65a2b32d`); took consistent backup `wv_property.pre-deploy-20260930.db` via better-sqlite3 `backup()`. Backup verified: integrity ok; properties 2 / contacts 3 / counties 55 / `contacts.attribution` present, identical to live.
+- `git checkout --detach b22a119`, `docker compose build`, `docker compose up -d`.
+
+### Verification (run in this session)
+- Container `Up (healthy)`; src = `b22a11930f73cf39786823fe6329622d50ed43ca`.
+- In-container: multer 2.4.0, sharp 0.35.4, morgan 1.12.1, ip-address 10.7.2, qs 6.16.0, body-parser 2.3.0, express 5.2.1.
+- Live DB after deploy: integrity ok, same row counts, attribution column intact.
+- `EXPECTED_SHA=b22a119… scripts/verify-vps-prod.sh` -> "VPS production verified"; `/api/health` 200, `/api/config` -> `listingsEnabled:false`, `/search` 200, `/` 200.
+- Not verified: authenticated admin photo upload against production (covered by the x64 CI e2e), live lead submission/email.
+
+### Rollback
+`git -C src checkout --detach 65a2b32d` then `docker compose build && up -d`. Do not restore the DB copy unless data is damaged (would discard newer leads).
+
+---
+
 ## 2026-09-29 — Claude
 
 ### Objective

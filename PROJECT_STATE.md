@@ -28,7 +28,7 @@ Agents must use `PROJECT_STATE.md`, GitHub PR state, and live production checks 
 | Close date | ✅ `2026-05-29` | Live DB row `advent-dr-hampshire-wv.sold_at='2026-05-29'` |
 | $299 broker admin fee wording | ✅ Approved and live | Homepage and `/37-advent` disclose the fee; broker approval was confirmed before deploy |
 | Brokerage disclosure | ✅ Live | Footer / public pages show `WV Real Estate Agency, LLC | Sheila Judy, Broker` |
-| Production deploy | ✅ Live and verified (re-verified 2026-09-29) | Hostinger VPS `31.97.58.203`, src @ `65a2b32d` (was `24ee74b` when last recorded 2026-06-18/19), container `wv-property-intelligence` healthy, up since 2026-09-22. `origin/main` is 10 commits ahead (`44b88dd5`); merge does not equal deploy. |
+| Production deploy | ✅ Live and verified (deployed 2026-09-30) | Hostinger VPS `31.97.58.203`, src @ `b22a11930f73cf39786823fe6329622d50ed43ca` (PR #144 merge; previous `65a2b32d`), container `wv-property-intelligence` healthy; `verify-vps-prod.sh` passed. Pre-deploy backup `wv_property.pre-deploy-20260930.db` and `ROLLBACK_SHA_20260930.txt` in `/docker/wv-property-intelligence`. |
 | PRs #98, #100, #101, #102, #104, #106, #108, #109, #111, #112, #113 | ✅ Merged and deployed as applicable | Runtime deploy includes #113 squash `24ee74b`; later repo-safe commits on `origin/main` do not imply a runtime deploy unless the VPS source/container proof also advances |
 | `scripts/smoke-prod.sh` | ✅ Fixed | #102 merged; script respects `PUBLIC_LISTINGS_ENABLED` via `/api/config` |
 | Railway twin | ✅ Deleted | `railway service status` reports the linked old service is not found in the project; old GitHub deployment environments are gone; `railway.json`/`railway.toml` removed |
@@ -36,7 +36,7 @@ Agents must use `PROJECT_STATE.md`, GitHub PR state, and live production checks 
 | Content funnel pack | ✅ Finalized, publish-ready | `~/Documents/MalickLand_Content_Funnel_Pack_2026-06-17/`; footer disclosure aligned to the live broker block + `WV0029577` + Equal Housing; PDF text pypdf-verified |
 | `/start` buyer-guide funnel | ✅ Live on VPS | PR #109 merged and deployed; `/start` returns 200 and `/assets/MalickLand_WV_Buyers_Guide.pdf` returns 200 `application/pdf` on `malickland.net` |
 | `multer` DoS advisory | ✅ Patched live | PR #111 merged; VPS `api/package-lock.json` resolves `multer` to `2.2.0` |
-| Dependency advisories (2026-09-29) | ⚠️ Open — 15 Dependabot alerts (7 high) | VPS (`65a2b32d`) runs multer 2.2.0, sharp 0.33.5, ip-address 10.2.0, morgan 1.10.1. PR #144 moves `api/` to multer 2.4.0, sharp 0.35.4, morgan 1.12.1, ip-address 10.7.2, qs 6.16.0. Open gate: merge #144, then one approved VPS deploy with rollback. The PR #111 row above is historical. |
+| Dependency advisories (2026-09-29) | ✅ Patched live 2026-09-30 | Live container verified: multer 2.4.0, sharp 0.35.4, morgan 1.12.1, ip-address 10.7.2, qs 6.16.0, body-parser 2.3.0. GitHub Dependabot open alerts: 0 after PR #144. (Prior state: multer 2.2.0, sharp 0.33.5, ip-address 10.2.0, morgan 1.10.1.) |
 | Public assistant cost-control flag | ✅ Merged and deployed | PR #112 merged; VPS src @ `24ee74b`; `PUBLIC_ASSISTANT_ENABLED=false` returns fallback without provider calls |
 | Homepage dynamic HTML safety | ✅ Merged and deployed | PR #113 merged; VPS src @ `24ee74b`; homepage listing/property fields are escaped before insertion |
 | Repo-safe queue through #128 plus #116 | ✅ Merged to `origin/main` | `origin/main` is `349034d`; document-registry/API/admin/homepage improvements are queued for the next manual VPS deploy where runtime files changed |
@@ -59,7 +59,6 @@ Agents must use `PROJECT_STATE.md`, GitHub PR state, and live production checks 
 
 | Gate | Owner | Needed evidence / action | Notes |
 |------|-------|--------------------------|-------|
-| VPS deploy of PR #144 dependency fixes | Phil | Explicit approval of one deploy from the merged commit, after: #144 merged, the x64 upload test green in CI, and a consistent verified SQLite backup plus recorded rollback SHA (`65a2b32d`) | Deploy stays manual. Verify with `scripts/verify-vps-prod.sh` and in-container versions (multer >= 2.4.0, sharp >= 0.35.4, morgan >= 1.12.0, ip-address >= 10.5.1). |
 | Welcome / nurture emails (funnel phase 2) | Phil | Approve enabling and sending the welcome sequence | Gated separately; emails are a hard pause-point. Not in PR #109 |
 | Optional alternate footer wording from Sheila | Sheila | Sheila-approved exact wording only if she wants something different from the current live-aligned block | Not blocking; the default form is already in the pack. The live fee/brokerage wording is closed |
 
@@ -76,10 +75,10 @@ Before asking Phil anything, identify the open gate in the table above. If no op
 | **Active repo** | `/Users/yhyh7/Projects/wv-property-intelligence` |
 | **Remote** | `https://github.com/malickland-304/wv-property-intelligence.git` |
 | **Production branch** | `origin/main`; verify current head with `git fetch origin --prune && git rev-parse origin/main` |
-| **Last runtime deploy** | Verified live src `65a2b32d` (2026-09-29). Previously recorded: #113 `fix(homepage): escape dynamic listing HTML` at `24ee74b`. |
+| **Last runtime deploy** | 2026-09-30: PR #144 merge `b22a11930f73cf39786823fe6329622d50ed43ca` (dependency security floors, `/search` empty state, admin Resend wording). Previous: `65a2b32d`. |
 | **Live deploy target** | **Hostinger VPS** `srv1716268` / `31.97.58.203` (Docker + Traefik); deploy is **manual** — merge ≠ deploy. Not Railway. See `docs/CANONICAL_MAP.md` |
 
-The live VPS runtime source checkout is `65a2b32d` (verified 2026-09-29; `24ee74b` was the June value). `origin/main` may advance with repo-safe work that has not been deployed to the VPS; merge still does not equal deploy. Compare future work against current `origin/main`, not a stale local `main`, and prove production with the VPS checkout/container/image state, not Railway deployment records.
+The live VPS runtime source checkout is `b22a11930f73cf39786823fe6329622d50ed43ca` (deployed and verified 2026-09-30). `origin/main` may advance with repo-safe work that has not been deployed to the VPS; merge still does not equal deploy. Compare future work against current `origin/main`, not a stale local `main`, and prove production with the VPS checkout/container/image state, not Railway deployment records.
 
 ### Do not use as source of truth
 
