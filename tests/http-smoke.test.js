@@ -159,6 +159,16 @@ async function main() {
         '/search empty-state page should carry the brokerage disclosure');
     });
 
+    await test('GET /37-advent carries the brokerage disclosure', async () => {
+      const res = await fetch(`${baseUrl}/37-advent`, { redirect: 'manual' });
+      assert.strictEqual(res.status, 200);
+      const body = await res.text();
+      assert.ok(body.includes('WV Real Estate Agency, LLC'),
+        '/37-advent should name the brokerage');
+      assert.ok(body.includes('Broker: Sheila Judy'),
+        '/37-advent should name the broker');
+    });
+
     await test('GET /search.html canonicalizes to /search', async () => {
       const res = await fetch(`${baseUrl}/search.html`, { redirect: 'manual' });
       assert.strictEqual(res.status, 301);
