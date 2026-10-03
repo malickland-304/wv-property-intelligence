@@ -1,12 +1,12 @@
 # ---- Build Stage ----
 # Compiles native modules (better-sqlite3) against glibc in an isolated layer.
-FROM node:20-bookworm-slim AS builder
+FROM node:24-bookworm-slim AS builder
 WORKDIR /workspace
 COPY api/package*.json ./api/
 RUN cd api && npm ci --omit=dev && npm cache clean --force
 
 # ---- Runtime Stage ----
-FROM node:20-bookworm-slim AS runtime
+FROM node:24-bookworm-slim AS runtime
 
 RUN apt-get update \
     && apt-get upgrade -y \

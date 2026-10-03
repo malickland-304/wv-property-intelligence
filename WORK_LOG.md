@@ -5,6 +5,65 @@
 
 ---
 
+## 2026-09-30 — Claude (Node 24 LTS)
+
+### Objective
+Move off Node 20 (end-of-life 2026-04-30) to Node 24 LTS (supported to 2028-04-30).
+
+### Changes Made
+- `api/Dockerfile`: both stages `node:20-bookworm-slim` -> `node:24-bookworm-slim`. `.github/workflows/nodejs-ci.yml` and `preflight.yml`: `node-version: 24.x`. Docs that stated "Node.js 20" updated (README, AGENTS, ARCHITECTURE, CONTEXT, PROJECT_STATE). No dependency or application code changes.
+
+### Verification (run in this session, Docker `node:24-bookworm-slim` v24.21.0, Linux arm64)
+- `npm ci` in `api/`, then full `scripts/preflight.sh` -> PRE-FLIGHT PASSED (7+13+28+9 tests, upload/resize e2e 5/5, startup/health/property/assistant smoke).
+- All 10 files in `tests/` pass. `docker build -f api/Dockerfile` succeeds; image runs Node v24.21.0 with better-sqlite3 12.8.0 (627 MB).
+- Note: a first preflight attempt failed only because the slim image lacks `curl`; the server started fine on Node 22 and 24 (not a Node issue).
+- Not verified: Linux x64 locally (the `Docker upload e2e` CI job runs it on the PR), production runtime, deploy.
+
+### Remaining Risks / Next
+- Live VPS still runs Node 20 until deployed. Deploy after merge with the backup + rollback runbook (rollback = previous SHA rebuild).
+
+---
+
+## 2026-09-30 — Claude (backup automation + cleanup)
+
+### Changes Made
+- Added `scripts/backup-db.sh` (WAL-safe online backup, verify, gzip+sha256, 14-day retention). Installed on the VPS at `/docker/wv-property-intelligence/backup-db.sh` with `/etc/cron.d/wv-db-backup` (03:17 UTC).
+- Removed `/docker/wv-property-intelligence/.env.codex-backup-20260622-152642` after a key-name/hash comparison against live `.env` (same 12 keys, identical values except `PUBLIC_ASSISTANT_ENABLED`); nothing unique was lost. Values were never printed.
+- Recorded three decisions in `DECISIONS.md` (nightly backup, LGPL sharp accepted, Express primary for now).
+
+### Verification (run in this session)
+- Manual run: `backup ok`, integrity ok, counts 2/3/55. sha256 check OK. Restore drill (gunzip, copy into container, integrity ok, contacts 3, `attribution` column present).
+- cron service active; entry present. Not verified: the first scheduled (03:17 UTC) run; off-host copy; failure alerting.
+- Container stayed healthy; `/api/health` 200 after cleanup.
+- Hostinger API (read-only): 2 weekly VM backups (2026-09-20, 2026-09-27); no snapshot present.
+
+### Remaining Risks / Next
+- Off-server nightly copy and failure alerting. June `wv-data-backup-*` folders and old `.db` files on the VPS kept until the nightly job has run successfully for several nights.
+
+---
+
+## 2026-09-30 — Claude
+
+### Objective
+Deploy PR #144 (merge `b22a119`) to the Hostinger VPS with a verified backup and rollback point, on Phil's explicit go-ahead.
+
+### Changes Made (production)
+- Pre-checks: src clean at `65a2b32d`, container healthy, 89G free, SQLite in WAL mode (so backup used the online backup API, not a file copy).
+- Wrote `ROLLBACK_SHA_20260930.txt` (`65a2b32d`); took consistent backup `wv_property.pre-deploy-20260930.db` via better-sqlite3 `backup()`. Backup verified: integrity ok; properties 2 / contacts 3 / counties 55 / `contacts.attribution` present, identical to live.
+- `git checkout --detach b22a119`, `docker compose build`, `docker compose up -d`.
+
+### Verification (run in this session)
+- Container `Up (healthy)`; src = `b22a11930f73cf39786823fe6329622d50ed43ca`.
+- In-container: multer 2.4.0, sharp 0.35.4, morgan 1.12.1, ip-address 10.7.2, qs 6.16.0, body-parser 2.3.0, express 5.2.1.
+- Live DB after deploy: integrity ok, same row counts, attribution column intact.
+- `EXPECTED_SHA=b22a119… scripts/verify-vps-prod.sh` -> "VPS production verified"; `/api/health` 200, `/api/config` -> `listingsEnabled:false`, `/search` 200, `/` 200.
+- Not verified: authenticated admin photo upload against production (covered by the x64 CI e2e), live lead submission/email.
+
+### Rollback
+`git -C src checkout --detach 65a2b32d` then `docker compose build && up -d`. Do not restore the DB copy unless data is damaged (would discard newer leads).
+
+---
+
 ## 2026-09-29 — Claude
 
 ### Objective
