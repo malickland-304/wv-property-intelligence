@@ -408,3 +408,36 @@ The following files are historical reference only:
 - `CONTEXT.md` — may contain outdated architectural assumptions; verify against code
 - `SECURITY_VERIFICATION.md` — historical audit from 2026-04-05; does not reflect current state
 - `docs/agent-handoff.md` — deployment/guardrail notes only; may lag `main` — see STALE banner; does not override AGENTS.md
+
+---
+
+## Zero-Waste Workflow (MalickLand standard)
+
+Applies on top of every rule above; where two rules conflict, the stricter one wins. Full text with the copy/paste prompts: `AGENTS.md` in `MalickLand/MEDjAi`.
+
+**No answer = no build.** Before writing code, answer with file-path evidence:
+
+1. What is the current truth?
+2. What exact outcome are we creating?
+3. Which files, services, routes, env vars, databases or deploy configs may be touched?
+4. How will we prove it works?
+5. Who receives the next handoff?
+
+**Handoff chain:** Claude Code (Truth Lock, read-only) → Gemini (architecture reconciliation, no edits) → Codex (`READY TO BUILD` or `NOT READY — BLOCKERS`) → Phil approves a written scope → Claude Code builds the smallest safe change → Codex post-build `PASS` / `FAIL` → Phil approves deploy → production verification → document.
+
+- A Truth Lock report separates **Confirmed / Assumed / Unknown / Contradicted**. Do not build on an Unknown.
+- Deployment defaults to **NO**. Keep the existing architecture unless Phil approves a change. Touch only approved files.
+- A task is done only when tests ran, the smoke test passed, nothing unrelated changed, and rollback and next owner are written down.
+
+Every task ends with:
+
+```
+Done:
+Verified by:
+Remaining risk:
+Next owner:
+Next action:
+Approval needed:
+```
+
+**MalickLand minimum production smoke test** (after any approved deploy): homepage loads; `/37-advent` loads; `/admin` loads; `GET /api/properties` works; `POST /api/contacts` accepts a test lead and the lead is stored; notification path verified or marked not configured; brokerage disclosure (`WV Real Estate Agency, LLC` · `Broker: Sheila Judy`) visible on every public page; MLS number shown on listing marketing where applicable. Health check is `/api/health`.
