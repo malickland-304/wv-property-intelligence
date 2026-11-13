@@ -115,6 +115,7 @@ Required to run:
 
 Optional integrations:
 - **Lead notifications:** `RESEND_API_KEY`, `NOTIFICATION_EMAIL` or `LEADS_NOTIFICATION_EMAIL`, optional `FROM_EMAIL`
+- **Inquiry intake forward (n8n):** `INQUIRY_WEBHOOK_URL`, `INQUIRY_WEBHOOK_SECRET`, optional `INQUIRY_BRAND` — copies each `/api/contacts` lead to the n8n intake workflow; skipped when unset
 - **Legacy Gmail helper / OAuth:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `GOOGLE_GMAIL_USER`
 - **Drive photo backup:** `GOOGLE_DRIVE_FOLDER_ID`
 - **AI content generation:** `AI_GATEWAY_API_KEY`, `ANTHROPIC_API_KEY`, or `OPENAI_API_KEY` (optional provider-specific model overrides)

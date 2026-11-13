@@ -8,6 +8,7 @@ const { requireApiKey }   = require('../middleware/auth');
 const createDocumentsRouter = require('./documents');
 const { contactsRateLimit, publicReadRateLimit, generateDescRateLimit, apiWriteRateLimit } = require('../middleware/rate-limits');
 const { sendLeadNotification } = require('../services/email');
+const { isInquiryForwardConfigured, forwardInquiry } = require('../services/inquiryForward');
 const { isValidEmail, normalizeAcreage, slugify, VALID_PROP_TYPES, VALID_PROP_STATUSES } = require('../helpers');
 const { publicListingsEnabled } = require('../featureFlags');
 
@@ -142,6 +143,19 @@ router.post('/contacts', contactsRateLimit, (req, res) => {
     .catch((err) => {
       console.error(`[Contacts] Lead #${result.lastInsertRowid} notification error:`, err && err.message ? err.message : err);
     });
+
+  // Best-effort copy to the n8n inquiry intake. The lead is already stored
+  // above; a failed forward is logged (id only, no PII) and never fails the request.
+  if (isInquiryForwardConfigured()) {
+    forwardInquiry(
+      { id: result.lastInsertRowid, name, email, phone, message: combinedMessage, source },
+      property
+    ).then((forwarded) => {
+      if (!forwarded) {
+        console.warn(`[Contacts] Lead #${result.lastInsertRowid} CAPTURED but NOT forwarded to inquiry intake.`);
+      }
+    });
+  }
 
   res.status(201).json({ id: result.lastInsertRowid });
 });

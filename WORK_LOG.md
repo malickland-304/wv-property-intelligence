@@ -5,6 +5,40 @@
 
 ---
 
+## 2026-11-13 — Claude
+
+### Objective
+Forward each lead captured by `POST /api/contacts` to the n8n "Inquiry intake (all brands)" workflow (`https://n8n.malickland.cloud`, workflow `XdV8v93pPhBOjLt7`), authenticated with a shared-secret header, without changing lead capture. Scope approved by Phil in chat on 2026-11-13 ("Yes, write it"). Built from `origin/main` @ `15797d0`.
+
+### Changes Made
+- Added `api/services/inquiryForward.js`: `isInquiryForwardConfigured()`, `buildInquiryPayload()`, `forwardInquiry()`. Posts JSON to `INQUIRY_WEBHOOK_URL` with header `X-Inquiry-Secret: $INQUIRY_WEBHOOK_SECRET`; https only, 5s timeout, `redirect: 'error'`, never throws, returns `false` when unconfigured or on any failure. `submission_id` is `malickland-contact-<contacts.id>` so n8n treats a repeat as a replay.
+- `api/routes/api.js`: after the existing insert + email notification, `POST /api/contacts` calls the forward when configured. Fire-and-forget; a failed forward logs the lead id only (no PII) and the response stays `201`.
+- Added `tests/inquiry-forward.test.js` (12 checks, injected fetch, no network).
+- Documented `INQUIRY_WEBHOOK_URL`, `INQUIRY_WEBHOOK_SECRET`, `INQUIRY_BRAND` in `api/.env.example`, `README.md`, `AGENTS.md`.
+- No new dependencies (uses Node 20 global `fetch`). No schema change. `/api/leads` (37-advent form) is not forwarded.
+
+### Verification (run in this session, Node 22.22.3, macOS arm64)
+- `npm ci` in `api/`; `node --check` on server.js, middleware/auth.js, routes/admin.js, routes/api.js, routes/public.js, services/inquiryForward.js -> OK.
+- `node tests/inquiry-forward.test.js` -> 12 passed. `node tests/verify-security-fixes.test.js` -> 60/60.
+- `tests/http-smoke.test.js` 14/14, plus public-assistant-flag, upload-e2e, document-registry, admin-document-review -> pass.
+- Local server, throwaway DB: `POST /api/contacts` -> 201 with forward unconfigured (no forward log line); -> 201 with forward configured against an unreachable https URL, log `Lead #2 CAPTURED but NOT forwarded to inquiry intake`, secret absent from the log.
+- NOT run: `scripts/preflight.sh` itself (its `mktemp -d` is blocked by the agent sandbox; its component tests and startup/health steps were run by hand as above). NOT verified: a real forward reaching n8n — the n8n workflow is inactive and the secret value is known only to Phil.
+
+### Security Notes
+- Secret is read from env at send time, sent only over https, never logged, never in the request body, and not re-sent on redirect.
+- Outbound target comes only from operator-set env, not from request data.
+- The inquiry message is forwarded as data; n8n treats it as untrusted text.
+
+### Remaining Risks
+- Not deployed. Nothing forwards until Phil sets `INQUIRY_WEBHOOK_URL` and `INQUIRY_WEBHOOK_SECRET` in `/docker/wv-property-intelligence/.env`, the VPS compose passes them to the container, the container is rebuilt, and the n8n workflow is activated.
+- A forward that fails is logged but not retried; the lead remains in `contacts` and the email notification path is unchanged.
+- `INQUIRY_BRAND` must match an entry in the Ops Hub `Config` `brands_allowed` list or n8n rejects the lead.
+
+### Recommended Next Task
+Phil-approved VPS deploy with the two env vars set, then one test lead through the live form to confirm it lands in the Ops Hub sheet.
+
+---
+
 ## 2026-09-29 — Claude
 
 ### Objective
