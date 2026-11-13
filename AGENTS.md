@@ -278,6 +278,11 @@ Set in the production environment — the Hostinger VPS `.env` at `/docker/wv-pr
 - `FROM_EMAIL`
 - `NOTIFICATION_EMAIL`
 
+**Inquiry intake forward to n8n (optional):**
+- `INQUIRY_WEBHOOK_URL`
+- `INQUIRY_WEBHOOK_SECRET`
+- `INQUIRY_BRAND`
+
 **Analytics (optional):**
 - `GA_MEASUREMENT_ID`
 - `META_PIXEL_ID`
