@@ -28,7 +28,7 @@ Agents must use `PROJECT_STATE.md`, GitHub PR state, and live production checks 
 | Close date | ✅ `2026-05-29` | Live DB row `advent-dr-hampshire-wv.sold_at='2026-05-29'` |
 | $299 broker admin fee wording | ✅ Approved and live | Homepage and `/37-advent` disclose the fee; broker approval was confirmed before deploy |
 | Brokerage disclosure | ✅ Live | Footer / public pages show `WV Real Estate Agency, LLC | Sheila Judy, Broker` |
-| Production deploy | ✅ Live and verified (re-verified 2026-09-29) | Hostinger VPS `31.97.58.203`, src @ `65a2b32d` (was `24ee74b` when last recorded 2026-06-18/19), container `wv-property-intelligence` healthy, up since 2026-09-22. `origin/main` is 10 commits ahead (`44b88dd5`); merge does not equal deploy. |
+| Production deploy | ✅ Live (deployed by Phil 2026-11-13) | Hostinger VPS `31.97.58.203`, src @ `12d255d` (#151 merge; includes #148). Before this deploy the VPS reported src @ `b22a119` (#144 merge). Proof is Phil's SSH session output (`git -C src rev-parse --short HEAD` → `12d255d`, container started) plus public smoke; `scripts/verify-vps-prod.sh` was NOT run. Earlier records: `65a2b32d` (2026-09-29), `24ee74b` (2026-06-18/19). Merge does not equal deploy. |
 | PRs #98, #100, #101, #102, #104, #106, #108, #109, #111, #112, #113 | ✅ Merged and deployed as applicable | Runtime deploy includes #113 squash `24ee74b`; later repo-safe commits on `origin/main` do not imply a runtime deploy unless the VPS source/container proof also advances |
 | `scripts/smoke-prod.sh` | ✅ Fixed | #102 merged; script respects `PUBLIC_LISTINGS_ENABLED` via `/api/config` |
 | Railway twin | ✅ Deleted | `railway service status` reports the linked old service is not found in the project; old GitHub deployment environments are gone; `railway.json`/`railway.toml` removed |
@@ -76,10 +76,10 @@ Before asking Phil anything, identify the open gate in the table above. If no op
 | **Active repo** | `/Users/yhyh7/Projects/wv-property-intelligence` |
 | **Remote** | `https://github.com/malickland-304/wv-property-intelligence.git` |
 | **Production branch** | `origin/main`; verify current head with `git fetch origin --prune && git rev-parse origin/main` |
-| **Last runtime deploy** | Verified live src `65a2b32d` (2026-09-29). Previously recorded: #113 `fix(homepage): escape dynamic listing HTML` at `24ee74b`. |
+| **Last runtime deploy** | 2026-11-13 by Phil: `12d255d` (#151 inquiry forward + #148 brokerage disclosure), from `b22a119`. Rollback SHA: `b22a119`. Previously recorded: `65a2b32d` (2026-09-29), #113 at `24ee74b`. |
 | **Live deploy target** | **Hostinger VPS** `srv1716268` / `31.97.58.203` (Docker + Traefik); deploy is **manual** — merge ≠ deploy. Not Railway. See `docs/CANONICAL_MAP.md` |
 
-The live VPS runtime source checkout is `65a2b32d` (verified 2026-09-29; `24ee74b` was the June value). `origin/main` may advance with repo-safe work that has not been deployed to the VPS; merge still does not equal deploy. Compare future work against current `origin/main`, not a stale local `main`, and prove production with the VPS checkout/container/image state, not Railway deployment records.
+The live VPS runtime source checkout is `12d255d` (deployed 2026-11-13; `b22a119` immediately before, `65a2b32d` on 2026-09-29, `24ee74b` in June). `origin/main` may advance with repo-safe work that has not been deployed to the VPS; merge still does not equal deploy. Compare future work against current `origin/main`, not a stale local `main`, and prove production with the VPS checkout/container/image state, not Railway deployment records.
 
 ### Do not use as source of truth
 

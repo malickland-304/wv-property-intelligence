@@ -5,6 +5,48 @@
 
 ---
 
+## 2026-11-13 — Claude (deploy record)
+
+### Objective
+Record the manual VPS deploy of `12d255d` that Phil ran on 2026-11-13, and its smoke results. Docs only.
+
+### Changes Made
+- `PROJECT_STATE.md`: production deploy row, last runtime deploy, and live-SHA paragraph now say `12d255d` (from `b22a119`).
+- No code changed. Claude did not run the deploy; Phil ran every server command in his own SSH session.
+
+### What happened on the VPS (from Phil's terminal output, read by Claude)
+- Before: `git -C src rev-parse --short HEAD` → `b22a119`; `compose.yml` has an `env_file` line.
+- `.env` backed up to `.env.bak-2026-11-13`; `INQUIRY_WEBHOOK_URL` and `INQUIRY_WEBHOOK_SECRET` appended. The secret was generated to Phil's clipboard and typed at a silent prompt; it was never shown to Claude. The same value was set by Phil in the n8n `Header Auth account` credential.
+- `git -C src checkout 12d255d…`, `docker compose build`, `docker compose up -d` → container started; `docker exec wv-property-intelligence printenv INQUIRY_WEBHOOK_URL` printed the n8n URL; `now live: 12d255d`.
+
+### Verification (run by Claude in this session, public endpoints only)
+- `GET /`, `/37-advent`, `/admin`, `/api/health`, `/api/properties`, `/listings` on `https://malickland.net` → 200.
+- `/37-advent` contains `Broker: Sheila Judy` (was absent before the deploy) → #148 is live.
+- `POST /api/contacts` with a test lead → 201 `{"id":5}`; n8n execution 13 (webhook mode) succeeded; the lead appeared in the Ops Hub `Leads` tab as brand `MalickLand`, source `web_form`, with a Gmail draft link. Notification email path: not checked.
+- NOT run: `scripts/verify-vps-prod.sh` (needs SSH from the agent), in-container dependency checks, MLS-number check.
+
+### Security Notes
+- A temporary SSH firewall rule (source-limited to Phil's IP) was opened for the deploy by a separate session; it must be removed.
+- Test residue: contacts row #5 (`TEST Deploy Check`, `test.deploy@example.com`) in the production DB; the Ops Hub test row was cleared.
+
+### Remaining Risks
+- `/api/leads` (37-advent form) is not forwarded to n8n.
+- The VPS login banner reports `System restart required`.
+
+### Recommended Next Task
+Codex: confirm VPS SHA with `EXPECTED_SHA=12d255d924cbcc0ecf9d90d6c0d85cb017a19089 bash scripts/verify-vps-prod.sh` next time SSH is open.
+
+```
+Done: deploy of 12d255d recorded
+Verified by: public smoke + end-to-end test lead (above); VPS SHA from Phil's session output
+Remaining risk: verify-vps-prod.sh not run; SSH rule to be removed
+Next owner: Phil (close SSH rule), Codex (SHA proof)
+Next action: remove temporary SSH firewall rule
+Approval needed: Phil to merge this docs PR
+```
+
+---
+
 ## 2026-11-13 — Claude
 
 ### Objective
