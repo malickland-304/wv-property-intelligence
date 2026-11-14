@@ -1,6 +1,6 @@
 # PROJECT_STATE.md — Malickland 2.0
 
-> **Last verified:** 2026-06-19 (GitHub `origin/main` = `349034d` from #116; live prod was Hostinger VPS src @ `24ee74b` from #113 on 2026-06-19 (superseded: verified at `65a2b32d` on 2026-09-29 by read-only SSH; see the 2026-09-29 rows below); Railway twin deleted; WV license `WV0029577` verified vs WV REC roster)
+> **Last verified:** production deploy of `12d255d` on 2026-11-13 is CLAIMED (Phil's SSH output + public smoke), not yet proven by `scripts/verify-vps-prod.sh`; GitHub-state rows below last verified 2026-06-19 (GitHub `origin/main` = `349034d` from #116; live prod was Hostinger VPS src @ `24ee74b` from #113 on 2026-06-19 (superseded: verified at `65a2b32d` on 2026-09-29 by read-only SSH; see the 2026-09-29 rows below); Railway twin deleted; WV license `WV0029577` verified vs WV REC roster)
 > **Authority:** Product completeness, repo workspace truth, resolved facts, and open gates. Use `docs/CANONICAL_MAP.md` for repo/domain/stack disambiguation. Deployment runbooks and guardrails remain in `docs/agent-handoff.md`.
 
 ---
@@ -28,7 +28,7 @@ Agents must use `PROJECT_STATE.md`, GitHub PR state, and live production checks 
 | Close date | ✅ `2026-05-29` | Live DB row `advent-dr-hampshire-wv.sold_at='2026-05-29'` |
 | $299 broker admin fee wording | ✅ Approved and live | Homepage and `/37-advent` disclose the fee; broker approval was confirmed before deploy |
 | Brokerage disclosure | ✅ Live | Footer / public pages show `WV Real Estate Agency, LLC | Sheila Judy, Broker` |
-| Production deploy | ✅ Live and verified (re-verified 2026-09-29) | Hostinger VPS `31.97.58.203`, src @ `65a2b32d` (was `24ee74b` when last recorded 2026-06-18/19), container `wv-property-intelligence` healthy, up since 2026-09-22. `origin/main` is 10 commits ahead (`44b88dd5`); merge does not equal deploy. |
+| Production deploy | ⚠️ Deployed by Phil 2026-11-13 — CLAIMED, unverified until `verify-vps-prod.sh` passes | Hostinger VPS `31.97.58.203`, src @ `12d255d` (#151 merge; includes #148). Before this deploy the VPS reported src @ `b22a119` (#144 merge). Proof is Phil's SSH session output (`git -C src rev-parse --short HEAD` → `12d255d`, container started) plus public smoke; `scripts/verify-vps-prod.sh` was NOT run. Earlier records: `65a2b32d` (2026-09-29), `24ee74b` (2026-06-18/19). Merge does not equal deploy. |
 | PRs #98, #100, #101, #102, #104, #106, #108, #109, #111, #112, #113 | ✅ Merged and deployed as applicable | Runtime deploy includes #113 squash `24ee74b`; later repo-safe commits on `origin/main` do not imply a runtime deploy unless the VPS source/container proof also advances |
 | `scripts/smoke-prod.sh` | ✅ Fixed | #102 merged; script respects `PUBLIC_LISTINGS_ENABLED` via `/api/config` |
 | Railway twin | ✅ Deleted | `railway service status` reports the linked old service is not found in the project; old GitHub deployment environments are gone; `railway.json`/`railway.toml` removed |
@@ -36,10 +36,10 @@ Agents must use `PROJECT_STATE.md`, GitHub PR state, and live production checks 
 | Content funnel pack | ✅ Finalized, publish-ready | `~/Documents/MalickLand_Content_Funnel_Pack_2026-06-17/`; footer disclosure aligned to the live broker block + `WV0029577` + Equal Housing; PDF text pypdf-verified |
 | `/start` buyer-guide funnel | ✅ Live on VPS | PR #109 merged and deployed; `/start` returns 200 and `/assets/MalickLand_WV_Buyers_Guide.pdf` returns 200 `application/pdf` on `malickland.net` |
 | `multer` DoS advisory | ✅ Patched live | PR #111 merged; VPS `api/package-lock.json` resolves `multer` to `2.2.0` |
-| Dependency advisories (2026-09-29) | ⚠️ Open — 15 Dependabot alerts (7 high) | VPS (`65a2b32d`) runs multer 2.2.0, sharp 0.33.5, ip-address 10.2.0, morgan 1.10.1. PR #144 moves `api/` to multer 2.4.0, sharp 0.35.4, morgan 1.12.1, ip-address 10.7.2, qs 6.16.0. Open gate: merge #144, then one approved VPS deploy with rollback. The PR #111 row above is historical. |
+| Dependency advisories | ⚠️ Re-check needed | #144 (multer 2.4.0, sharp 0.35.4, morgan 1.12.1, ip-address 10.7.2, qs 6.16.0) was merged at `b22a119` and is included in the claimed `12d255d` deploy; those are lockfile versions, in-container versions NOT checked. The 2026-09-29 inventory (`65a2b32d`: multer 2.2.0, sharp 0.33.5, ip-address 10.2.0, morgan 1.10.1) is historical. Re-run Dependabot/`npm audit` against `12d255d`. |
 | Public assistant cost-control flag | ✅ Merged and deployed | PR #112 merged; VPS src @ `24ee74b`; `PUBLIC_ASSISTANT_ENABLED=false` returns fallback without provider calls |
 | Homepage dynamic HTML safety | ✅ Merged and deployed | PR #113 merged; VPS src @ `24ee74b`; homepage listing/property fields are escaped before insertion |
-| Repo-safe queue through #128 plus #116 | ✅ Merged to `origin/main` | `origin/main` is `349034d`; document-registry/API/admin/homepage improvements are queued for the next manual VPS deploy where runtime files changed |
+| Repo-safe queue through #128 plus #116 | ✅ Merged; included in the claimed `12d255d` deploy (2026-11-13) | Runtime changes from #116 and #120–#128 are in `12d255d`; live proof pending `verify-vps-prod.sh` |
 
 ### Closed gates — do not re-litigate
 
@@ -59,7 +59,8 @@ Agents must use `PROJECT_STATE.md`, GitHub PR state, and live production checks 
 
 | Gate | Owner | Needed evidence / action | Notes |
 |------|-------|--------------------------|-------|
-| VPS deploy of PR #144 dependency fixes | Phil | Explicit approval of one deploy from the merged commit, after: #144 merged, the x64 upload test green in CI, and a consistent verified SQLite backup plus recorded rollback SHA (`65a2b32d`) | Deploy stays manual. Verify with `scripts/verify-vps-prod.sh` and in-container versions (multer >= 2.4.0, sharp >= 0.35.4, morgan >= 1.12.0, ip-address >= 10.5.1). |
+| VPS SHA proof for `12d255d` | Phil / Codex | Deploy itself done 2026-11-13 (includes #144). Remaining: `EXPECTED_SHA=12d255d924cbcc0ecf9d90d6c0d85cb017a19089 bash scripts/verify-vps-prod.sh` (needs SSH) and in-container versions (multer >= 2.4.0, sharp >= 0.35.4, morgan >= 1.12.0, ip-address >= 10.5.1) | Deploy stays manual; SSH is closed by default and opened per job. |
+| Production smoke residue + notification path | Phil | Delete test `contacts` row #5 (`test.deploy@example.com`) inside the container per `docs/SMOKE_CHECKLIST.md` §4; verify the lead notification email path or mark it not configured (startup log `[Startup] Resend configured:`) | Both need SSH; do at the next planned SSH window. |
 | Welcome / nurture emails (funnel phase 2) | Phil | Approve enabling and sending the welcome sequence | Gated separately; emails are a hard pause-point. Not in PR #109 |
 | Optional alternate footer wording from Sheila | Sheila | Sheila-approved exact wording only if she wants something different from the current live-aligned block | Not blocking; the default form is already in the pack. The live fee/brokerage wording is closed |
 
@@ -76,10 +77,10 @@ Before asking Phil anything, identify the open gate in the table above. If no op
 | **Active repo** | `/Users/yhyh7/Projects/wv-property-intelligence` |
 | **Remote** | `https://github.com/malickland-304/wv-property-intelligence.git` |
 | **Production branch** | `origin/main`; verify current head with `git fetch origin --prune && git rev-parse origin/main` |
-| **Last runtime deploy** | Verified live src `65a2b32d` (2026-09-29). Previously recorded: #113 `fix(homepage): escape dynamic listing HTML` at `24ee74b`. |
+| **Last runtime deploy** | 2026-11-13 by Phil (claimed, unverified): `12d255d` (#151 inquiry forward + #148 brokerage disclosure), from `b22a119`. Rollback SHA: `b22a119`. Previously recorded: `65a2b32d` (2026-09-29), #113 at `24ee74b`. |
 | **Live deploy target** | **Hostinger VPS** `srv1716268` / `31.97.58.203` (Docker + Traefik); deploy is **manual** — merge ≠ deploy. Not Railway. See `docs/CANONICAL_MAP.md` |
 
-The live VPS runtime source checkout is `65a2b32d` (verified 2026-09-29; `24ee74b` was the June value). `origin/main` may advance with repo-safe work that has not been deployed to the VPS; merge still does not equal deploy. Compare future work against current `origin/main`, not a stale local `main`, and prove production with the VPS checkout/container/image state, not Railway deployment records.
+The live VPS runtime source checkout is reported as `12d255d` (deployed 2026-11-13, not yet proven by `verify-vps-prod.sh`; `b22a119` immediately before, `65a2b32d` on 2026-09-29, `24ee74b` in June). `origin/main` may advance with repo-safe work that has not been deployed to the VPS; merge still does not equal deploy. Compare future work against current `origin/main`, not a stale local `main`, and prove production with the VPS checkout/container/image state, not Railway deployment records.
 
 ### Do not use as source of truth
 
@@ -121,19 +122,19 @@ Recent PRs through #128 and #116 are merged; `origin/main` is `349034d` at this 
 | **#112** (`PUBLIC_ASSISTANT_ENABLED` cost-control flag) | ✅ Merged — `79064a9` on `origin/main`; deployed live |
 | **#113** (homepage dynamic HTML safety) | ✅ Merged — `24ee74b` on `origin/main`; deployed live |
 | **#114** (VPS SHA proof guardrail + Railway config cleanup) | ✅ Merged — `4b1e401` on `origin/main`; repo-only guardrail/docs cleanup; no runtime deploy required |
-| **#116** (homepage accessibility and SEO) | ✅ Merged — `349034d` on `origin/main`; runtime homepage changes queued for next manual VPS deploy |
+| **#116** (homepage accessibility and SEO) | ✅ Merged — `349034d` on `origin/main`; runtime homepage changes included in the `12d255d` deploy (2026-11-13, claimed) |
 | **#117** (HTTP integration smoke test) | ✅ Merged — `b28b0df` on `origin/main`; repo test/preflight coverage, not deployed |
 | **#118** (Document Registry Phase 1 spec) | ✅ Merged — `579dbb6` on `origin/main`; docs/spec only |
 | **#119** (CORS origin allowlist coverage) | ✅ Merged — `3aa0d0c` on `origin/main`; test coverage only |
-| **#120** (Document Registry Phase 1 skeleton) | ✅ Merged — `56647a8` on `origin/main`; runtime code queued for next VPS deploy |
-| **#121** (disabled Twilio path removal) | ✅ Merged — `8718a3f` on `origin/main`; runtime cleanup queued for next VPS deploy |
+| **#120** (Document Registry Phase 1 skeleton) | ✅ Merged — `56647a8` on `origin/main`; runtime code included in the `12d255d` deploy (2026-11-13, claimed) |
+| **#121** (disabled Twilio path removal) | ✅ Merged — `8718a3f` on `origin/main`; runtime cleanup included in the `12d255d` deploy (2026-11-13, claimed) |
 | **#122** (integration-test backlog cleanup) | ✅ Merged — `56c2f51` on `origin/main`; docs/backlog cleanup only |
 | **#123** (project state refresh through #122) | ✅ Merged — `31b450e` on `origin/main`; docs/state cleanup only |
-| **#124** (Document Registry Phase 2 review queue API) | ✅ Merged — `15fa8a3` on `origin/main`; runtime API queued for next VPS deploy |
+| **#124** (Document Registry Phase 2 review queue API) | ✅ Merged — `15fa8a3` on `origin/main`; runtime API included in the `12d255d` deploy (2026-11-13, claimed) |
 | **#125** (project state refresh through #124) | ✅ Merged — `eed3997` on `origin/main`; docs/state cleanup only |
-| **#126** (Document Registry admin review page) | ✅ Merged — `73cd750` on `origin/main`; runtime admin UI queued for next VPS deploy |
-| **#127** (Document Registry claim apply workflow) | ✅ Merged — `c8789b8` on `origin/main`; runtime admin write workflow queued for next VPS deploy |
-| **#128** (Document integration event capture) | ✅ Merged — `ba03692` on `origin/main`; runtime API foundation queued for next VPS deploy |
+| **#126** (Document Registry admin review page) | ✅ Merged — `73cd750` on `origin/main`; runtime admin UI included in the `12d255d` deploy (2026-11-13, claimed) |
+| **#127** (Document Registry claim apply workflow) | ✅ Merged — `c8789b8` on `origin/main`; runtime admin write workflow included in the `12d255d` deploy (2026-11-13, claimed) |
+| **#128** (Document integration event capture) | ✅ Merged — `ba03692` on `origin/main`; runtime API foundation included in the `12d255d` deploy (2026-11-13, claimed) |
 
 ---
 
