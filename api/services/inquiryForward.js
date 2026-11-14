@@ -47,21 +47,26 @@ function buildInquiryPayload(contact, property) {
   const location = property
     ? [property.address, property.city, property.county].filter(Boolean).join(', ')
     : '';
-  return {
+  const payload = {
     brand: clip(process.env.INQUIRY_BRAND, 80) || DEFAULT_BRAND,
     name: clip(contact.name, 200),
     email: clip(contact.email, 200),
     phone: clip(contact.phone, 40),
     message: clip(contact.message, 5000),
-    submission_id: `malickland-contact-${contact.id}`,
+    // Callers outside the contacts table (property-lead forms) pass their own stable id.
+    submission_id: clip(contact.submission_id, 100) || `malickland-contact-${contact.id}`,
     source: 'web_form',
     source_detail: clip(`malickland.net ${contact.source || 'web'}`, 300),
-    location_or_item: clip(location, 300),
+    location_or_item: clip(contact.location || location, 300),
   };
+  if (contact.need_type) payload.need_type = clip(contact.need_type, 80);
+  // Send the recorded choice either way: an unchecked box is an explicit "no".
+  if (contact.consent_sms !== undefined && contact.consent_sms !== null) payload.consent_sms = Boolean(contact.consent_sms);
+  return payload;
 }
 
 async function forwardInquiry(contact, property, { fetchImpl = globalThis.fetch } = {}) {
-  if (!contact || contact.id == null) return false;
+  if (!contact || (contact.id == null && !contact.submission_id)) return false;
   const url = getWebhookUrl();
   const secret = String(process.env.INQUIRY_WEBHOOK_SECRET || '').trim();
   if (!url || !secret || typeof fetchImpl !== 'function') return false;
