@@ -20,14 +20,15 @@ Record the manual VPS deploy of `12d255d` that Phil ran on 2026-11-13, and its s
 - `git -C src checkout 12d255d…`, `docker compose build`, `docker compose up -d` → container started; `docker exec wv-property-intelligence printenv INQUIRY_WEBHOOK_URL` printed the n8n URL; `now live: 12d255d`.
 
 ### Verification (run by Claude in this session, public endpoints only)
+- Status: deploy is CLAIMED, not proven. `scripts/verify-vps-prod.sh` was not run, so `PROJECT_STATE.md` marks it unverified.
 - `GET /`, `/37-advent`, `/admin`, `/api/health`, `/api/properties`, `/listings` on `https://malickland.net` → 200.
 - `/37-advent` contains `Broker: Sheila Judy` (was absent before the deploy) → #148 is live.
-- `POST /api/contacts` with a test lead → 201 `{"id":5}`; n8n execution 13 (webhook mode) succeeded; the lead appeared in the Ops Hub `Leads` tab as brand `MalickLand`, source `web_form`, with a Gmail draft link. Notification email path: not checked.
+- `POST /api/contacts` with a test lead → 201 `{"id":5}`; n8n execution 13 (webhook mode) succeeded; the lead appeared in the Ops Hub `Leads` tab as brand `MalickLand`, source `web_form`, with a Gmail draft link. Notification email path: NOT verified (open gate in `PROJECT_STATE.md`).
 - NOT run: `scripts/verify-vps-prod.sh` (needs SSH from the agent), in-container dependency checks, MLS-number check.
 
 ### Security Notes
 - A temporary SSH firewall rule (source-limited to Phil's IP) was opened for the deploy by a separate session; it must be removed.
-- Test residue: contacts row #5 (`TEST Deploy Check`, `test.deploy@example.com`) in the production DB; the Ops Hub test row was cleared.
+- Test residue: contacts row #5 (`TEST Deploy Check`, `test.deploy@example.com`) is still in the production DB and must be deleted inside the container per `docs/SMOKE_CHECKLIST.md` §4 (needs SSH; open gate). The Ops Hub test row and the Gmail test drafts were deleted.
 
 ### Remaining Risks
 - `/api/leads` (37-advent form) is not forwarded to n8n.
