@@ -125,6 +125,10 @@ function fakeFetch(response) {
     assert.strictEqual(p.need_type, 'Land');
     assert.strictEqual(p.consent_sms, true);
     assert.strictEqual(buildInquiryPayload(contact, property).need_type, undefined);
+    // An unchecked box is forwarded as an explicit false, not dropped.
+    assert.strictEqual(buildInquiryPayload({ submission_id: 'x', consent_sms: false }, null).consent_sms, false);
+    assert.strictEqual(buildInquiryPayload({ submission_id: 'x', consent_sms: 0 }, null).consent_sms, false);
+    assert.ok(!('consent_sms' in buildInquiryPayload(contact, property)), 'contacts payload has no consent field');
   });
 
   await check('forward works with a submission_id and no contacts row id', async () => {

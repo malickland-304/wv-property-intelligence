@@ -16,7 +16,8 @@ Close the gap an external audit found: the property-lead forms (`POST /api/leads
 - `api/services/inquiryForward.js`: payload accepts a caller-supplied `submission_id`, `location`, `need_type`, `consent_sms`; `/api/contacts` payload is unchanged.
 - Tests: `tests/inquiry-forward.test.js` (+2, now 14), `tests/lead-notifications.test.js` (+2, now 8).
 - Docs: `LEAD_AUTO_REPLY_ENABLED` in `api/.env.example` and `AGENTS.md`.
-- Not changed: `leadFollowupWorker.js` (never started anywhere; imports that do not exist), the day-0 follow-up rows still written to `lead_followups`, page copy/consent wording on `/37-advent`.
+- Review follow-ups (same PR): with auto-reply off, no `lead_followups` rows are stored and the lead is saved with `follow_up_status = 'disabled'`; `consent_sms` is forwarded as an explicit boolean when the form supplied it; startup now logs `[Startup] Inquiry forward configured:` (with a warning when off) and `[Startup] Customer auto-reply enabled:`; the auto-reply test spies on the mail transport and asserts zero calls when the flag is unset.
+- Not changed: `leadFollowupWorker.js` (never started anywhere; imports that do not exist), page copy/consent wording on `/37-advent`. Deferred to follow-ups: a durable outbox with retry for failed forwards, and a client idempotency key for repeated form posts (the intake already collapses repeats from the same contact and brand within the dedupe window).
 
 ### Verification (run in this session, Node 22.22.3, macOS arm64)
 - `node --check` on server.js, routes/leads.js, routes/api.js, routes/admin.js, routes/public.js, middleware/auth.js, services/inquiryForward.js, services/leadNotifications.js -> OK.

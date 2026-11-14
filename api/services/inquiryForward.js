@@ -60,7 +60,8 @@ function buildInquiryPayload(contact, property) {
     location_or_item: clip(contact.location || location, 300),
   };
   if (contact.need_type) payload.need_type = clip(contact.need_type, 80);
-  if (contact.consent_sms) payload.consent_sms = true;
+  // Send the recorded choice either way: an unchecked box is an explicit "no".
+  if (contact.consent_sms !== undefined && contact.consent_sms !== null) payload.consent_sms = Boolean(contact.consent_sms);
   return payload;
 }
 

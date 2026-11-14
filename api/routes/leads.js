@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 const { append37AdventLead, appendPropertyLead, isLeadCaptureConfigured } = require('../services/googleSheets');
 const {
   isLeadEmailConfigured,
+  isLeadAutoReplyEnabled,
   sendLeadNotificationEmail,
   sendLeadAutoReplyEmail,
 } = require('../services/leadNotifications');
@@ -107,7 +108,14 @@ async function handleLeadCapture({ payload, property, db, appendFn }) {
   const lead = property
     ? buildPropertyLead(payload, property)
     : build37AdventLead(payload);
-  const followUps = buildLeadSchedule(lead, process.env.SITE_URL);
+  // With customer auto-reply off (the default) no follow-up email will ever be
+  // sent, so do not store a pending schedule or mark the lead as scheduled.
+  const autoReply = isLeadAutoReplyEnabled();
+  const followUps = autoReply ? buildLeadSchedule(lead, process.env.SITE_URL) : [];
+  if (!autoReply) {
+    lead.follow_up_status = 'disabled';
+    lead.next_follow_up_at = '';
+  }
 
   let appendedToSheet = false;
   try {

@@ -17,6 +17,8 @@ const { db }             = require('./db');
 const adminRoutes  = require('./routes/admin');
 const apiRoutes    = require('./routes/api');
 const createLeadsRouter = require('./routes/leads');
+const { isInquiryForwardConfigured } = require('./services/inquiryForward');
+const { isLeadAutoReplyEnabled } = require('./services/leadNotifications');
 const createChatRouter = require('./routes/chat');
 const publicRoutes = require('./routes/public');
 const { LISTINGS_ROOT } = require('./helpers');
@@ -94,6 +96,12 @@ const gmailConfigured =
 const resendConfigured = Boolean(process.env.RESEND_API_KEY);
 console.log(`[Startup] Gmail configured: ${gmailConfigured}`);
 console.log(`[Startup] Resend configured: ${resendConfigured}`);
+const inquiryForwardConfigured = isInquiryForwardConfigured();
+console.log(`[Startup] Inquiry forward configured: ${inquiryForwardConfigured}`);
+if (!inquiryForwardConfigured) {
+  console.warn('[WARN] Inquiry forward is OFF (INQUIRY_WEBHOOK_URL must be https and INQUIRY_WEBHOOK_SECRET set): leads are stored locally but will not reach the intake sheet');
+}
+console.log(`[Startup] Customer auto-reply enabled: ${isLeadAutoReplyEnabled()}`);
 if (!gmailConfigured && !resendConfigured) {
   console.warn("[WARN] No outbound notification provider configured");
 }
