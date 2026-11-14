@@ -11,6 +11,7 @@ const {
   sendLeadAutoReplyEmail,
 } = require('../services/leadNotifications');
 const { markFollowUpSent } = require('../services/leadFollowupWorker');
+const { isInquiryForwardConfigured, forwardInquiry } = require('../services/inquiryForward');
 const {
   ADVENT_LISTING_SLUG,
   buildLeadSchedule,
@@ -125,12 +126,35 @@ async function handleLeadCapture({ payload, property, db, appendFn }) {
     return { status: 500, body: { error: 'Lead capture failed. Please try again.' } };
   }
 
+  // Owner notification (to Phil) stays on.
   sendLeadNotificationEmail(lead).catch(() => {});
+  // Customer auto-reply is a no-op unless LEAD_AUTO_REPLY_ENABLED=true.
   sendLeadAutoReplyEmail(lead, followUps)
     .then((sent) => {
       if (sent) markFollowUpSent(db, lead.lead_id, 'day_0');
     })
     .catch(() => {});
+
+  // Best-effort copy to the n8n inquiry intake, which drafts a reply for Phil
+  // to review. The lead is already stored above; a failed forward is logged
+  // (id only, no PII) and never fails the request.
+  if (isInquiryForwardConfigured()) {
+    forwardInquiry({
+      submission_id: `malickland-lead-${lead.lead_id}`,
+      name: lead.name,
+      email: lead.email,
+      phone: lead.phone,
+      message: buildAdminLeadMessage(lead),
+      source: lead.source,
+      location: lead.property_address,
+      need_type: lead.buyer_type || lead.lead_type,
+      consent_sms: Boolean(lead.sms_consent),
+    }).then((forwarded) => {
+      if (!forwarded) {
+        console.warn(`[Leads] Lead ${lead.lead_id} CAPTURED but NOT forwarded to inquiry intake.`);
+      }
+    });
+  }
 
   return {
     status: 201,
