@@ -5,6 +5,40 @@
 
 ---
 
+## 2026-11-15 — Claude (durable outbox for the n8n lead forward)
+
+### Objective
+A failed copy of a website lead to the n8n inquiry intake was never retried (fire-and-forget), so a lead could be saved on the site but never reach Phil's intake sheet. Flagged by an external audit and by Sourcery/Codex on PR #153, where it was deliberately deferred to its own PR. Built on `origin/fix/lead-forms-drafts-only` @ `94e27c7` (PR #153, not yet merged at build time).
+
+### Changes Made
+- `api/db.js` — idempotent `migrateInquiryOutbox()` (`CREATE TABLE/INDEX IF NOT EXISTS`): `inquiry_outbox` (id, submission_id UNIQUE, payload JSON, status pending/delivered/failed with CHECK, attempts, next_attempt_at, last_error_class, created_at, delivered_at) + `(status, next_attempt_at)` index. Additive only; no existing table touched. The webhook secret is never stored.
+- `api/services/inquiryForward.js` — new `deliverInquiryPayload()`: one send of a pre-built payload, classified as delivered / retryable (network, timeout, 429, 5xx, other 4xx) / permanent (400, 401, 403). Keeps https-only and `redirect: 'error'`. `forwardInquiry()` now delegates to it (same behaviour).
+- `api/services/inquiryOutbox.js` (new) — `enqueueInquiry()` (`INSERT OR IGNORE`, so a submission_id is never queued twice), `processInquiryOutbox()` (compare-and-set claim, exponential backoff 30 s → 6 h cap with equal jitter, `failed` after a permanent error or 20 attempts ≈ 3 days), in-process worker with `kick()` and non-overlapping passes. Logs carry outbox id / submission_id / error class only — no PII, no secret.
+- `api/routes/api.js` (POST `/api/contacts`) and `api/routes/leads.js` (`insertLead`/`handleLeadCapture`) — the outbox row is written in the SAME transaction as the contact/lead, keeping `malickland-contact-<id>` / `malickland-lead-<lead_id>`; the worker is kicked right after so the normal case still delivers immediately. Only queued when the forward is configured (same as before).
+- `api/server.js` — startup log `[Startup] Inquiry outbox: N pending, M failed` (+ WARN when failed > 0); worker started in the `listen` callback (idles while unconfigured).
+- `tests/inquiry-outbox.test.js` (new, 18 checks, temp SQLite + injected fetch, no external network) and `scripts/preflight.sh` now runs it plus the existing `tests/inquiry-forward.test.js` (which CI was not running).
+
+### Verification (Truthfulness Rule applies)
+- `cd api && npm ci` (with a temp npm cache; sandbox cannot write `~/.npm`) → PASSED.
+- `node --check` server.js, db.js, middleware/auth.js, routes/admin.js, routes/api.js, routes/public.js, routes/leads.js, services/inquiryForward.js, services/inquiryOutbox.js → PASSED.
+- `node tests/verify-security-fixes.test.js` → 60/60 PASSED.
+- `node tests/inquiry-outbox.test.js` → 18/18 PASSED. `tests/inquiry-forward.test.js` 14/14, `tests/lead-notifications.test.js` 8/8 PASSED.
+- Preflight test steps run one by one: public-assistant-flag 7/7, upload-e2e PASS, document-registry 28/28, admin-document-review 9/9, http-smoke 14/14 (run from a copy outside `.claude/`; inside the worktree `/search` returns 500 because Express `sendFile` refuses the `.claude` dot-directory in the path — the untouched base commit behaves identically there and passes 14/14 from the same outside copy).
+- Local boot: `/api/health` 200 and the new outbox startup line printed.
+- `bash scripts/preflight.sh` itself → NOT RUN locally (sandbox blocks macOS `mktemp -d`); CI `preflight` job is the proof.
+- Real delivery to n8n → NOT TESTED (no network to n8n from tests by design).
+
+### Security Notes
+No new dependencies. Secret read from env at send time only; never in the DB or logs. Payload (customer PII) lives in the same SQLite file as the existing `contacts`/`leads` rows, not in logs. https-only and no-redirect rules unchanged.
+
+### Remaining Risks
+- Rows parked as `failed` need a person: see the startup WARN, then re-queue with `UPDATE inquiry_outbox SET status='pending', attempts=0, next_attempt_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=<id>;` after fixing the cause (e.g. a rotated secret).
+- Leads captured before this deploy that failed to forward are not back-filled.
+- Delivered rows are kept (no pruning yet); volume is tiny.
+
+### Recommended Next Task
+Phil: review and merge PR #153 first, then this PR; deploy both together (manual, VPS). After deploy, confirm `[Startup] Inquiry outbox: 0 pending, 0 failed` in the container log and send one test lead.
+
 ## 2026-11-13 — Claude (lead forms: drafts-only + intake forward)
 
 ### Objective
