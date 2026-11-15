@@ -5,6 +5,52 @@
 
 ---
 
+## 2026-11-15 — Claude (audit of PR #154 and the repo on GitHub)
+
+### Objective
+Phil asked for an audit of PR #154 and of the repository on GitHub while he was away. Read-only except for the test and comment changes below, which stay on the PR #154 branch.
+
+### Changes Made
+- `tests/inquiry-outbox.test.js` — two review gaps closed (Sourcery, PR #154). New check: the outbox INSERT is forced to fail with a TEMP trigger after the lead INSERT has run, and the lead and its mirrored contact must roll back. The `/api/contacts` check no longer kicks the worker itself: delivery must come from the route's own kick. It also checks that a failed outbox insert returns 500 and stores no contact. 19 checks (was 18).
+- `api/services/inquiryOutbox.js` — header comment only: states what "delivered" means (see Findings 1). No behaviour change.
+
+### Findings (verified in this session)
+1. **"Delivered" means accepted by n8n, not filed in the sheet.** Read from the live workflow "Inquiry intake (all brands)" (active version): the webhook node uses respond-on-receipt, so n8n returns 200 before it reads Config or writes the Leads row. The outbox therefore covers n8n down / slow / inactive / wrong secret. It does not cover a failure inside the workflow, and it does not cover `pause_switch` ON (n8n answers 200 and logs "paused; inquiry not processed"). Those leads stay in the site DB only. Fix belongs in n8n (answer after the Leads row is written); not changed here.
+2. **Replay assumption confirmed.** The workflow derives its lead id from `submission_id` and skips an id it has already filed ("replay_ignored"), so outbox retries do not create second rows or drafts. A repeat from the same contact and brand inside the dedupe window updates the existing row and creates no second draft.
+3. **PR #154 review threads:** 4 open (Sourcery), Codex review: no findings. Two were test gaps (fixed above). Two are declined for this PR: delivered-row pruning (about 1 KB per lead; production held 3 contacts on 2026-09-30) and a client idempotency key (needs a form change and a schema column; n8n already de-duplicates repeats).
+4. **PR #145 is stranded and carries real work.** PRs #146 (nightly backup script, three DECISIONS entries) and #147 (Node 24 LTS) were merged into the #145 branch, not `main`. #145 never merged and now conflicts with `main` (`PROJECT_STATE.md`, `WORK_LOG.md`). `origin/main` @ `673bfbe` still has `node:20-bookworm-slim` in `api/Dockerfile`, Node 20 in both CI workflows, and no `scripts/backup-db.sh`.
+5. **PR #150 (proxy-addr 2.0.8, GHSA-jqcg-44mw-7w3h, rated critical) has been open since 2026-10-16**, checks green, mergeable. The advisory needs a trusted proxy *subnet* written as short-prefix IPv4-mapped IPv6; this app sets `trust proxy` to `1` (hop count) in `api/server.js`, so that path is not reachable here. Still worth merging to clear the alert.
+6. PR #153: checks green, 6 of 6 threads resolved, merge state clean; waiting on Phil.
+7. `.github/dependabot.yml` only covers `devcontainers`. npm and GitHub Actions get security PRs only, no version updates.
+8. Branches: `claude/update-in-vscode` is fully merged; five older unmerged branches look like squash-merge leftovers (not verified one by one). No open issues.
+
+### Verification (Truthfulness Rule applies)
+- `node tests/inquiry-outbox.test.js` → 19 passed, 0 failed (run 5 times).
+- Mutation checks: with the route kick removed, the `/api/contacts` check fails; with the enqueue moved outside the `insertLead` transaction, the new rollback check fails. Code restored after each.
+- `node --check` on the touched files, `verify-security-fixes` 60/60, `inquiry-forward` 14/14, `lead-notifications` 8/8 → PASSED.
+- NOT run: `scripts/preflight.sh` locally (sandbox blocks `mktemp`; CI runs it). NOT checked: Dependabot / code-scanning alert pages, the VPS, real delivery to n8n.
+
+### Security Notes
+- No secrets read or printed. The n8n workflow was read, not changed.
+
+### Remaining Risks
+- Finding 1: a lead accepted by n8n but not written to the sheet is marked delivered and not retried.
+- Finding 4: production and `main` are on Node 20, which the repo's own notes list as end-of-life since 2026-04-30.
+
+### Recommended Next Task
+Rescue the Node 24 and backup-script commits from PR #145 into a fresh PR on `main`; then decide the n8n respond-after-write change.
+
+```
+Done: PR #154 audit; two test gaps closed; repo-level findings recorded
+Verified by: outbox tests 19/19, two mutation checks, security and forward suites
+Remaining risk: n8n answers before filing; main still on Node 20; #150 unmerged
+Next owner: Phil
+Next action: merge #153, then #154; decide on #145 rescue, #150, n8n change
+Approval needed: Phil (merges, deploy, any n8n change)
+```
+
+---
+
 ## 2026-11-15 — Claude (durable outbox for the n8n lead forward)
 
 ### Objective

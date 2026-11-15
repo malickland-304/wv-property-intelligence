@@ -9,7 +9,13 @@
  * forward being queued. This worker then delivers pending rows and retries
  * failures with exponential backoff + jitter until they are delivered.
  *
- *   2xx                                   → delivered
+ * "Delivered" means n8n ACCEPTED the request (2xx). The intake webhook answers
+ * on receipt, before it reads or writes the sheet, so this covers n8n being
+ * down, slow, inactive or rejecting the secret — not a failure inside the
+ * workflow (Sheets error, pause_switch ON, brand not allowed). Those are
+ * reported by n8n's own activity log and phone alert, and are not retried here.
+ *
+ *   2xx                                   → delivered (accepted by n8n)
  *   network error, timeout, 429, 5xx,     → retried (attempts++, backoff)
  *   other 4xx (e.g. 404 workflow inactive)
  *   400 / 401 / 403                       → failed, no retry (operator review)

@@ -37,7 +37,6 @@ const {
   processInquiryOutbox,
   startInquiryOutboxWorker,
   stopInquiryOutboxWorker,
-  kickInquiryOutbox,
   MAX_ATTEMPTS,
   BASE_DELAY_MS,
   MAX_DELAY_MS,
@@ -311,6 +310,41 @@ const pass = (fetchImpl, now = T0, extra = {}) =>
     assert.strictEqual(row('malickland-lead-outboxtestlead02'), undefined);
   });
 
+  // Make the outbox INSERT itself fail (after the lead/contact INSERT has run in
+  // the same transaction). A TEMP trigger lives on this connection only.
+  const withOutboxInsertFailing = async (fn) => {
+    db.exec("CREATE TEMP TRIGGER outbox_test_fail BEFORE INSERT ON inquiry_outbox BEGIN SELECT RAISE(ABORT, 'forced outbox failure'); END;");
+    try { return await fn(); } finally { db.exec('DROP TRIGGER IF EXISTS outbox_test_fail'); }
+  };
+  const waitFor = async (predicate, timeoutMs = 3000) => {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (predicate()) return true;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    return Boolean(predicate());
+  };
+
+  await check('outbox insert failure rolls the lead back too (no lead without its queued copy)', async () => {
+    configure();
+    const l = lead('outboxtestlead03');
+    const contactCount = () => db.prepare('SELECT COUNT(*) AS n FROM contacts').get().n;
+    const contactsBefore = contactCount();
+    await withOutboxInsertFailing(() => {
+      assert.throws(
+        () => leadsRouter.insertLead(db, l, [], leadsRouter.buildLeadInquiryPayload(l)),
+        /forced outbox failure/
+      );
+    });
+    assert.strictEqual(db.prepare('SELECT id FROM leads WHERE id = ?').get(l.lead_id), undefined, 'lead rolled back');
+    assert.strictEqual(contactCount(), contactsBefore, 'mirrored contacts row rolled back');
+    assert.strictEqual(row('malickland-lead-outboxtestlead03'), undefined);
+    // Same lead goes through once the outbox insert works again.
+    leadsRouter.insertLead(db, l, [], leadsRouter.buildLeadInquiryPayload(l));
+    assert(db.prepare('SELECT id FROM leads WHERE id = ?').get(l.lead_id), 'lead stored after the failure clears');
+    assert(row('malickland-lead-outboxtestlead03'), 'outbox row stored after the failure clears');
+  });
+
   await check('POST /api/contacts stores the contact, queues it, and the worker delivers it', async () => {
     configure();
     const express = require(path.join(API_DIR, 'node_modules', 'express'));
@@ -318,8 +352,11 @@ const pass = (fetchImpl, now = T0, extra = {}) =>
     const app = express();
     app.use(express.json());
     app.use('/api', apiRoutes);
+    app.use((_err, _req, res, _next) => res.status(500).json({ error: 'Server error' }));
     const server = await new Promise((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
     const f = scriptedFetch({ ok: true, status: 200 });
+    // One-hour interval: the only thing that can trigger a delivery inside this
+    // test is the route's own kick after the insert.
     startInquiryOutboxWorker({ db, fetchImpl: f.impl, intervalMs: 60 * 60 * 1000, logger: silent });
     try {
       const res = await fetch(`http://127.0.0.1:${server.address().port}/api/contacts`, {
@@ -329,12 +366,29 @@ const pass = (fetchImpl, now = T0, extra = {}) =>
       });
       assert.strictEqual(res.status, 201);
       const { id } = await res.json();
-      await kickInquiryOutbox();
+      // No test-side kick: the route must have triggered the delivery itself.
+      const deliveredByRoute = await waitFor(() => (row(`malickland-contact-${id}`) || {}).status === 'delivered');
       const r = row(`malickland-contact-${id}`);
       assert(r, 'outbox row queued for the new contact');
-      assert.strictEqual(r.status, 'delivered');
+      assert(deliveredByRoute, `route kick should deliver without waiting for the poll (status: ${r.status})`);
       assert.strictEqual(f.calls.length, 1);
       assert.strictEqual(JSON.parse(f.calls[0].init.body).submission_id, `malickland-contact-${id}`);
+
+      // Outbox insert fails: the request fails and the contact is NOT stored on its own.
+      await withOutboxInsertFailing(async () => {
+        const resFail = await fetch(`http://127.0.0.1:${server.address().port}/api/contacts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'Rollback Person', email: 'rollback@example.com', message: 'Hello' }),
+        });
+        assert.strictEqual(resFail.status, 500);
+      });
+      assert.strictEqual(
+        db.prepare('SELECT COUNT(*) AS n FROM contacts WHERE email = ?').get('rollback@example.com').n,
+        0,
+        'contact rolled back with the failed outbox insert'
+      );
+      assert.strictEqual(f.calls.length, 1, 'nothing sent for the rolled-back contact');
 
       // Forward off: contact is still stored, nothing is queued.
       clearEnv();
