@@ -72,7 +72,8 @@ installed under one Node version does not load under another without a reinstall
 > root it checks the whole absolute path, so a checkout under a dot-directory (for example
 > `.claude/worktrees/...`) made `GET /search` and the property page fail (404/500) and
 > `tests/http-smoke.test.js` fail there. Fixed in #159 (2026-11-16);
-> `tests/verify-security-fixes.test.js` fails if an absolute `sendFile` path comes back.
+> `tests/verify-security-fixes.test.js` fails if a `res.sendFile(path.join(` call comes back
+> (it does not catch other ways of building an absolute path, so keep the rule in review).
 > Tests now pass from a dot-directory path too.
 
 > ⚠️ `scripts/preflight.sh` cannot run as a whole inside the agent sandbox, because
