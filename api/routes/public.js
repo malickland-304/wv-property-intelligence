@@ -10,6 +10,13 @@ const { publicReadRateLimit } = require('../middleware/rate-limits');
 const { publicListingsEnabled } = require('../featureFlags');
 
 const router = express.Router();
+
+// res.sendFile is given a file name relative to this root, never an absolute path.
+// `send` refuses any path containing a dot-segment (dotfiles: 'ignore' -> 404).
+// Without a root it checks the *whole* absolute path, so the app 404'd/500'd whenever
+// the checkout itself sat under a dot-directory (e.g. a `.claude/worktrees/...` clone).
+// With a root, only the part below APP_DIR is checked.
+const APP_DIR = path.join(PROJECT_ROOT, 'app');
 const HOMEPAGE_DISCLOSURE = 'WV Real Estate Agency, LLC | Broker: Sheila Judy | 501 East Main Street, Romney, WV 26757 | (540) 246-1421';
 let countyTemplate = null;
 
@@ -40,7 +47,7 @@ Sitemap: https://malickland.net/sitemap.xml`
 // Browsers request /favicon.ico on their own regardless of what the HTML
 // links, so serve the real favicon there instead of a 404.
 router.get('/favicon.ico', publicReadRateLimit, (_req, res) => {
-  res.sendFile(path.join(PROJECT_ROOT, 'app', 'public', 'brand', 'favicon.png'), { maxAge: '7d' });
+  res.sendFile('public/brand/favicon.png', { root: APP_DIR, maxAge: '7d' });
 });
 
 // The static middleware (extensions: ['html']) serves every app/*.html file
@@ -171,9 +178,8 @@ router.get('/', publicReadRateLimit, (_req, res, next) => {
 
 router.get(['/listing/:id', '/properties/:id'], publicReadRateLimit, (_req, res) => {
   if (!publicListingsEnabled()) return res.redirect(302, '/');
-  const listingHtml = path.join(PROJECT_ROOT, 'app', 'listing.html');
-  const indexHtml   = path.join(PROJECT_ROOT, 'app', 'index.html');
-  res.sendFile(fs.existsSync(listingHtml) ? listingHtml : indexHtml);
+  const page = fs.existsSync(path.join(APP_DIR, 'listing.html')) ? 'listing.html' : 'index.html';
+  res.sendFile(page, { root: APP_DIR });
 });
 
 router.get('/advent-drive-land-hampshire-county-wv', publicReadRateLimit, (_req, res) => {
@@ -201,7 +207,7 @@ router.get('/search', publicReadRateLimit, (req, res) => {
     const query = queryStart === -1 ? '' : req.originalUrl.slice(queryStart);
     return res.redirect(302, `/listings${query}`);
   }
-  return res.sendFile(path.join(PROJECT_ROOT, 'app', 'search.html'));
+  return res.sendFile('search.html', { root: APP_DIR });
 });
 
 // County landing pages: /wv/<county>-county → server-rendered page listing that county's
