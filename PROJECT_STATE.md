@@ -29,6 +29,8 @@ Agents must use `PROJECT_STATE.md`, GitHub PR state, and live production checks 
 | $299 broker admin fee wording | ✅ Approved and live | Homepage and `/37-advent` disclose the fee; broker approval was confirmed before deploy |
 | Brokerage disclosure | ✅ Live | Footer / public pages show `WV Real Estate Agency, LLC | Sheila Judy, Broker` |
 | Production deploy | ⚠️ Deployed by Phil 2026-11-13 — CLAIMED, unverified until `verify-vps-prod.sh` passes | Hostinger VPS `31.97.58.203`, src @ `12d255d` (#151 merge; includes #148). Before this deploy the VPS reported src @ `b22a119` (#144 merge). Proof is Phil's SSH session output (`git -C src rev-parse --short HEAD` → `12d255d`, container started) plus public smoke; `scripts/verify-vps-prod.sh` was NOT run. Earlier records: `65a2b32d` (2026-09-29), `24ee74b` (2026-06-18/19). Merge does not equal deploy. |
+| DB backups | ⚠️ Nightly local backup reported installed 2026-09-30 — CLAIMED, not re-checked since; off-host copy still open | `scripts/backup-db.sh` (WAL-safe online backup, integrity + row counts, gzip + sha256, 14-day retention) reached `main` on 2026-11-15. The 2026-09-30 session (commit `64b5bc6`, which never reached `main`) reported it installed at `/docker/wv-property-intelligence/backup-db.sh` with cron `/etc/cron.d/wv-db-backup` (03:17 UTC), writing to `/docker/wv-property-intelligence/backups/`, and a passed restore drill. Not verified on 2026-11-15: that the cron still runs, the log `/var/log/wv-db-backup.log`, recent backup files. Not done: nightly off-server copy, failure alerting. See `DECISIONS.md`. |
+| Runtime Node version | ⚠️ Repo on Node 24 LTS; live VPS still on Node 20 until the next deploy | Node 20 reached end-of-life 2026-04-30. `api/Dockerfile` (`node:24-bookworm-slim`), Node CI and Preflight workflows use Node 24 (LTS, supported to 2028-04-30) as of 2026-11-15. Live VPS: Node 20 is inferred from `api/Dockerfile` at the claimed live SHA `12d255d` (`node:20-bookworm-slim`); in-container `node -v` was not checked. Any deploy of a `main` SHA with this change rebuilds the image on Node 24. See `DECISIONS.md` 2026-11-15 and the open gate below. |
 | PRs #98, #100, #101, #102, #104, #106, #108, #109, #111, #112, #113 | ✅ Merged and deployed as applicable | Runtime deploy includes #113 squash `24ee74b`; later repo-safe commits on `origin/main` do not imply a runtime deploy unless the VPS source/container proof also advances |
 | `scripts/smoke-prod.sh` | ✅ Fixed | #102 merged; script respects `PUBLIC_LISTINGS_ENABLED` via `/api/config` |
 | Railway twin | ✅ Deleted | `railway service status` reports the linked old service is not found in the project; old GitHub deployment environments are gone; `railway.json`/`railway.toml` removed |
@@ -61,6 +63,8 @@ Agents must use `PROJECT_STATE.md`, GitHub PR state, and live production checks 
 |------|-------|--------------------------|-------|
 | VPS SHA proof for `12d255d` | Phil / Codex | Deploy itself done 2026-11-13 (includes #144). Remaining: `EXPECTED_SHA=12d255d924cbcc0ecf9d90d6c0d85cb017a19089 bash scripts/verify-vps-prod.sh` (needs SSH) and in-container versions (multer >= 2.4.0, sharp >= 0.35.4, morgan >= 1.12.0, ip-address >= 10.5.1) | Deploy stays manual; SSH is closed by default and opened per job. |
 | Production smoke residue + notification path | Phil | Delete test `contacts` row #5 (`test.deploy@example.com`) inside the container per `docs/SMOKE_CHECKLIST.md` §4; verify the lead notification email path or mark it not configured (startup log `[Startup] Resend configured:`) | Both need SSH; do at the next planned SSH window. |
+| Node 24 runtime deploy | Phil | Approve and run a manual deploy of a `main` SHA that includes the Node 24 `api/Dockerfile`, with the pre-deploy DB backup and a recorded rollback SHA. Proof: `scripts/verify-vps-prod.sh` passes and `docker exec wv-property-intelligence node -v` prints `v24.x` | The next deploy of `main` after the Node 24 change merges is a runtime upgrade whether or not that is its purpose. Rollback = rebuild the previous SHA (Node 20 Dockerfile). |
+| Nightly backup health + off-host copy | Phil | At the next SSH window: confirm `/etc/cron.d/wv-db-backup` exists, `/var/log/wv-db-backup.log` shows recent `backup ok` lines, and `backups/` holds recent `.db.gz` + `.sha256` files. Then choose an off-server destination | Install was reported 2026-09-30 and has not been re-checked. Backups on the same server do not survive loss of the server. |
 | Welcome / nurture emails (funnel phase 2) | Phil | Approve enabling and sending the welcome sequence | Gated separately; emails are a hard pause-point. Not in PR #109 |
 | Optional alternate footer wording from Sheila | Sheila | Sheila-approved exact wording only if she wants something different from the current live-aligned block | Not blocking; the default form is already in the pack. The live fee/brokerage wording is closed |
 
@@ -166,7 +170,7 @@ Recent PRs through #128 and #116 are merged; `origin/main` is `349034d` at this 
 
 | Layer | Choice |
 |-------|--------|
-| **This repo** | Node.js 20 / **Express 5** monolith, **SQLite** (`better-sqlite3`), **vanilla HTML** in `app/` (no frontend build) |
+| **This repo** | Node.js 24 / **Express 5** monolith, **SQLite** (`better-sqlite3`), **vanilla HTML** in `app/` (no frontend build) |
 | **Deploy** | **Hostinger VPS** — Docker + Traefik (`api/Dockerfile`); **manual** deploy (merge ≠ deploy). Not Railway |
 | **Not this product** | The separate **malickland.net Next.js** tree under Documents — different codebase; do not conflate env or deploy |
 | **Not used** | **Supabase**, PostgreSQL, Vercel app router, etc. |
@@ -191,7 +195,7 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 
 | Layer | Choice |
 |-------|--------|
-| Runtime | Node.js 20 / Express 5 |
+| Runtime | Node.js 24 / Express 5 |
 | Database | SQLite via `better-sqlite3` |
 | Frontend | Vanilla HTML/JS/CSS (no build step) |
 | Auth | `express-session` (admin) + Bearer API key (REST) |

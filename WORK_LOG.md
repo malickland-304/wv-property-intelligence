@@ -5,6 +5,63 @@
 
 ---
 
+## 2026-11-15 — Claude (Node 24 + backup script onto main)
+
+### Objective
+Bring two finished changes onto `main` that never reached it. PR #146 (nightly backup script, commit `64b5bc6`) and PR #147 (Node 24 LTS, commit `f5ba8bb`) were merged into the PR #145 branch (`docs/record-vps-deploy-b22a119`) instead of `main`, and #145 was never merged. On `origin/main` @ `673bfbe` the Dockerfile and CI were still on Node 20 and `scripts/backup-db.sh` did not exist. Branch `chore/node-24-and-backup-script`, cut from `origin/main` @ `673bfbe`. Supersedes PR #145.
+
+### Changes Made
+- `api/Dockerfile` — both stages `node:20-bookworm-slim` → `node:24-bookworm-slim`.
+- `.github/workflows/nodejs-ci.yml`, `.github/workflows/preflight.yml` — `node-version: 20.x` → `24.x`.
+- `README.md`, `AGENTS.md`, `ARCHITECTURE.md`, `CONTEXT.md`, `PROJECT_STATE.md` — "Node.js 20" → "Node.js 24" where it names the runtime.
+- `scripts/backup-db.sh` — added, byte-for-byte from `64b5bc6` (mode 755).
+- `DECISIONS.md` — the three 2026-09-30 entries from `64b5bc6` (nightly backup; sharp LGPL accepted; Express/VPS stays primary), each with a "Recorded on `main`" note, plus a new 2026-11-15 entry for the Node 24 move (problem, decision, reasoning, alternatives, migration impact, rollback, files).
+- `PROJECT_STATE.md` — added a `DB backups` row and a `Runtime Node version` row, and two open gates (Node 24 runtime deploy; nightly backup health + off-host copy). `main`'s `12d255d` deploy record was kept as is.
+- Not carried over: the `PROJECT_STATE.md` / `WORK_LOG.md` / `TASKS.md` text from `51c2ef8`, `64b5bc6` and `f5ba8bb`. It describes `b22a119` as the live, verified deploy, which `main` has since replaced with the claimed `12d255d` deploy. The 2026-09-30 work-log entries stay readable on the `docs/record-vps-deploy-b22a119` branch.
+- No application code, dependency or lockfile change.
+
+### Other Node pins checked on `main`
+- `.github/workflows/docker-upload-e2e.yml`: no Node pin; it builds `api/Dockerfile`, so it follows. Not changed.
+- `.github/workflows/codeql.yml`, `codescan.yml`, `api-docs-consistency.yml`: no Node version pin. `compose.yml`: builds `api/Dockerfile`.
+- No `.nvmrc`, `.node-version` or `.tool-versions`. No `engines` field in `api/package.json`.
+
+### Verification (Truthfulness Rule applies)
+All run in this session on **Node v24.14.1, npm 11.11.0, macOS arm64** (not Linux, not Docker).
+- Command: `cd api && npm ci` → Result: PASSED (173 packages; lockfile unchanged).
+- Command: `require('better-sqlite3')` + in-memory query, `require('sharp')` → Result: PASSED (better-sqlite3 12.8.0, sharp 0.35.4 / libvips 8.18.6 load on Node 24).
+- Command: `npm ls express better-sqlite3 csrf-csrf` → Result: PASSED.
+- Command: `node --check` on `server.js`, `db.js`, `middleware/auth.js`, `routes/admin.js`, `routes/api.js`, `routes/documents.js`, `routes/public.js` → Result: PASSED.
+- Command: `node tests/verify-security-fixes.test.js` → Result: PASSED (60 passed, 0 failed).
+- Command: every other file in `tests/` (`admin-document-review` 9, `chat-assistant` 14, `document-registry` 28, `inquiry-forward` 12, `public-assistant-flag` 7, `upload-e2e`, `ai-generator-routing`, `email`, `lead-notifications`) → Result: PASSED (exit 0).
+- Command: `node tests/http-smoke.test.js` → Result: FAILED 1 of 14 inside the `.claude/worktrees/...` checkout (`GET /search` → 500, Express `sendFile` refuses a dot-directory path); PASSED 14 of 14 from a copy of the same tree at a path with no dot-directory. Environment artifact, not a Node 24 result.
+- Command: `bash scripts/preflight.sh` → Result: NOT RUN as a script (the sandbox blocks macOS `mktemp -d`). Its steps were run one by one, the test steps from the non-dot copy: dependency check, syntax checks, the five test steps, then server start with a temp DB, `/api/health` 200, property API 200, property page 200, `/api/chat` 200 with a `reply` field → all PASSED.
+- Command: `bash -n scripts/backup-db.sh` → Result: PASSED (syntax only; the script was not executed, it needs the production container).
+- NOT RUN: anything inside `node:24-bookworm-slim` (Docker daemon not reachable in this session); Linux x64; `docker build -f api/Dockerfile`. The `Docker upload e2e` and `Preflight` CI jobs on the PR cover the image build and Linux. The 2026-09-30 container results in `f5ba8bb` are a prior session's claim, not re-run here.
+- NOT RUN: any VPS or production check.
+
+### Security Notes
+- No secrets read or printed. No VPS access. No production data touched.
+- `npm audit` (run here, same lockfile as `main`) reports 10 advisories: 1 critical (`proxy-addr`), 5 high (`body-parser`, `brace-expansion`, `compression`, `multer`, `sharp`), 4 moderate. These exist on `main` today and are not caused or changed by this PR. They need their own dependency PR.
+
+### Remaining Risks
+- The live VPS still runs the Node 20 image. After this merges, the next manual deploy of `main` rebuilds the image on Node 24 whatever else it ships; treat that deploy as a runtime upgrade (backup, rollback SHA, `node -v` check).
+- Node 24 was verified here on macOS arm64 only. Linux x64 proof is the CI run on the PR.
+- The nightly backup install on the VPS was reported on 2026-09-30 and has not been re-checked. Backups are still on the same server.
+
+### Recommended Next Task
+Codex: verify the PR (checks, threads, merge state, head SHA). Phil: merge, then close PR #145 as superseded. Separate PR: dependency advisories above.
+
+```
+Done: Node 24 pins, backup script, 3 carried decisions + Node 24 decision on one branch off main
+Verified by: npm ci, node --check, 60/60 security tests, all tests/ files, preflight steps by hand on Node v24.14.1 (macOS arm64)
+Remaining risk: no Docker/Linux run locally; VPS still Node 20; backup cron unverified
+Next owner: Codex (PR readiness), then Phil (merge)
+Next action: wait for CI on the PR; Codex gatekeeper check
+Approval needed: Phil to merge; Phil to approve any deploy (not requested here)
+```
+
+---
+
 ## 2026-11-13 — Claude (deploy record)
 
 ### Objective
