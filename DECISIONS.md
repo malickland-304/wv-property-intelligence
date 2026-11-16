@@ -157,3 +157,16 @@
 **Alternatives considered:** Keep using Railway deployment status or live HTTP smoke alone — rejected because both can be green for the wrong target or old code.
 **Security impact:** Positive — prevents high-severity dependency fixes from being falsely marked deployed.
 **Files:** `scripts/verify-vps-prod.sh`, `scripts/agent-triage.sh`, `AGENTS.md`, `docs/CANONICAL_MAP.md`, `docs/agent-handoff.md`, `docs/AGENT_TRIAGE_PROTOCOL.md`, `PROJECT_STATE.md`, `QA_CHECKLIST.md`, `README.md`, `ARCHITECTURE.md`, `TASKS.md`.
+
+---
+
+## 2026-11-16 — Interim PR readiness gate while Codex is unavailable
+
+**Problem:** The Codex Gatekeeper Protocol (2026-06-17) makes Codex the only party that may declare a PR READY. On 2026-11-16 Phil reported Codex down indefinitely, so no PR can meet the documented requirement. Four PRs are open (#154, #155, #156, #157); #153 was merged the same day on Phil's call without a Codex verdict.
+**Decision:** Split Codex's two jobs while it is unavailable. (1) The mechanical READY check becomes a script, `scripts/pr-readiness.sh`. It verifies the unchanged READY conditions live against GitHub, prints the existing `VERDICT` format, and fails closed. Its verbatim output, posted on the PR and re-run right before merge, replaces the Codex Verification Response. (2) The independent audit is done by reviewers that did not write the PR: the review bots that still post (Sourcery; the Codex GitHub review bot when it runs), plus a fresh Claude Code session for any PR touching `api/`, `scripts/`, `.github/`, `compose.yml` or governance docs. Phil merges only with both.
+**Reasoning:** The conditions Codex verified are objective (checks, merge state, unresolved threads, head SHA, VPS SHA), so a deterministic script checks them at least as reliably as an agent and anyone can re-run it. Independence matters for judgment, not for reading API fields, so the review half keeps the rule that the implementing agent never reviews its own PR.
+**Alternatives considered:** (a) Pause all merges until Codex returns: rejected, "indefinitely" would freeze the security fixes in #156. (b) Let the implementing agent declare READY: rejected, it is the exact failure the 2026-06-17 protocol fixed. (c) Phil checks GitHub by hand: workable but error-prone (unresolved threads are not visible in the PR summary). The script automates it and Phil still decides.
+**Migration impact:** Process only; no application code, schema, deployment or secret changes. PRs merged under the interim gate are listed in `WORK_LOG.md` and re-verified by Codex when it returns.
+**Rollback:** Delete the "When Codex is unavailable" subsection in `AGENTS.md` and close the `PROJECT_STATE.md` gate; the original protocol text is unchanged. The script can stay as a tool.
+**Security impact:** Neutral to positive. READY conditions are unchanged, and the script fails closed: thread state it cannot read (no `gh`/`GITHUB_TOKEN` auth) blocks READY. It reads only public PR data plus GraphQL thread state, never writes to GitHub, and validates its arguments as a number or hex SHA.
+**Files:** `scripts/pr-readiness.sh`, `AGENTS.md`, `DECISIONS.md`, `PROJECT_STATE.md`, `WORK_LOG.md`.
