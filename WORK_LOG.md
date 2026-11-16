@@ -49,6 +49,14 @@ No application code changed. No secrets touched. No deploy, no VPS access.
 ### Recommended Next Task
 Phil decides on the sharp pin; Codex verifies the PR (checks, threads, head SHA). After merge, a deploy is still manual and Phil's call.
 
+### Update (same day) — sharp pin moved, Phil approved
+Phil: "go ahead and fix and or review anything you found". This was the item left for him in this PR.
+- `api/package.json` — `"sharp": "0.35.4"` → `"sharp": "0.35.5"` (still an exact pin; same `engines.node >=20.9.0`). Lockfile refreshed with `npm update sharp` (not `npm install <pkg>`): only `sharp` and its `@img/sharp-*` platform packages changed (0.35.5; libvips binaries 1.3.4, libvips 8.18.7). No other package entry moved.
+- `npm audit` → 2 moderate (`minimatch` via dev-only `nodemon`), 0 high, 0 critical. `npm audit --omit=dev` → **0**.
+- `npm ci` OK; `node --check` list OK; every test passes. upload-e2e 5/5 with `sharp=0.35.5`. http-smoke 14/14 from a no-dot copy (13/14 in the worktree path, the known dot-directory issue). Preflight startup smoke from the copy: health, property API, property page, `POST /api/chat` all 200.
+- Still open: `minimatch` via `nodemon` (dev-only, not in the image). The only clean option is downgrading nodemon to 3.1.11; not applied (see the PR).
+- Codex is unavailable; readiness goes through the interim gate (PR #158).
+
 ---
 
 ## 2026-11-13 — Claude (lead forms: drafts-only + intake forward)
