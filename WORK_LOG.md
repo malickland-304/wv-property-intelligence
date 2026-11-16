@@ -5,6 +5,52 @@
 
 ---
 
+## 2026-11-16 — Claude (dependency advisories)
+
+### Objective
+Clear the `npm audit` advisories for `api/` on `main` (`673bfbe`) using lockfile-only updates that stay inside the ranges already in `api/package.json`. Anything that needs a `package.json` change goes to Phil.
+
+### Changes Made
+- `api/package-lock.json` — `npm update compression multer body-parser proxy-addr qs ip-address minimatch brace-expansion` (npm `update` does not save to `package.json`). Resolved versions: compression 1.8.1→1.8.2 (adds `destroy` 1.2.0), multer 2.4.0→2.5.0, body-parser 2.3.0→2.4.0 (pulls content-type 2.1.0, iconv-lite 0.7.3), proxy-addr 2.0.7→2.0.8, qs 6.16.0→6.17.1, ip-address 10.7.2→10.7.6, minimatch 10.2.5→10.2.6, brace-expansion 5.0.8→5.0.13.
+- `api/package.json` — unchanged.
+- `PROJECT_STATE.md` — "Dependency advisories" row updated with the new lockfile versions and the two items left open.
+
+### Advisory inventory (before)
+| Package | Installed | Patched | Direct? | In existing range? |
+|---|---|---|---|---|
+| proxy-addr (critical) | 2.0.7 | 2.0.8 | no (express `^2.0.7`) | yes |
+| body-parser (high) | 2.3.0 | 2.4.0 | no (express `^2.2.1`) | yes |
+| brace-expansion (high) | 5.0.8 | 5.0.12+ | no (minimatch `^5.0.5`, dev) | yes |
+| compression (high) | 1.8.1 | 1.8.2 | yes `^1.8.1` | yes |
+| multer (high) | 2.4.0 | 2.5.0 | yes `^2.4.0` | yes |
+| sharp (high) | 0.35.4 | 0.35.5 | yes, exact pin `0.35.4` | **no** (Phil) |
+| ip-address (moderate) | 10.7.2 | 10.7.4+ | no (express-rate-limit `^10.2.0`) | yes |
+| minimatch (moderate) | 10.2.5 | 11.0.1 | no (nodemon `^10.2.1`, dev) | **no** |
+| nodemon (moderate, via minimatch) | 3.1.14 | n/a | yes, dev | n/a |
+| qs (moderate) | 6.16.0 | >6.16.0 | no (express `^6.14.0`) | yes |
+
+### Verification (Truthfulness Rule applies)
+Runtime: Node v22.22.3 / npm 10.9.8 on macOS arm64. No Node 20 was available locally (CI and the Dockerfile use Node 20), so Node 20 is NOT verified here; CI covers it.
+- `npm audit` before → 10 (1 critical, 5 high, 4 moderate). After → 3 (0 critical, 1 high, 2 moderate). `npm audit --omit=dev` after → 1 high (sharp).
+- `cd api && npm ci` → PASSED (lockfile installs cleanly).
+- `node --check` server.js, db.js, middleware/auth.js, routes/admin.js, routes/api.js, routes/public.js, routes/documents.js → PASSED.
+- `node tests/verify-security-fixes.test.js` → PASSED.
+- Every file in `tests/`: admin-document-review 9/9, ai-generator-routing 18/18, chat-assistant 14/14, document-registry 28/28, email 10/10, inquiry-forward 12/12, lead-notifications 6/6, public-assistant-flag 7/7, upload-e2e PASSED (sharp 0.35.4), verify-security-fixes PASSED. http-smoke: 13/14 in the `.claude/worktrees` path (known `GET /search` dot-directory failure), 14/14 from a copy at a path with no dot-directory.
+- `scripts/preflight.sh` NOT run as a script (macOS sandbox blocks `mktemp -d`); its steps run one by one: `npm ls express better-sqlite3 csrf-csrf` OK, syntax checks OK, the four test steps OK, startup smoke from the no-dot copy: `/api/health` 200, `/api/properties/advent-dr-lot-hampshire-wv` 200, `/properties/advent-dr-lot-hampshire-wv` 200, `POST /api/chat` 200 with `reply`. (Inside the worktree path the public property page returned 500, the same dot-directory problem as `/search`.)
+
+### Security Notes
+No application code changed. No secrets touched. No deploy, no VPS access.
+
+### Remaining Risks
+- sharp GHSA-wq5f-xc86-pv6w (high, production dependency) stays open until Phil approves moving the exact pin `0.35.4` → `0.35.5` in `api/package.json`.
+- minimatch GHSA-g3hv-75wg-m249 (moderate) stays open on the dev-only `nodemon` path; not in the Docker image (`npm ci --omit=dev`).
+- The 5 GitHub Dependabot alerts were not read one by one (no alert API in this session); the only open Dependabot PR is #150 (proxy-addr), covered here.
+
+### Recommended Next Task
+Phil decides on the sharp pin; Codex verifies the PR (checks, threads, head SHA). After merge, a deploy is still manual and Phil's call.
+
+---
+
 ## 2026-11-13 — Claude (deploy record)
 
 ### Objective
