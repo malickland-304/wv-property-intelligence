@@ -45,7 +45,15 @@ async function sendLeadNotificationEmail(lead) {
   });
 }
 
+// Customer-facing email is OFF unless explicitly enabled. Replies to leads are
+// drafted for Phil to review (n8n inquiry intake); the site must not email a
+// customer on its own just because a mail provider is configured.
+function isLeadAutoReplyEnabled() {
+  return String(process.env.LEAD_AUTO_REPLY_ENABLED || '').trim().toLowerCase() === 'true';
+}
+
 async function sendLeadAutoReplyEmail(lead, followUps = []) {
+  if (!isLeadAutoReplyEnabled()) return false;
   if (!lead || !lead.email || !isEmailConfigured()) return false;
 
   const immediate = followUps[0];
@@ -59,4 +67,4 @@ async function sendLeadAutoReplyEmail(lead, followUps = []) {
   });
 }
 
-module.exports = { isLeadEmailConfigured, sendLeadNotificationEmail, sendLeadAutoReplyEmail };
+module.exports = { isLeadEmailConfigured, isLeadAutoReplyEnabled, sendLeadNotificationEmail, sendLeadAutoReplyEmail };

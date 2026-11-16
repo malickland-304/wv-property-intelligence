@@ -5,6 +5,49 @@
 
 ---
 
+## 2026-11-13 — Claude (lead forms: drafts-only + intake forward)
+
+### Objective
+Close the gap an external audit found: the property-lead forms (`POST /api/leads/37-advent`, `POST /api/leads/property/:slug`) could email the customer automatically and did not reach the n8n inquiry intake. Scope approved by Phil in chat ("Yes, write it"). Built from `origin/main` @ `673bfbe`.
+
+### Changes Made
+- `api/services/leadNotifications.js`: `sendLeadAutoReplyEmail()` now returns `false` unless `LEAD_AUTO_REPLY_ENABLED` is exactly `true`. New `isLeadAutoReplyEnabled()`. Owner notification (`sendLeadNotificationEmail`, to Phil) is unchanged.
+- `api/routes/leads.js`: after the lead is stored, a best-effort copy goes to the n8n intake via `forwardInquiry()` with `submission_id` `malickland-lead-<lead_id>`, property address, buyer type and SMS consent. Failure logs the lead id only; response is still 201.
+- `api/services/inquiryForward.js`: payload accepts a caller-supplied `submission_id`, `location`, `need_type`, `consent_sms`; `/api/contacts` payload is unchanged.
+- Tests: `tests/inquiry-forward.test.js` (+2, now 14), `tests/lead-notifications.test.js` (+2, now 8).
+- Docs: `LEAD_AUTO_REPLY_ENABLED` in `api/.env.example` and `AGENTS.md`.
+- Review follow-ups (same PR): with auto-reply off, no `lead_followups` rows are stored and the lead is saved with `follow_up_status = 'disabled'`; `consent_sms` is forwarded as an explicit boolean when the form supplied it; startup now logs `[Startup] Inquiry forward configured:` (with a warning when off) and `[Startup] Customer auto-reply enabled:`; the auto-reply test spies on the mail transport and asserts zero calls when the flag is unset.
+- Not changed: `leadFollowupWorker.js` (never started anywhere; imports that do not exist), page copy/consent wording on `/37-advent`. Deferred to follow-ups: a durable outbox with retry for failed forwards, and a client idempotency key for repeated form posts (the intake already collapses repeats from the same contact and brand within the dedupe window).
+
+### Verification (run in this session, Node 22.22.3, macOS arm64)
+- `node --check` on server.js, routes/leads.js, routes/api.js, routes/admin.js, routes/public.js, middleware/auth.js, services/inquiryForward.js, services/leadNotifications.js -> OK.
+- `node tests/inquiry-forward.test.js` -> 14 passed; `node tests/lead-notifications.test.js` -> 8 passed; `node tests/verify-security-fixes.test.js` -> 60/60; `node tests/http-smoke.test.js` -> 14/14.
+- Local server, throwaway DB, `RESEND_API_KEY` set to a fake value, flag unset, forward pointed at an unreachable https URL: `POST /api/leads/37-advent` -> 201; lead stored; `lead_followups` rows marked sent = 0 (no auto-reply attempted); log `CAPTURED but NOT forwarded`.
+- NOT run: `scripts/preflight.sh` (sandbox blocks its `mktemp`; CI runs it). NOT verified: production behaviour, whether `RESEND_API_KEY` is set on the VPS, a real forward from these routes reaching n8n.
+
+### Security Notes
+- Default is now fail-closed for customer email from this path. Enabling it is an explicit env change.
+- Forwarded message is the same text already stored in `contacts` for the admin view; n8n treats it as untrusted data.
+
+### Remaining Risks
+- Not deployed. Until deploy, production keeps the old behaviour (auto-reply if Resend is configured).
+- Leads forwarded from these routes are filed under `INQUIRY_BRAND` (default MalickLand).
+- A failed forward is still not retried (no outbox); tracked as a follow-up.
+
+### Recommended Next Task
+Phil-approved VPS deploy; at the same SSH window check `[Startup] Resend configured:` in the container log, delete test contact #5, run `verify-vps-prod.sh`.
+
+```
+Done: auto-reply gated off by default; property-lead forms forward to intake
+Verified by: unit tests, security suite, smoke, local POST check (above)
+Remaining risk: not deployed; no retry on failed forward
+Next owner: Codex (review), then Phil
+Next action: review, merge decision, then deploy decision
+Approval needed: Phil
+```
+
+---
+
 ## 2026-11-13 — Claude (deploy record)
 
 ### Objective

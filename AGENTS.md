@@ -277,6 +277,7 @@ Set in the production environment — the Hostinger VPS `.env` at `/docker/wv-pr
 - `RESEND_API_KEY`
 - `FROM_EMAIL`
 - `NOTIFICATION_EMAIL`
+- `LEAD_AUTO_REPLY_ENABLED` (customer auto-reply; must stay unset unless Phil approves in writing)
 
 **Inquiry intake forward to n8n (optional):**
 - `INQUIRY_WEBHOOK_URL`
