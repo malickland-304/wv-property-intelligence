@@ -38,7 +38,7 @@ const { isInquiryForwardConfigured, deliverInquiryPayload } = require('./inquiry
 const BASE_DELAY_MS = 30 * 1000;            // first retry ~15–30 s after a failure
 const MAX_DELAY_MS = 6 * 60 * 60 * 1000;    // backoff ceiling: 6 h
 const MAX_ATTEMPTS = 20;                    // ≈3 days of retries before parking as failed
-const LEASE_MS = 2 * 60 * 1000;             // claim window; far above the 5 s fetch timeout
+const LEASE_MS = 2 * 60 * 1000;             // claim window; 4× the 30 s fetch timeout
 const DEFAULT_INTERVAL_MS = 30 * 1000;
 const DEFAULT_BATCH_SIZE = 10;
 
@@ -237,6 +237,7 @@ function kickInquiryOutbox() {
 }
 
 module.exports = {
+  LEASE_MS,
   enqueueInquiry,
   retryDelayMs,
   processInquiryOutbox,

@@ -40,8 +40,9 @@ const {
   MAX_ATTEMPTS,
   BASE_DELAY_MS,
   MAX_DELAY_MS,
+  LEASE_MS,
 } = require(path.join(API_DIR, 'services', 'inquiryOutbox'));
-const { buildInquiryPayload, SECRET_HEADER } = require(path.join(API_DIR, 'services', 'inquiryForward'));
+const { buildInquiryPayload, SECRET_HEADER, TIMEOUT_MS } = require(path.join(API_DIR, 'services', 'inquiryForward'));
 const leadsRouter = require(path.join(API_DIR, 'routes', 'leads'));
 
 const T0 = Date.parse('2026-11-15T12:00:00.000Z');
@@ -86,6 +87,13 @@ const pass = (fetchImpl, now = T0, extra = {}) =>
   };
 
   // ── Migration ────────────────────────────────────────────
+  await check('fetch timeout fits a respond-after-write intake and stays inside the claim lease', () => {
+    // n8n answers only after the Leads row is written, which can exceed a few seconds.
+    assert(TIMEOUT_MS >= 30 * 1000, `timeout ${TIMEOUT_MS} ms is too short for respond-after-write`);
+    // A send that is still in flight must not be re-claimed by another pass.
+    assert(LEASE_MS >= 2 * TIMEOUT_MS, `lease ${LEASE_MS} ms must be at least 2x the ${TIMEOUT_MS} ms timeout`);
+  });
+
   await check('migration creates inquiry_outbox with the expected columns', () => {
     const cols = db.prepare('PRAGMA table_info(inquiry_outbox)').all().map((c) => c.name);
     for (const c of ['id', 'submission_id', 'payload', 'status', 'attempts', 'next_attempt_at', 'last_error_class', 'created_at', 'delivered_at']) {

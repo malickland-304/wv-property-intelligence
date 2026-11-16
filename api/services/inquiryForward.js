@@ -19,7 +19,11 @@
  */
 
 const SECRET_HEADER = 'X-Inquiry-Secret';
-const TIMEOUT_MS = 5000;
+// Long enough for an intake that answers only after the lead row is written
+// (Sheets append + dedupe lookups). Delivery runs in the outbox worker, never
+// in the visitor's request, so this does not slow the form. Keep it well under
+// inquiryOutbox.js LEASE_MS so a slow send cannot be claimed twice.
+const TIMEOUT_MS = 30 * 1000;
 const DEFAULT_BRAND = 'MalickLand';
 
 function getWebhookUrl() {
@@ -120,6 +124,7 @@ async function forwardInquiry(contact, property, { fetchImpl = globalThis.fetch 
 }
 
 module.exports = {
+  TIMEOUT_MS,
   isInquiryForwardConfigured,
   buildInquiryPayload,
   deliverInquiryPayload,
