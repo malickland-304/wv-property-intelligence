@@ -118,6 +118,27 @@ function fakeFetch(response) {
     assert.strictEqual(a, b);
   });
 
+  await check('property-lead payload: own submission_id, location, need_type, sms consent', () => {
+    const p = buildInquiryPayload({ submission_id: 'malickland-lead-abc123', name: 'T', email: 't@example.com', phone: '304', message: 'm', source: 'property-packet', location: '37 Advent Dr, Augusta, WV', need_type: 'Land', consent_sms: true }, null);
+    assert.strictEqual(p.submission_id, 'malickland-lead-abc123');
+    assert.strictEqual(p.location_or_item, '37 Advent Dr, Augusta, WV');
+    assert.strictEqual(p.need_type, 'Land');
+    assert.strictEqual(p.consent_sms, true);
+    assert.strictEqual(buildInquiryPayload(contact, property).need_type, undefined);
+    // An unchecked box is forwarded as an explicit false, not dropped.
+    assert.strictEqual(buildInquiryPayload({ submission_id: 'x', consent_sms: false }, null).consent_sms, false);
+    assert.strictEqual(buildInquiryPayload({ submission_id: 'x', consent_sms: 0 }, null).consent_sms, false);
+    assert.ok(!('consent_sms' in buildInquiryPayload(contact, property)), 'contacts payload has no consent field');
+  });
+
+  await check('forward works with a submission_id and no contacts row id', async () => {
+    process.env.INQUIRY_WEBHOOK_URL = URL_OK;
+    process.env.INQUIRY_WEBHOOK_SECRET = SECRET;
+    const f = fakeFetch({ ok: true });
+    assert.strictEqual(await forwardInquiry({ submission_id: 'malickland-lead-abc123', name: 'T', email: 't@example.com' }, null, { fetchImpl: f.impl }), true);
+    assert.strictEqual(JSON.parse(f.calls[0].init.body).submission_id, 'malickland-lead-abc123');
+  });
+
   await check('non-2xx response returns false', async () => {
     process.env.INQUIRY_WEBHOOK_URL = URL_OK;
     process.env.INQUIRY_WEBHOOK_SECRET = SECRET;
