@@ -398,12 +398,19 @@ Phil reported Codex down indefinitely on 2026-11-16 (`DECISIONS.md`, same date; 
 1. **Mechanical verdict (replaces the Codex Verification Response).** Run:
 
    ```bash
-   bash scripts/pr-readiness.sh <pr-number> <expected-head-sha>
-   # optionally also rule out an unapproved deploy:
-   EXPECT_VPS_SHA=<sha> bash scripts/pr-readiness.sh <pr-number> <expected-head-sha>
+   # the expected head SHA is required, as the full 40 characters
+   EXPECT_VPS_SHA=<live-vps-sha> bash scripts/pr-readiness.sh <pr-number> <full-head-sha>   # SSH open: proves the VPS
+   VPS_ATTESTED=1 bash scripts/pr-readiness.sh <pr-number> <full-head-sha>                # SSH closed: Phil states it
    ```
 
-   It checks the conditions live against GitHub: PR open and not a draft, head SHA, `mergeable_state` clean, every check run on the head commit completed green, and 0 unresolved non-outdated review threads. With `EXPECT_VPS_SHA` set, it also compares the VPS checkout over SSH. It prints `VERDICT: READY / NOT READY` in the format above and exits 0 only when READY. It **fails closed**: anything it cannot verify counts as a blocking fact. Review threads need GraphQL, so run it with an authenticated `gh` or `GITHUB_TOKEN` (Phil's terminal works; the agent sandbox does not, and there it always says NOT READY).
+   Each of the five READY conditions needs a positive result, or the verdict is NOT READY:
+   - **Head SHA:** the PR head equals the given full SHA exactly.
+   - **Merge state:** `mergeable_state` clean and `mergeable`.
+   - **Checks:** *every* check run on the head commit completed green, plus commit statuses. This is stricter than "required checks": reading the required list needs admin access, so an optional check that fails also blocks. Fix it or rerun it.
+   - **Threads:** 0 unresolved, non-outdated review threads.
+   - **No unapproved production deploy:** proven over SSH with `EXPECT_VPS_SHA`, or stated by Phil with `VPS_ATTESTED=1`. Deploys are manual, so he knows. An attested run lists the VPS under "Not checked by this script" instead of passing it silently. With neither, it blocks.
+
+   The PR is re-read at the end of the run; if its head moved meanwhile, the verdict is NOT READY. It prints `VERDICT: READY / NOT READY` in the format above and exits 0 only when READY. Text taken from GitHub (comment excerpts, check and branch names) is stripped of control characters, so a comment can't forge the verdict in the terminal. Review threads need GraphQL, so run it with an authenticated `gh` or `GITHUB_TOKEN`. The token goes to `curl` through a private temp file, not its arguments. Phil's terminal works; the agent sandbox does not, and there it always says NOT READY.
    - Anyone may run it, including the implementing agent. The output is evidence of live state, not an opinion. Post the **verbatim** output as a PR comment.
    - It goes stale on any push, new review, or new check run. Re-run it **immediately before merge**.
 2. **Independent review (replaces Codex's audit).** The implementing agent still may not judge its own PR. Every PR gets a review from a reviewer that did not write it:

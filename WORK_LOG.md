@@ -1,7 +1,44 @@
 # WORK_LOG.md — Malickland 2.0 Coordination Ledger
 > All agents must append an entry here after any session that makes changes.
 > This is the memory layer between agents. Do not delete prior entries.
-> Format: ## YYYY-MM-DD — Agent Name
+> Format: ## 2026-11-16 — Claude (readiness script hardening after #158 review)
+
+### Objective
+#158 merged before its review threads were answered: 9 bot threads (7 Sourcery, 2 Codex review bot) were resolved with no change or reply, and the independent review session added 3 more. Phil asked to fix what was found.
+
+### Changes Made
+- `scripts/pr-readiness.sh`:
+  - expected head SHA required, full 40 characters, exact match;
+  - "no unapproved deploy" needs `EXPECT_VPS_SHA` over SSH or `VPS_ATTESTED=1`, else it blocks, and an attested run lists the VPS under "Not checked by this script";
+  - control characters (C0, DEL, UTF-8 C1) stripped from all GitHub-sourced text and from the final output;
+  - token sent through a 0600 temp header file (`curl -H @file`), never in argv; the GraphQL body goes through a file too;
+  - `VPS_SRC`/`VPS_TARGET`/`REPO` validated, `VPS_SRC` `printf %q`-quoted, `ssh --` before the target;
+  - PR re-read at the end, blocking if the head or state moved.
+- `AGENTS.md` — interim-gate text matches the script: the five conditions, the attested-VPS path, and that "checks" means every check run.
+- `DECISIONS.md` — amendment to the 2026-11-16 entry.
+
+### Verification (Truthfulness Rule applies)
+- `/bin/bash -n` (bash 3.2.57): OK.
+- 11 offline scenarios with stand-in `curl`/`gh`/`ssh` serving recorded JSON:
+  - all green + attested → READY, exit 0, "Not checked" section shown;
+  - no SHA, or a short SHA → exit 2;
+  - neither VPS option → NOT READY;
+  - comment with `\u001b[2J\u001b[H` and U+009B → no ESC/C1 bytes in output;
+  - head moves between reads → NOT READY;
+  - `GITHUB_TOKEN` path → READY, token absent from every curl argv, header file used;
+  - SSH match → READY;
+  - SSH mismatch → NOT READY;
+  - malicious `VPS_SRC`/`VPS_TARGET` → exit 2 before ssh runs;
+  - a failing optional check → NOT READY.
+- Live GitHub REST (#160 @ `4c64d04`, attested): head exact match, clean, 9/9 green; threads UNKNOWN in the sandbox (no auth), so NOT READY, as designed.
+- NOT RUN: a real authenticated GraphQL call (Phil's terminal will be the first).
+
+### Remaining Risks
+#158's 9 resolved bot threads get replies pointing at this PR. The GitHub UI can't reopen them.
+
+---
+
+## YYYY-MM-DD — Agent Name
 
 ---
 
