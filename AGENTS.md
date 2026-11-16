@@ -332,6 +332,8 @@ Every agent session that makes changes must append an entry to `WORK_LOG.md`. Th
 
 Adopted 2026-06-17 after PR #97 review thrash. **Codex is the independent readiness gatekeeper. GitHub and the live VPS are the only final sources of truth.**
 
+> **Codex is unavailable as of 2026-11-16.** Use the interim gate in "When Codex is unavailable" at the end of this section.
+
 The implementing agent (Claude Code or any other) **may not** call a PR "ready" from its own summary. Review bots (Codex / Gemini / Sourcery) re-review **asynchronously**, so a point-in-time "CLEAN" goes stale; and an all-green-CI PR can still be `BLOCKED` by unresolved threads. READY is declared only after Codex independently verifies the live GitHub + deployment state.
 
 A PR is **READY** only when ALL of these hold (Codex-verified, live):
@@ -388,6 +390,30 @@ ssh root@31.97.58.203 'git -C /docker/wv-property-intelligence/src rev-parse --s
 ```
 
 Drive the review loop to convergence by reading bot threads **directly off the PR** (do not rely on a human to relay them), and re-verify live immediately before declaring readiness — cite the commit SHA. Context lives in the repository (PRs + tracked `*.md` docs), not in any single agent's session state.
+
+### When Codex is unavailable (interim gate, adopted 2026-11-16)
+
+Phil reported Codex down indefinitely on 2026-11-16 (`DECISIONS.md`, same date; open gate in `PROJECT_STATE.md`). Until Codex is back, its two jobs are split. **The READY conditions above do not change.** Only who checks them changes.
+
+1. **Mechanical verdict (replaces the Codex Verification Response).** Run:
+
+   ```bash
+   bash scripts/pr-readiness.sh <pr-number> <expected-head-sha>
+   # optionally also rule out an unapproved deploy:
+   EXPECT_VPS_SHA=<sha> bash scripts/pr-readiness.sh <pr-number> <expected-head-sha>
+   ```
+
+   It checks the conditions live against GitHub: PR open and not a draft, head SHA, `mergeable_state` clean, every check run on the head commit completed green, and 0 unresolved non-outdated review threads. With `EXPECT_VPS_SHA` set, it also compares the VPS checkout over SSH. It prints `VERDICT: READY / NOT READY` in the format above and exits 0 only when READY. It **fails closed**: anything it cannot verify counts as a blocking fact. Review threads need GraphQL, so run it with an authenticated `gh` or `GITHUB_TOKEN` (Phil's terminal works; the agent sandbox does not, and there it always says NOT READY).
+   - Anyone may run it, including the implementing agent. The output is evidence of live state, not an opinion. Post the **verbatim** output as a PR comment.
+   - It goes stale on any push, new review, or new check run. Re-run it **immediately before merge**.
+2. **Independent review (replaces Codex's audit).** The implementing agent still may not judge its own PR. Every PR gets a review from a reviewer that did not write it:
+   - the review bots that still post (Sourcery; the Codex GitHub review bot when it runs), **and**
+   - for any PR that touches `api/`, `scripts/`, `.github/`, `compose.yml`, or governance docs: a fresh Claude Code session with no shared context with the implementer. It reads the diff and posts its findings on the PR as review comments.
+
+   The implementing agent fixes or answers every finding. Threads must reach 0 unresolved, and the script enforces that.
+3. **Phil merges** only with a READY output for the current head SHA posted on the PR and the independent review done. Merge still ≠ deploy.
+
+When Codex is back: Codex resumes the gatekeeper role and re-verifies any PR merged under this interim gate, then the `PROJECT_STATE.md` gate is closed. The script stays as the mechanical check Codex can run too.
 
 ---
 

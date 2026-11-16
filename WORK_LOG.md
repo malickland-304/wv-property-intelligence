@@ -61,6 +61,36 @@ Approval needed: Phil to merge; Phil to approve any deploy (not requested here)
 
 ---
 
+## 2026-11-16 — Claude (interim readiness gate while Codex is down)
+
+### Objective
+Phil: "codex is down indefinetly so we need to fix that". Replace Codex's gatekeeper role for the duration without lowering the READY conditions.
+
+### Changes Made
+- `scripts/pr-readiness.sh` — new. Live check of the READY conditions (PR open and not a draft, head SHA, `mergeable_state` clean, every check run green, 0 unresolved non-outdated review threads via GraphQL, optional VPS SHA over SSH). Prints the existing `VERDICT` format. Exits 0 only when READY and fails closed.
+- `AGENTS.md` — notice at the top of the Codex Gatekeeper Protocol, plus a "When Codex is unavailable" subsection: script output + independent review + Phil merges.
+- `DECISIONS.md` — 2026-11-16 entry (problem, decision, reasoning, alternatives, migration impact, rollback, security impact, files).
+- `PROJECT_STATE.md` — open gates: Codex unavailable (interim gate), and deploy of `main` @ `e253685` (#153 merged, not deployed); the `12d255d` VPS-proof gate drops Codex as owner.
+
+### Verification (Truthfulness Rule applies)
+- `/bin/bash -n scripts/pr-readiness.sh` (bash 3.2.57, macOS default) → OK.
+- Live against GitHub REST from the agent sandbox: #156 → head `076286f`, merge state clean, 10/10 checks green; #157 → head `03a60bb`, clean, 9/9 green. Both NOT READY only because review threads were UNKNOWN (`gh` fails TLS in the sandbox, no `GITHUB_TOKEN`), i.e. fail-closed works.
+- Thread logic with a stand-in `gh` returning recorded GraphQL JSON: 0 open (resolved + outdated ignored) → READY, exit 0. 2 open → NOT READY with path:line, author and excerpt listed, exit 1.
+- Expected-SHA mismatch → blocking fact. Non-numeric PR or non-hex SHA → usage error, exit 2. `EXPECT_VPS_SHA` with SSH closed → blocking fact.
+- NOT RUN: the `GITHUB_TOKEN` GraphQL path and a real authenticated `gh` GraphQL call. Phil's terminal is the first real run.
+
+### Security Notes
+Read-only against GitHub. Arguments validated as a number or hex SHA before use. No secrets read or printed (the token is only passed in a header).
+
+### Remaining Risks
+- The independent-review half depends on someone starting a fresh reviewer session; the script cannot enforce that part.
+- #153 was merged without a Codex verdict before this gate existed; listed for Codex re-verification.
+
+### Recommended Next Task
+Phil runs `bash scripts/pr-readiness.sh 157 03a60bb` in his own terminal to confirm the GraphQL path, then uses it for #154–#157.
+
+---
+
 ## 2026-11-16 — Claude (sendFile under a dot-directory)
 
 ### Objective
