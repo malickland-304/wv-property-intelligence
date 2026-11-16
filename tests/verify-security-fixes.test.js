@@ -482,8 +482,14 @@ test('public navigation aliases avoid dead /contact, /about, and /search routes'
 });
 
 test('GET /search serves a real empty-state page (not a bounce home) when listings are disabled', () => {
-  assert(publicRoutesCode.includes("res.sendFile(path.join(PROJECT_ROOT, 'app', 'search.html'))"),
+  assert(publicRoutesCode.includes("const APP_DIR = path.join(PROJECT_ROOT, 'app');"),
+    'public routes should serve pages from APP_DIR = <project>/app');
+  assert(publicRoutesCode.includes("res.sendFile('search.html', { root: APP_DIR })"),
     'GET /search should serve app/search.html when public listings are disabled, instead of redirecting to /');
+  // sendFile with an absolute path and no root fails (404 -> 500) when the checkout sits under
+  // a dot-directory, because `send` checks the whole path for dot-segments. Keep `root` on all of them.
+  assert(!/res\.sendFile\(path\.join\(/.test(publicRoutesCode),
+    'public routes should call res.sendFile(<name>, { root: APP_DIR }), not with an absolute path');
   assert(publicRoutesCode.includes("'/search.html'"),
     '/search.html should canonicalize to /search (HTML_CANONICAL) to avoid raw static access to the page');
 });

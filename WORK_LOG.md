@@ -5,6 +5,33 @@
 
 ---
 
+## 2026-11-16 — Claude (sendFile under a dot-directory)
+
+### Objective
+Phil: "fix and or review anything you found". While testing #156, `GET /search` (listings off) and the public property page failed (404 → 500) whenever the checkout sat under a dot-directory such as `.claude/worktrees/...`, and `tests/http-smoke.test.js` failed there.
+
+### Changes Made
+- `api/routes/public.js` — new `APP_DIR = path.join(PROJECT_ROOT, 'app')`. The three `res.sendFile` calls (`/favicon.ico`, `/listing/:id` + `/properties/:id`, `/search`) now pass a file name with `{ root: APP_DIR }` instead of an absolute path. Cause: `send` 1.2.1 rejects any path containing a dot-segment (`dotfiles: 'ignore'` → 404). With no root it checks the whole absolute path (`send/index.js` ~451); with a root, only the part below it (~438). Same files served, same headers (`maxAge` on the favicon kept).
+- `tests/verify-security-fixes.test.js` — the `/search` source-text assertion now matches the new call, asserts `APP_DIR` is `<project>/app`, and fails if any `res.sendFile(path.join(` comes back (checked: it flags the old code).
+
+### Verification (Truthfulness Rule applies)
+Node v22.22.3, run **from inside the `.claude/worktrees` checkout** (the failing environment), with `main`'s lockfile (`npm ci`):
+- `node --check` server.js, db.js, middleware/auth.js, routes/admin.js, routes/api.js, routes/public.js, routes/documents.js → OK.
+- `tests/http-smoke.test.js` → 14/14, including `GET /search` (it was 13/14 here before). Every other file in `tests/` passes (admin-document-review 9, ai-generator-routing 18, chat-assistant 14, document-registry 28, email 10, inquiry-forward 14, lead-notifications 8, public-assistant-flag 7, upload-e2e, verify-security-fixes).
+- Startup smoke, listings ON: `/api/health` 200, `/api/properties/advent-dr-lot-hampshire-wv` 200, `/properties/advent-dr-lot-hampshire-wv` 200 html (500 before), `/listing/1` 200 html, `/search` 302, `/favicon.ico` 200 png, `POST /api/chat` 200. Listings OFF: `/search` 200 html, property routes 302, favicon 200.
+- `scripts/preflight.sh` as a script → NOT RUN (sandbox blocks `mktemp -d`); its steps covered above.
+
+### Security Notes
+`root` also makes `send` reject `..` traversal; the file names are constants, so no request input reaches them. Production's path (`/docker/wv-property-intelligence/src`) has no dot-segment, so the live site was not affected.
+
+### Remaining Risks
+None known. No production change until deployed.
+
+### Recommended Next Task
+Review under the interim gate (#158), then Phil merges.
+
+---
+
 ## 2026-11-13 — Claude (lead forms: drafts-only + intake forward)
 
 ### Objective
