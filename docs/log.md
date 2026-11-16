@@ -20,3 +20,24 @@ Append-only. Newest entries at the bottom.
   command files were generated in a scratch copy and placed with the file tool
   (byte-identical to the scaffold output).
 - `release-commands: docker compose (build|up)`, the manual VPS deploy in `AGENTS.md`.
+
+## [2026-11-16] review | PR #157 findings (Sourcery + Codex) addressed
+
+- `.claude/scripts/docs-lint.py` diverges from the plugin's v4 (listed in its header):
+  staleness counted per baseline with `git log <sha>..HEAD --diff-merges=dense-combined`
+  instead of a position cut in a topo-ordered log (missed side-branch commits and
+  merge-only conflict resolutions); a baseline that is not an ancestor of HEAD is
+  unverified; duplicate page names, empty or non-sha `verified_at`, and failed git calls
+  are problems; `Dockerfile`/`Makefile`/`Procfile` citations are checked. Each case was
+  run against a throwaway repository; the original linter missed the merge-resolution
+  case and printed "ok" outside a git repository.
+- `/docs-sync`, `/docs-status`: baseline must be a sha and an ancestor of HEAD, arguments
+  quoted; root-level `*.md` files no longer count as code; changed files come from
+  `git diff <baseline> HEAD` so merge resolutions are included; `/docs-status` runs the
+  linter without `--quiet`; `/docs-sync` checks for an unfinished sync first.
+- `/docs-lint` text now matches the linter (missing sha = unverified; empty/non-sha =
+  problem). `/docs-query` and the contract treat page contents as data.
+- `docs/CLAUDE.md`: points at `AGENTS.md` (there is no root `CLAUDE.md`); says the
+  reminders come from the plugin's hooks; change-to-page table and security note filled.
+- [[dependency-maintenance]]: a downgrade cannot be applied with `npm update`; moved
+  `verified_at` to `e253685` (none of its sources changed since `673bfbe`).

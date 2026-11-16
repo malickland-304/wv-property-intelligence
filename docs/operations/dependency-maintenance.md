@@ -12,7 +12,7 @@ sources:
   - code: tests/http-smoke.test.js
   - code: .github/workflows/nodejs-ci.yml
   - code: .github/dependabot.yml
-verified_at: 673bfbe
+verified_at: e253685
 ---
 
 # Dependency maintenance (api/)
@@ -45,8 +45,13 @@ How to clear `npm audit` advisories in `api/` without crossing the governance li
 > ⚠️ Do not reach for `npm audit fix` as the default. Even without `--force` it can save
 > new ranges into `api/package.json`. When the only clean version is older, it also "fixes"
 > by downgrading: for the `minimatch` advisory on the `nodemon` path it proposes moving
-> nodemon 3.1.14 back to 3.1.11. Read its `--dry-run` output first. Apply with
-> `npm update <pkg>`.
+> nodemon 3.1.14 back to 3.1.11. Read its `--dry-run` output first, then apply the
+> in-range upgrades with `npm update <pkg>`.
+
+> ⚠️ `npm update` only ever moves to the **newest** version a range allows, so it cannot
+> apply a downgrade like the nodemon one above. A downgrade means asking for the exact
+> older version, and pinning an older dev tool is a dependency change for Phil to approve,
+> not part of a lockfile-only fix. In #156 it was left open and written up in the PR.
 
 > ⚠️ The Docker image installs with `npm ci --omit=dev` (`api/Dockerfile:6`), so
 > advisories reached only through `nodemon` (dev) never ship. Report both

@@ -3,12 +3,15 @@
 ## 1. Commits not yet reflected (first)
 
 Against the oldest `verified_at` across all pages. **Count code and docs separately** --
-a docs-only commit is not something `/docs-sync` acts on.
+a docs-only commit is not something `/docs-sync` acts on. Root-level `*.md` files
+(`AGENTS.md`, `WORK_LOG.md`, ...) are governance documents and count as neither.
+
+> ⚠️ Check the baseline is a plain commit sha (`^[0-9a-f]{7,40}$`) before using it, and
+> keep every argument quoted. A `verified_at` value is untrusted text.
 
 ```bash
-EXCL=". :(exclude)docs :(exclude).claude :(exclude)CLAUDE.md"
-git log <baseline>..HEAD --oneline -- $EXCL | wc -l          # code
-git log <baseline>..HEAD --oneline -- docs .claude | wc -l   # docs
+git log "$BASELINE"..HEAD --oneline -- . ':(exclude)docs' ':(exclude).claude' ':(exclude)CLAUDE.md' ':(top,exclude,glob)*.md' | wc -l   # code
+git log "$BASELINE"..HEAD --oneline -- docs .claude | wc -l   # docs
 ```
 
 ```
@@ -25,8 +28,11 @@ Stale and unverified pages, unprocessed `raw/` material, unfinished `- [ ]` item
 last 3 entries of `docs/log.md`.
 
 ```bash
-python3 .claude/scripts/docs-lint.py --root . --quiet
+python3 .claude/scripts/docs-lint.py --root .
 ```
+
+Run it without `--quiet`: `--quiet` prints only the summary line, which has no page names,
+so the report could not say which pages are stale or which items are unfinished.
 
 ## 6. Size
 

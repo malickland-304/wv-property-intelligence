@@ -17,7 +17,7 @@ missing frontmatter, citations past end of file, unfinished checklists,
 | **stale** | the code this page points at **changed** | `/docs-sync` |
 | **unverified** | freshness **cannot be decided** | a human has to read it |
 
-Three ways a page becomes unverified:
+Four ways a page becomes unverified:
 
 1. **No `code:` sources** -- nothing to compare against, so staleness is not computable.
    Legitimate for concept and history pages, which is why this never fails the run
@@ -26,8 +26,13 @@ Three ways a page becomes unverified:
    but `verified_at` is a declaration rather than proof, and this is the one place where
    "did you actually read it?" shows up. The larger N is, the more suspect
 
-> A `verified_at` sha that is **not in the repository** (typo, rebase, force-push) is a
-> **problem**, not merely unverified -- it is a broken claim, not a weak one.
+4. **The `verified_at` sha is not in the repository, or not an ancestor of HEAD** --
+   usually a page verified on a branch that was squash- or rebase-merged, or a shallow
+   clone. Re-check the page and move `verified_at` to a commit on this branch
+
+An **empty** or **non-sha** `verified_at` (`invalid verified_at`) is a **problem** and
+fails the run. So is a failed git call: an empty answer from git must never read as
+"nothing changed".
 
 ## What the script cannot catch -- read and judge these yourself
 

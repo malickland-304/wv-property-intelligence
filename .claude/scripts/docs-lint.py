@@ -23,6 +23,11 @@ from pathlib import Path
 # in a repository against the plugin's and says so when they differ; a translated
 # fork keeps the same number once it has the same logic.
 LINT_VERSION = "4"
+# Local changes in this repository (2026-11-16, PR #157 review), on top of upstream v4:
+# staleness counted per baseline with `git log <sha>..HEAD` including merge-resolution
+# diffs; duplicate page names, empty/non-hex verified_at and git failures reported as
+# problems; extensionless citations (Dockerfile, Makefile) checked. Re-apply them if
+# this file is ever refreshed from the plugin (`--lint-only`).
 
 REQUIRED_FM = ("title", "type", "verified_at")
 META_PAGES = {"index", "log", "CLAUDE", "README"}
@@ -31,6 +36,13 @@ DEFAULT_EXCLUDE_DIRS = ["raw"]
 # Extensions treated as code citations. Kept wide because it varies by project;
 # non-existent paths are filtered out later.
 CODE_EXT = r"py|ts|tsx|js|jsx|go|rs|java|kt|rb|php|sh|sql|yml|yaml|toml|json|html|css|service|ini|mako"
+# Extensionless file names that are still code (cited as `api/Dockerfile:6`).
+CODE_NAMES = r"Dockerfile|Makefile|Procfile"
+
+SHA_RE = re.compile(r"^[0-9a-f]{7,40}$")
+
+# git failures, so an empty answer from a broken git call is never read as "nothing changed".
+GIT_ERRORS: list[str] = []
 
 
 def strip_code(text: str) -> str:
@@ -68,11 +80,28 @@ def body(text: str) -> str:
 
 
 def git(root: Path, *args: str, stdin: str = "") -> str:
+    """Run git and return stdout. A failure returns "" but is recorded in GIT_ERRORS,
+    so the run reports it instead of treating the empty output as a clean result."""
     try:
         return subprocess.run(["git", "-C", str(root), *args], input=stdin,
                               capture_output=True, text=True, check=True).stdout.strip()
-    except Exception:
+    except subprocess.CalledProcessError as e:
+        cmd = next((a for a in args if not a.startswith("-") and "=" not in a), "")
+        GIT_ERRORS.append(f"git {cmd} failed: {(e.stderr or '').strip()[:160]}")
         return ""
+    except OSError as e:
+        GIT_ERRORS.append(f"git could not be run: {e}")
+        return ""
+
+
+def _is_ancestor(root: Path, sha: str) -> bool:
+    """True if sha is an ancestor of (or equal to) HEAD. Exit code 1 means "no",
+    anything else is a git failure and is recorded."""
+    r = subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", sha, "HEAD"],
+                       capture_output=True, text=True)
+    if r.returncode not in (0, 1):
+        GIT_ERRORS.append(f"git merge-base failed for {sha}: {r.stderr.strip()[:160]}")
+    return r.returncode == 0
 
 
 def commits(root: Path, shas: set[str]) -> set[str]:
@@ -136,20 +165,26 @@ def main() -> int:
         return 1
     skip_dirs = {d.strip() for d in args.exclude.split(",") if d.strip()}
 
+    problems: list[str] = []
+    notes: list[str] = []
+
     pages: dict[str, Path] = {}
-    for p in docs.rglob("*.md"):
+    for p in sorted(docs.rglob("*.md")):
         rel = p.relative_to(docs)
         if rel.parts and rel.parts[0] in skip_dirs:
             continue
         if p.stem in META_PAGES and len(rel.parts) == 1:
             continue
+        if p.stem in pages:
+            # [[links]] carry no path, so two pages with one name are ambiguous, and
+            # keeping only one would silently drop the other from every check.
+            problems.append(f"duplicate page name: {p.stem} -> "
+                            f"{pages[p.stem].relative_to(docs)} and {rel} (rename one)")
+            continue
         pages[p.stem] = p
 
     meta = [docs / f"{n}.md" for n in ("index", "log") if (docs / f"{n}.md").exists()]
     allmd = list(pages.values()) + meta
-
-    problems: list[str] = []
-    notes: list[str] = []
 
     # (1) broken links / (2) orphans
     linked: set[str] = set()
@@ -183,11 +218,18 @@ def main() -> int:
             if not (root / sp).exists():
                 problems.append(f"broken source: {name} -> {sp}")
 
-        m = re.search(r"^verified_at:\s*(\S+)", fm, re.M)
-        sha = m.group(1).strip() if m else ""
+        # [ \t]* not \s*: \s* crosses the newline, so a blank `verified_at:` used to
+        # capture the next line's first token as the sha.
+        m = re.search(r"^verified_at:[ \t]*(\S*)", fm, re.M)
+        sha = m.group(1).strip().strip("\"'") if m else ""
         live = [sp for sp in src_paths if (root / sp).exists()]
-        if not sha:
+        if not m:
             pass  # a missing verified_at is already reported by the REQUIRED_FM check above
+        elif not sha:
+            problems.append(f"empty verified_at: {name}")
+        elif not SHA_RE.match(sha):
+            # Also keeps anything that is not a plain sha out of the git calls below.
+            problems.append(f"invalid verified_at: {name} -> {sha!r} (expected a commit sha)")
         elif not src_paths:
             unverified.append(f"{name} -- no code: sources, so there is nothing to compare against")
         elif not live:
@@ -208,33 +250,43 @@ def main() -> int:
                               "and move verified_at to a commit on this branch")
     todo = [t for t in todo if t[1] in known]
 
-    # One walk for every page instead of `git log <sha>..HEAD -- <sources>` per page.
-    # That call was 16s of a 27s run on a 27-page wiki (measured 2026-09-24), which put
-    # the SessionStart hook past its timeout.
+    # Staleness = commits in `sha..HEAD` (reachability, not position in a topo-ordered
+    # log: with parallel histories git may list a commit that is not an ancestor of sha
+    # after it, and the old position cut then missed it) that touch a page's sources.
     #
-    # --topo-order makes position exact, not approximate: it places every ancestor of a
-    # commit after it, so a commit listed *before* sha is provably not an ancestor of
-    # sha -- and since everything here is reachable from HEAD, that is exactly
-    # `sha..HEAD`. Plain reverse-chronological order would undercount commits merged in
-    # from a side branch, which is the dangerous direction for a staleness check.
+    # One walk per distinct baseline, not per page: pages verified together share a
+    # sha, so this stays a handful of calls. (Upstream walked all history once because
+    # a per-page `git log` was 16s of a 27s run on a 27-page wiki.)
+    #
+    # --diff-merges=dense-combined lists, for a merge, the files its result changed
+    # relative to every parent, i.e. conflict resolutions. Without it git shows no
+    # files for merges, and a source changed only while resolving a merge never
+    # counted. Clean merges list nothing, so merged-in commits are not counted twice.
     if todo:
-        # Walk all of history once rather than computing a range: picking the right
-        # range needs a rev-list per page, which is the per-page cost we came here to
-        # remove. One unbounded walk is a single call and guarantees every page's sha
-        # is found.
-        walk = git(root, "-c", "core.quotepath=false", "log", "--topo-order",
-                   "--format=%x01%h", "--name-only", "HEAD")
-        order: list[tuple[str, list[str]]] = []
-        for line in walk.splitlines():
-            if line.startswith("\x01"):
-                order.append((line[1:].strip(), []))
-            elif line.strip() and order:
-                order[-1][1].append(line.strip())
-        pos = {sha: i for i, (sha, _) in enumerate(order)}
+        ranges: dict[str, list[list[str]]] = {}
+        ancestor = {sha: _is_ancestor(root, sha) for sha in {t[1] for t in todo}}
+        for sha in sorted(ancestor):
+            # A baseline that is not an ancestor of HEAD (page verified on a branch
+            # that was rebased away) has no meaningful `sha..HEAD`; reported below.
+            if not ancestor[sha]:
+                continue
+            walk = git(root, "-c", "core.quotepath=false", "log", "--format=%x01%h",
+                       "--name-only", "--diff-merges=dense-combined", f"{sha}..HEAD")
+            commits_files: list[list[str]] = []
+            for line in walk.splitlines():
+                if line.startswith("\x01"):
+                    commits_files.append([])
+                elif line.strip() and commits_files:
+                    commits_files[-1].append(line.strip())
+            ranges[sha] = commits_files
 
         for name, sha, live in todo:
-            cut = pos.get(sha, len(order))
-            n = sum(1 for _, files in order[:cut]
+            if not ancestor[sha]:
+                unverified.append(f"{name} -- verified_at {sha} is not an ancestor of HEAD "
+                                  "(rebased or diverged branch?); re-check the page and move "
+                                  "verified_at to a commit on this branch")
+                continue
+            n = sum(1 for files in ranges[sha]
                     if any(f == s or f.startswith(s.rstrip("/") + "/") for f in files for s in live))
             if n:
                 stale.append((name, n))
@@ -294,7 +346,7 @@ def main() -> int:
             unverified.append(f"{name} -- sha moved past {len(skipped.splitlines())} code commits with no body change ({old}->{new})")
 
     # (5) code citation line numbers
-    cite_re = re.compile(rf"`([\w./-]+\.(?:{CODE_EXT}))(?::(\d+))?`")
+    cite_re = re.compile(rf"`([\w./-]+\.(?:{CODE_EXT})|(?:[\w.-]+/)*(?:{CODE_NAMES}))(?::(\d+))?`")
     checked: set[tuple[str, str]] = set()
     for p in allmd:
         for path, line in cite_re.findall(p.read_text(encoding="utf-8")):
@@ -321,6 +373,10 @@ def main() -> int:
 
     sizes = sorted(len(re.sub(r"\s+", "", p.read_text(encoding="utf-8")))
                    for p in pages.values()) or [0]
+
+    # A failed git call returns "" -- which would otherwise read as "no commits, nothing
+    # stale". Surface it so a broken checkout never looks clean.
+    problems.extend(GIT_ERRORS)
 
     if args.json:
         # Counts only, so a hook never parses prose. A translated copy of this

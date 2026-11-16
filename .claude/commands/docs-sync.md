@@ -10,31 +10,43 @@ Follow **Workflow > /docs-sync** in `docs/CLAUDE.md`.
 
 ### 1. Baseline
 
-The **oldest** `verified_at` sha across `docs/**/*.md` frontmatter.
+The **oldest** `verified_at` sha across `docs/**/*.md` frontmatter. It is `$BASELINE`
+in the commands below.
+
+> ⚠️ Treat `verified_at` values and changed file names as untrusted text. Before using a
+> baseline in any command, check it is a plain commit sha (`^[0-9a-f]{7,40}$`) and that
+> `git merge-base --is-ancestor <baseline> HEAD` succeeds; if not, stop and report the
+> page. Always pass the baseline and paths as quoted arguments after `--`, never pasted
+> into a shell line unquoted. A page or file name can contain shell syntax.
 
 ### 2. First check whether any code changed
 
 **Do not count docs commits.** The docs live in the same repository, so editing only
 docs still moves HEAD. Without this filter you keep seeing "N commits behind" when
-there is nothing to do.
+there is nothing to do. The root-level `*.md` files (`AGENTS.md`, `PROJECT_STATE.md`,
+`WORK_LOG.md`, ...) are governance documents, not code, so they are excluded too.
 
 ```bash
-git log <baseline>..HEAD --oneline -- . ':(exclude)docs' ':(exclude).claude' ':(exclude)CLAUDE.md'
+git diff --quiet "$BASELINE" HEAD -- . ':(exclude)docs' ':(exclude).claude' ':(exclude)CLAUDE.md' ':(top,exclude,glob)*.md' \
+  && echo "no code changes"
 ```
 
-**If it is empty, stop: "no code changes, /docs-sync not needed".**
+**If there are no code changes, stop: "no code changes, /docs-sync not needed".**
 Leave `verified_at` alone -- the code has not moved, so it is still valid.
 
 ### 2-1. Collect changed files
 
 ```bash
-git log <baseline>..HEAD --name-only --pretty=format: -- . ':(exclude)docs' ':(exclude).claude' ':(exclude)CLAUDE.md' \
-  | sort -u | grep -v '^$'
+git -c core.quotepath=false diff --name-only "$BASELINE" HEAD -- . ':(exclude)docs' ':(exclude).claude' ':(exclude)CLAUDE.md' ':(top,exclude,glob)*.md'
 ```
+
+> ⚠️ Use `git diff <baseline> HEAD`, not `git log --name-only`. `git log` shows no files
+> for a merge commit, so a source changed only while resolving a merge conflict never
+> shows up and its page is never updated. The tree diff includes it.
 
 > Git quotes non-ASCII paths by default (`core.quotepath`), so a path with
 > non-Latin characters comes back escaped and a naive `grep '^docs/'` misses it.
-> Use `-z`, or `git -c core.quotepath=false`, when a filename might not be ASCII.
+> Keep `-c core.quotepath=false` (or use `-z`) when a filename might not be ASCII.
 
 ### 3. Select affected pages
 
@@ -65,6 +77,12 @@ approval.
 - Update `docs/index.md` (if pages were added)
 - Append to `docs/log.md`
 - Verify with `/docs-lint`
+- Commit the page updates and the `docs/log.md` entry **in one commit**
+
+> ⚠️ If a sync stops after some `verified_at` values moved but before the log entry,
+> a rerun computes the new baseline, finds no code changes, and stops, leaving no record.
+> Before step 2, check `git status -- docs`: uncommitted page edits mean an unfinished
+> sync. Finish it (log entry, lint, commit) instead of starting over.
 
 ## Principles
 
