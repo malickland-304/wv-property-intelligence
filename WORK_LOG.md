@@ -5,6 +5,42 @@
 
 ---
 
+## 2026-11-16 — Claude (pr-readiness.sh: fixes from the independent review of #158)
+
+### Objective
+Fix the findings from the independent post-merge review of #158. #158 merged with its 9 bot threads resolved without a code change. Phil approved opening this fix PR ("Yes, open fix PR").
+
+### Changes Made
+- `scripts/pr-readiness.sh`:
+  - **Head SHA.** Both SHAs must be full 40-character SHAs, compared exactly (was a 7-char prefix match). A missing expected SHA is now a blocking fact (was listed under "Verified:").
+  - **VPS.** Without `EXPECT_VPS_SHA`, the VPS goes under a new "Not checked:" section instead of "Verified:". With it set, non-SHA output from SSH also blocks.
+  - **Control characters.** Every author- or commenter-controlled string (check-run names and conclusions, head/base ref, review path, login, comment excerpt) passes through a jq `clean` that replaces C0/C1 control characters with `?`. This blocks the terminal-redraw attack reproduced in the review.
+  - **Token.** `GITHUB_TOKEN` is passed to curl on stdin (`-H @-`), no longer in argv. `VPS_SRC` is quoted with `printf %q` for the remote shell.
+- `AGENTS.md` — "When Codex is unavailable" now matches the script: full SHAs, missing SHA blocks, VPS checked only with `EXPECT_VPS_SHA` (otherwise "Not checked:" and Phil confirms), control-character stripping. Phil merges only with any "Not checked:" line confirmed.
+
+### Verification (Truthfulness Rule applies)
+- `/bin/bash -n scripts/pr-readiness.sh` (bash 3.2.57) → OK. shellcheck is not installed here → NOT RUN.
+- Fixture runs (stand-in `curl`, `gh` and `ssh` on PATH, recorded JSON):
+  - all green + full SHA → READY, exit 0, with the VPS under "Not checked:";
+  - no expected SHA → NOT READY; short SHA → exit 2; SHA mismatch → NOT READY;
+  - check-run name and review comment carrying ESC/CSI/BEL and U+009B → 0 output lines with C0 or C1 control bytes, Unicode text kept;
+  - the token appeared 0 times in curl argv and 8 times on its stdin;
+  - VPS match → READY; mismatch → blocks; garbage output → blocks; ssh unreachable → blocks;
+  - `VPS_SRC="/srv/a'b; touch /tmp/pwn"` reaches the remote shell as one path argument.
+- Live from the sandbox: `pr-readiness.sh 160 4c64d04…` → NOT READY. The real blockers were a head mismatch (#160 had moved to `3e79a08`) and threads UNKNOWN (no GraphQL auth). Merge clean, 9/9 checks green.
+- NOT RUN: an authenticated GraphQL call (Phil's terminal).
+
+### Security Notes
+Read-only against GitHub, as before. No secret is printed or placed in argv.
+
+### Remaining Risks
+- With the VPS unchecked, READY still depends on Phil confirming the "Not checked:" line. This is stated in `AGENTS.md`, not enforced.
+
+### Recommended Next Task
+Independent review of this PR by a session that did not write it (it touches `scripts/` and `AGENTS.md`). Then Phil runs the script on it from his terminal.
+
+---
+
 ## 2026-11-16 — Claude (interim readiness gate while Codex is down)
 
 ### Objective

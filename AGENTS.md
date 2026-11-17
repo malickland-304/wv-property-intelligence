@@ -399,11 +399,13 @@ Phil reported Codex down indefinitely on 2026-11-16 (`DECISIONS.md`, same date; 
 
    ```bash
    bash scripts/pr-readiness.sh <pr-number> <expected-head-sha>
-   # optionally also rule out an unapproved deploy:
+   # also check the VPS for an unapproved deploy (needs SSH, closed by default):
    EXPECT_VPS_SHA=<sha> bash scripts/pr-readiness.sh <pr-number> <expected-head-sha>
    ```
 
-   It checks the conditions live against GitHub: PR open and not a draft, head SHA, `mergeable_state` clean, every check run on the head commit completed green, and 0 unresolved non-outdated review threads. With `EXPECT_VPS_SHA` set, it also compares the VPS checkout over SSH. It prints `VERDICT: READY / NOT READY` in the format above and exits 0 only when READY. It **fails closed**: anything it cannot verify counts as a blocking fact. Review threads need GraphQL, so run it with an authenticated `gh` or `GITHUB_TOKEN` (Phil's terminal works; the agent sandbox does not, and there it always says NOT READY).
+   Both SHAs are full 40-character SHAs, compared exactly. A missing expected head SHA is a blocking fact. It checks the conditions live against GitHub: PR open and not a draft, head SHA, `mergeable_state` clean, every check run on the head commit completed green, and 0 unresolved non-outdated review threads. It prints `VERDICT: READY / NOT READY` in the format above and exits 0 only when READY. It **fails closed** on every GitHub condition: anything it cannot verify there counts as a blocking fact. Review threads need GraphQL, so run it with an authenticated `gh` or `GITHUB_TOKEN` (Phil's terminal works; the agent sandbox does not, and there it always says NOT READY).
+   - **The VPS condition** ("no production deploy unless Phil approved it") is checked only with `EXPECT_VPS_SHA`, because SSH is closed by default. With it set, a mismatch or an unreachable VPS blocks. Without it, the output lists the VPS under **"Not checked:"**, never under "Verified:", and a READY verdict covers the GitHub conditions only. Phil confirms the VPS condition himself before merging (deploys are manual and his).
+   - Text that PR authors and commenters control (check-run names, the branch name, review-comment excerpts) is stripped of control characters before printing, so it cannot redraw the verdict in the terminal.
    - Anyone may run it, including the implementing agent. The output is evidence of live state, not an opinion. Post the **verbatim** output as a PR comment.
    - It goes stale on any push, new review, or new check run. Re-run it **immediately before merge**.
 2. **Independent review (replaces Codex's audit).** The implementing agent still may not judge its own PR. Every PR gets a review from a reviewer that did not write it:
@@ -411,7 +413,7 @@ Phil reported Codex down indefinitely on 2026-11-16 (`DECISIONS.md`, same date; 
    - for any PR that touches `api/`, `scripts/`, `.github/`, `compose.yml`, or governance docs: a fresh Claude Code session with no shared context with the implementer. It reads the diff and posts its findings on the PR as review comments.
 
    The implementing agent fixes or answers every finding. Threads must reach 0 unresolved, and the script enforces that.
-3. **Phil merges** only with a READY output for the current head SHA posted on the PR and the independent review done. Merge still ≠ deploy.
+3. **Phil merges** only with a READY output for the current head SHA posted on the PR, the independent review done, and any "Not checked:" line confirmed by him. Merge still ≠ deploy.
 
 When Codex is back: Codex resumes the gatekeeper role and re-verifies any PR merged under this interim gate, then the `PROJECT_STATE.md` gate is closed. The script stays as the mechanical check Codex can run too.
 
