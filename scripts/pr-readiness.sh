@@ -12,6 +12,7 @@
 # "Not checked:", never under "Verified:".
 # Exit code: 0 READY (everything checked), 1 NOT READY, 2 usage or tooling error,
 # 3 READY on the GitHub conditions only, with the VPS not checked (Phil confirms it).
+# The PR is re-read at the end; if its head or state moved during the run, NOT READY.
 #
 # Needs curl and jq. Review-thread state comes from GitHub GraphQL, which needs
 # authentication: an authenticated `gh` CLI, or GITHUB_TOKEN in the environment.
@@ -197,6 +198,19 @@ if [[ -n "${EXPECT_VPS_SHA:-}" ]]; then
   fi
 else
   skip "VPS SHA (no unapproved deploy): set EXPECT_VPS_SHA=<full sha> to check over SSH, or Phil confirms it"
+fi
+
+# ── Re-read: the PR must not have moved while this ran ──────────────────────
+# Checks, threads and the VPS were read after the PR itself. A push, merge or close in
+# between would leave this verdict describing a commit that is no longer the PR head.
+if final_json="$(api "pulls/$PR")"; then
+  final_head="$(jq -r '.head.sha' <<<"$final_json")"
+  final_state="$(jq -r '.state' <<<"$final_json")"
+  if [[ "$final_head" != "$head_sha" || "$final_state" != "$state" ]]; then
+    block "PR changed during this run: head $head_sha -> $(jq -r "$JQ_CLEAN"' .head.sha | clean' <<<"$final_json"), state $state -> $(jq -r "$JQ_CLEAN"' .state | clean' <<<"$final_json"); run again"
+  fi
+else
+  block "could not re-read PR #$PR at the end of the run"
 fi
 
 # ── Verdict ─────────────────────────────────────────────────────────────────
