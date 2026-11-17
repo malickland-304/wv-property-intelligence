@@ -173,5 +173,6 @@
 - The script fails closed on every **GitHub** condition. A missing expected head SHA now blocks, and SHAs must be full and match exactly.
 - The VPS condition is checked only with `EXPECT_VPS_SHA`, because SSH is closed by default. Without it, the output says `VERDICT: READY (GitHub conditions only; …)` with exit code 3 and lists the VPS under "Not checked:", and Phil confirms it before merging.
 - Text controlled by PR authors and commenters is stripped of control and bidi/zero-width characters before printing.
+- Update 2026-11-17: the stripping now covers the full Unicode Cc/Cf/Zl/Zp set (Codex review on #162 found U+061C ARABIC LETTER MARK surviving; U+180E, U+2060-U+2064, U+FFF9-U+FFFB and the tag block U+E0000-U+E007F did too). `tests/pr-readiness-clean.test.js` enumerates that set from Node's Unicode tables and runs in `scripts/preflight.sh`, so a missed code point fails CI.
 - The token goes to curl on stdin, not argv.
-**Files:** `scripts/pr-readiness.sh`, `AGENTS.md`, `DECISIONS.md`, `PROJECT_STATE.md`, `WORK_LOG.md`.
+**Files:** `scripts/pr-readiness.sh`, `tests/pr-readiness-clean.test.js`, `scripts/preflight.sh`, `AGENTS.md`, `DECISIONS.md`, `PROJECT_STATE.md`, `WORK_LOG.md`.
