@@ -45,6 +45,11 @@ node --check routes/admin.js
 echo "✓ Syntax OK"
 echo
 
+echo "== pr-readiness output sanitizer regression =="
+node "$ROOT/tests/pr-readiness-clean.test.js"
+echo "✓ pr-readiness sanitizer OK"
+echo
+
 echo "== Public assistant flag regression =="
 node "$ROOT/tests/public-assistant-flag.test.js"
 echo "✓ Public assistant flag OK"
