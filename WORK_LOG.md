@@ -1,7 +1,31 @@
 # WORK_LOG.md — Malickland 2.0 Coordination Ledger
 > All agents must append an entry here after any session that makes changes.
 > This is the memory layer between agents. Do not delete prior entries.
-> Format: ## YYYY-MM-DD — Agent Name
+> Format: ## 2026-11-16 — Claude (readiness script: end-of-run re-read, on top of #162)
+
+### Objective
+Phil kept #162 over #161 and approved adding the one #161 item #162 lacks: re-reading the PR at the end of a run (Sourcery's "stale PR state" thread on #158, `:52`).
+
+### Changes Made
+- `scripts/pr-readiness.sh` — after the VPS step, re-read `pulls/<n>`. If the head SHA or state differs from the first read, block with "PR changed during this run … run again", or "could not re-read" if the call fails. New text from GitHub goes through #162's `clean` filter.
+- `AGENTS.md` — one sentence in the interim-gate section.
+
+### Verification (Truthfulness Rule applies)
+- `/bin/bash -n` (bash 3.2.57) OK.
+- Stand-in `curl`/`gh`/`ssh` with recorded JSON:
+  - normal run → `READY (GitHub conditions only)`, exit 3;
+  - head moves between first and last read → NOT READY, exit 1;
+  - SSH match, no move → READY, exit 0;
+  - the same move against unpatched #162 → `READY (GitHub conditions only)`, exit 3 (the gap);
+  - escape codes in the re-read state → 0 ESC bytes in the output.
+- Live REST on #162 @ `0d33afb`: head matches, clean, 9/9 green, no false "changed" blocker; threads UNKNOWN in the sandbox (no auth).
+
+### Remaining Risks
+Merge only after #162 (stacked on it).
+
+---
+
+## YYYY-MM-DD — Agent Name
 
 ---
 
