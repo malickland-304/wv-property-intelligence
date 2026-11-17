@@ -33,8 +33,14 @@ Fix the findings from the independent post-merge review of #158. #158 merged wit
 ### Security Notes
 Read-only against GitHub, as before. No secret is printed or placed in argv.
 
+### Follow-up commit: the independent review of #162 (3 non-blocking comments, all applied)
+- **Bidi/zero-width characters.** `clean` also replaces U+200B–U+200F, U+2028–U+202E, U+2066–U+206F and U+FEFF. Before, a head ref like `fix/<U+202E>evil` reached the "Verified:" line of a READY run unchanged.
+- **Partial READY.** With anything unchecked, the verdict line is `VERDICT: READY (GitHub conditions only; see "Not checked:")` and the exit code is **3**, so `&& gh pr merge` or a quoted first line can't treat it as a full READY. "Not checked:" now prints right after "Blocking facts:".
+- **Uppercase SHAs** are lowercased before validation instead of being rejected.
+- **Docs.** `AGENTS.md` documents exit codes 0/1/2/3 and either-case SHAs. `DECISIONS.md` 2026-11-16 gains a dated update line for the narrowed "fails closed".
+
 ### Remaining Risks
-- With the VPS unchecked, READY still depends on Phil confirming the "Not checked:" line. This is stated in `AGENTS.md`, not enforced.
+- With the VPS unchecked, READY still depends on Phil confirming the "Not checked:" line. This is stated in `AGENTS.md`; the script now signals it with exit code 3 but cannot enforce it.
 
 ### Recommended Next Task
 Independent review of this PR by a session that did not write it (it touches `scripts/` and `AGENTS.md`). Then Phil runs the script on it from his terminal.

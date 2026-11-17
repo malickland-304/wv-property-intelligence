@@ -10,7 +10,8 @@
 # A missing expected-head-sha is a blocking fact. The VPS condition is checked only
 # with EXPECT_VPS_SHA (SSH is closed by default); without it the output lists it under
 # "Not checked:", never under "Verified:".
-# Exit code: 0 READY, 1 NOT READY, 2 usage or tooling error.
+# Exit code: 0 READY (everything checked), 1 NOT READY, 2 usage or tooling error,
+# 3 READY on the GitHub conditions only, with the VPS not checked (Phil confirms it).
 #
 # Needs curl and jq. Review-thread state comes from GitHub GraphQL, which needs
 # authentication: an authenticated `gh` CLI, or GITHUB_TOKEN in the environment.
@@ -29,7 +30,9 @@ VPS_SRC="${VPS_SRC:-/docker/wv-property-intelligence/src}"
 usage() { echo "usage: bash scripts/pr-readiness.sh <pr-number> <expected-head-sha (full 40 chars)>" >&2; exit 2; }
 
 PR="${1:-}"
-EXPECTED="${2:-}"
+# SHAs are compared in lowercase; some UIs copy them in uppercase.
+EXPECTED="$(printf '%s' "${2:-}" | tr 'A-F' 'a-f')"
+EXPECT_VPS_SHA="$(printf '%s' "${EXPECT_VPS_SHA:-}" | tr 'A-F' 'a-f')"
 [[ "$PR" =~ ^[0-9]+$ ]] || usage
 [[ -z "$EXPECTED" || "$EXPECTED" =~ ^[0-9a-f]{40}$ ]] || { echo "expected-head-sha must be the full 40-character hex commit sha" >&2; exit 2; }
 [[ -z "${EXPECT_VPS_SHA:-}" || "${EXPECT_VPS_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "EXPECT_VPS_SHA must be the full 40-character hex commit sha" >&2; exit 2; }
@@ -46,7 +49,14 @@ skip()   { unchecked+=("$1"); }
 
 # jq helper: replace C0/C1 control characters (ESC, CSI, BEL, CR, ...) with "?".
 # Works on codepoints, not a regex, so it does not depend on the regex engine's escapes.
-JQ_CLEAN='def clean: tostring | explode | map(if . < 32 or (. >= 127 and . < 160) then 63 else . end) | implode;'
+# Also replaces Unicode format characters that reorder or hide text: zero-width and
+# LRM/RLM (U+200B-U+200F), line/paragraph separators and bidi embeddings/overrides
+# (U+2028-U+202E), bidi isolates and invisible operators (U+2066-U+206F), BOM (U+FEFF).
+JQ_CLEAN='def clean: tostring | explode | map(
+  if . < 32 or (. >= 127 and . < 160)
+     or (. >= 8203 and . <= 8207) or (. >= 8232 and . <= 8238)
+     or (. >= 8294 and . <= 8303) or . == 65279
+  then 63 else . end) | implode;'
 
 # The token goes to curl on stdin (-H @-), not in argv, so `ps` cannot show it.
 # printf is a shell builtin, so the token is never in any process's arguments.
@@ -190,23 +200,30 @@ else
 fi
 
 # ── Verdict ─────────────────────────────────────────────────────────────────
-if ((${#blockers[@]} == 0)); then
-  echo "VERDICT: READY"
-else
+# A READY with anything unchecked is labelled on the first line and exits 3, so neither
+# a quoted first line nor `&& gh pr merge` can treat it as a full READY.
+status=1
+if ((${#blockers[@]} > 0)); then
   echo "VERDICT: NOT READY"
+elif ((${#unchecked[@]} > 0)); then
+  echo "VERDICT: READY (GitHub conditions only; see \"Not checked:\")"
+  status=3
+else
+  echo "VERDICT: READY"
+  status=0
 fi
 echo
 echo "PR: #$PR ($REPO) head ${head_sha:0:7}, checked $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo
 echo "Blocking facts:"
 if ((${#blockers[@]} == 0)); then echo "- none"; else printf -- '- %s\n' "${blockers[@]}" | sed 's/^-   - /  - /'; fi
-echo
-echo "Verified:"
-if ((${#verified[@]} == 0)); then echo "- nothing"; else printf -- '- %s\n' "${verified[@]}"; fi
 if ((${#unchecked[@]} > 0)); then
   echo
   echo "Not checked:"
   printf -- '- %s\n' "${unchecked[@]}"
 fi
+echo
+echo "Verified:"
+if ((${#verified[@]} == 0)); then echo "- nothing"; else printf -- '- %s\n' "${verified[@]}"; fi
 
-((${#blockers[@]} == 0))
+exit "$status"

@@ -169,4 +169,9 @@
 **Migration impact:** Process only; no application code, schema, deployment or secret changes. PRs merged under the interim gate are listed in `WORK_LOG.md` and re-verified by Codex when it returns.
 **Rollback:** Delete the "When Codex is unavailable" subsection in `AGENTS.md` and close the `PROJECT_STATE.md` gate; the original protocol text is unchanged. The script can stay as a tool.
 **Security impact:** Neutral to positive. READY conditions are unchanged, and the script fails closed: thread state it cannot read (no `gh`/`GITHUB_TOKEN` auth) blocks READY. It reads only public PR data plus GraphQL thread state, never writes to GitHub, and validates its arguments as a number or hex SHA.
+**Update 2026-11-16 (PR #162, after the independent review of #158):**
+- The script fails closed on every **GitHub** condition. A missing expected head SHA now blocks, and SHAs must be full and match exactly.
+- The VPS condition is checked only with `EXPECT_VPS_SHA`, because SSH is closed by default. Without it, the output says `VERDICT: READY (GitHub conditions only; …)` with exit code 3 and lists the VPS under "Not checked:", and Phil confirms it before merging.
+- Text controlled by PR authors and commenters is stripped of control and bidi/zero-width characters before printing.
+- The token goes to curl on stdin, not argv.
 **Files:** `scripts/pr-readiness.sh`, `AGENTS.md`, `DECISIONS.md`, `PROJECT_STATE.md`, `WORK_LOG.md`.
