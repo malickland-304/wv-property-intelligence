@@ -22,7 +22,19 @@ Close two small admin-auth weak points found in the 2026-11-18 product review.
 - `bash scripts/preflight.sh` itself NOT run locally (sandbox); CI preflight is the proof.
 
 ### Security Notes
-No new dependencies, no env changes, no schema change. CSRF tokens are bound to `req.sessionID`; login is CSRF-exempt and the admin page issues fresh tokens after the redirect, so regeneration does not break forms (covered by admin-document-review and upload-e2e, which log in and post).
+No new dependencies, env changes or schema changes.
+
+**Correction (independent review, same day):** I first wrote that "regeneration does not break forms". That was wrong. CSRF tokens are bound to `req.sessionID`, and `csrf-csrf` `generateToken` throws by default when the browser still holds a `csrf_token` cookie hashed for a different session id. So:
+- logging in again after visiting `/admin` returned **403 on `/admin`**. That was a regression from `regenerate()`.
+- logout then login already returned 403 on `main`, from the same cause.
+
+Fix: `csrfToken()` in `api/middleware/auth.js` now calls `req.csrfToken(false, false)`, so a stale cookie is replaced instead of throwing. `doubleCsrfProtection` re-defines `req.csrfToken` on every admin request, which is why the arguments are passed there and not in a wrapper in `server.js`. POST validation is unchanged.
+
+`safeEqual` no longer hashes. CodeQL flagged SHA-256 of a password, a false positive here but noise. It now does a length check plus `timingSafeEqual`; only the secret's length can be inferred from timing.
+
+**Follow-up verification:**
+- `admin-auth` 7/7. The 2 new cookie-jar tests (re-login, and logout then login, each keeping both cookies) fail without the fix (5 passed, 2 failed).
+- `admin-document-review` 9/9, `upload-e2e` PASS, `verify-security-fixes` PASSED, `http-smoke` 14/14 from a path with no dot-directory.
 
 ### Remaining Risks
 Single shared admin password, no 2FA. An IP allowlist or basic auth for `/admin` at Traefik would be the next layer (VPS config, Phil).

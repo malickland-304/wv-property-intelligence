@@ -2,13 +2,18 @@
 
 const crypto = require('crypto');
 
-// Constant-time string comparison. Hashing both sides first gives equal-length
-// buffers, so timingSafeEqual never throws and the length of the secret is not
-// leaked through timing either.
+// Constant-time string comparison for secrets (admin password, API key).
+// timingSafeEqual needs equal-length buffers; on a length mismatch we still run
+// one comparison so the reject path costs about the same. Only the length of the
+// secret can be inferred from timing, which is the standard trade-off.
 function safeEqual(provided, expected) {
   if (typeof provided !== 'string' || typeof expected !== 'string') return false;
-  const a = crypto.createHash('sha256').update(provided).digest();
-  const b = crypto.createHash('sha256').update(expected).digest();
+  const a = Buffer.from(provided, 'utf8');
+  const b = Buffer.from(expected, 'utf8');
+  if (a.length !== b.length) {
+    crypto.timingSafeEqual(b, b);
+    return false;
+  }
   return crypto.timingSafeEqual(a, b);
 }
 
@@ -36,7 +41,12 @@ function requireAuth(req, res, next) {
 }
 
 function csrfToken(req) {
-  if (typeof req.csrfToken === 'function') return req.csrfToken();
+  // (overwrite=false, validateOnReuse=false): a csrf_token cookie left from an
+  // earlier session (re-login, or logout then login) is replaced with a fresh
+  // token for the current session instead of throwing 403. POST validation in
+  // doubleCsrfProtection is unchanged. Note doubleCsrfProtection re-defines
+  // req.csrfToken on every admin request, so the arguments must be passed here.
+  if (typeof req.csrfToken === 'function') return req.csrfToken(false, false);
   if (!req.session.csrfToken)
     req.session.csrfToken = crypto.randomBytes(16).toString('hex');
   return req.session.csrfToken;

@@ -75,6 +75,39 @@ async function login(baseUrl, password, cookie) {
   });
 }
 
+// A browser-like cookie jar: keeps every cookie (connect.sid AND csrf_token).
+function makeJar() {
+  const jar = new Map();
+  return {
+    take(res) {
+      for (const raw of res.headers.getSetCookie()) {
+        const pair = raw.split(';')[0];
+        const i = pair.indexOf('=');
+        jar.set(pair.slice(0, i), pair.slice(i + 1));
+      }
+    },
+    header() { return Array.from(jar, ([k, v]) => `${k}=${v}`).join('; '); },
+    has(name) { return jar.has(name); },
+  };
+}
+
+async function jarFetch(jar, url, opts = {}) {
+  const headers = { ...(opts.headers || {}) };
+  const cookie = jar.header();
+  if (cookie) headers.Cookie = cookie;
+  const res = await fetch(url, { ...opts, headers, redirect: 'manual' });
+  jar.take(res);
+  return res;
+}
+
+function jarLogin(jar, baseUrl) {
+  return jarFetch(jar, `${baseUrl}/admin/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ password: ADMIN_PASSWORD }),
+  });
+}
+
 async function isAdmin(baseUrl, cookie) {
   const res = await fetch(`${baseUrl}/admin`, { headers: { Cookie: cookie }, redirect: 'manual' });
   return res.status === 200;
@@ -118,8 +151,7 @@ async function main() {
     await test('wrong password shows the login error and grants no session', async () => {
       const res = await login(baseUrl, 'wrong-password');
       assert.strictEqual(res.status, 200);
-      const cookie = sessionCookie(res);
-      if (cookie) assert.strictEqual(await isAdmin(baseUrl, cookie), false);
+      assert.strictEqual(sessionCookie(res), null, 'a failed login must not create a session');
     });
 
     let first = null;
@@ -141,6 +173,25 @@ async function main() {
       assert.notStrictEqual(second, first, 'session id must change on login');
       assert.strictEqual(await isAdmin(baseUrl, second), true);
       assert.strictEqual(await isAdmin(baseUrl, first), false, 'old session id must no longer be admin');
+    });
+
+    await test('logging in again while holding the old CSRF cookie still opens /admin', async () => {
+      const jar = makeJar();
+      assert.strictEqual((await jarLogin(jar, baseUrl)).status, 302);
+      assert.strictEqual((await jarFetch(jar, `${baseUrl}/admin`)).status, 200);
+      assert(jar.has('csrf_token'), 'expected /admin to set a csrf_token cookie');
+      assert.strictEqual((await jarLogin(jar, baseUrl)).status, 302);
+      const res = await jarFetch(jar, `${baseUrl}/admin`);
+      assert.strictEqual(res.status, 200, 'second login must not be locked out by the old CSRF cookie');
+    });
+
+    await test('logout then login with the old CSRF cookie still opens /admin', async () => {
+      const jar = makeJar();
+      await jarLogin(jar, baseUrl);
+      assert.strictEqual((await jarFetch(jar, `${baseUrl}/admin`)).status, 200);
+      assert.strictEqual((await jarFetch(jar, `${baseUrl}/admin/logout`)).status, 302);
+      assert.strictEqual((await jarLogin(jar, baseUrl)).status, 302);
+      assert.strictEqual((await jarFetch(jar, `${baseUrl}/admin`)).status, 200);
     });
 
     await test('API key: right key 200, wrong or different-length key 401', async () => {
