@@ -5,6 +5,28 @@
 
 ---
 
+## 2026-11-18 — Claude (privacy policy and SMS terms pages)
+
+### Objective
+Close the gap where public forms collect phone numbers and SMS consent ("Reply STOP") while `/privacy` and `/terms` returned 404.
+
+### Changes Made
+- `app/privacy.html`, `app/terms.html` (new). Served at `/privacy` and `/terms` by the existing static handler. Both carry the brokerage disclosure. Wording is a DRAFT for Phil and broker approval.
+- Every consent paragraph that says "Reply STOP" now links to the Privacy Policy and SMS Terms: 6 in `index.html`, 1 in `search.html`.
+- Footer links on `index`, `search`, `start`, `listing`, `listings`, `county` and `37-advent`.
+- `tests/http-smoke.test.js` has 2 new checks: both pages return 200 with the disclosure and the SMS language, and the consent pages link to them.
+
+### Verification (Truthfulness Rule applies)
+- `node tests/http-smoke.test.js` → 16 passed. A first run failed on a case mismatch in my own test, which was fixed.
+- `verify-security-fixes` PASSED; `public-assistant-flag` 7/7.
+- Rendered `/privacy` and `/terms` in a local dev server (screenshots taken).
+- `bash scripts/preflight.sh` NOT run locally (sandbox). CI is the proof.
+
+### Remaining Risks
+The legal wording is not lawyer-reviewed. Phil and Sheila must approve it before merge. If analytics are added later, the Cookies section has to change first.
+
+---
+
 ## 2026-11-16 — Claude (dependency advisories)
 
 ### Objective

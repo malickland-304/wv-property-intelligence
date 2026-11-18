@@ -1250,7 +1250,7 @@
         </div>
         <input type="hidden" name="source" value="website_hero" />
         <button type="submit" class="btn-submit">📬 Connect With Phil — It's Free</button>
-        <p class="consent-text">By submitting, you consent to receive calls and texts from MalickLand at the number provided. Message &amp; data rates may apply. Reply STOP to opt out at any time.</p>
+        <p class="consent-text">By submitting, you consent to receive calls and texts from MalickLand at the number provided. Message &amp; data rates may apply. Reply STOP to opt out at any time. <a href="/privacy">Privacy Policy</a> &middot; <a href="/terms#sms">SMS Terms</a>.</p>
       </form>
       <div class="form-success" id="heroSuccess" role="status">
         ✅ Got it! Phil will follow up as soon as practical. Call anytime: <strong>(540) 246-1421</strong>
@@ -1326,7 +1326,7 @@
         </div>
         <input type="hidden" name="source" value="website_alerts" />
         <button type="submit" class="btn-submit" style="background:var(--gold);color:var(--green);">📋 Send Me the Checklist — Free</button>
-        <p class="consent-text" style="color:rgba(255,255,255,0.5);margin-top:0.65rem;font-size:0.72rem;">By submitting, you consent to receive emails and texts from MalickLand. Reply STOP to opt out at any time.</p>
+        <p class="consent-text" style="color:rgba(255,255,255,0.5);margin-top:0.65rem;font-size:0.72rem;">By submitting, you consent to receive emails and texts from MalickLand. Reply STOP to opt out at any time. <a href="/privacy">Privacy Policy</a> &middot; <a href="/terms#sms">SMS Terms</a>.</p>
       </form>
       <div class="form-success" id="alertsSuccess" style="color:#c9a84c;" role="status">
         ✅ Checklist on the way! Check your email — and Phil may follow up personally.
@@ -1481,7 +1481,7 @@
         <textarea class="chat-input" style="background:rgba(255,255,255,0.92);border:2px solid rgba(201,168,76,0.4);color:#1f2937;width:100%;min-height:90px;margin-bottom:0.75rem;" id="cta-message" name="message" placeholder="What kind of property are you looking for? (county, acreage, budget...)"></textarea>
         <input type="hidden" name="source" value="website_contact" />
         <button type="submit" class="btn-submit" style="background:var(--gold);color:var(--green);">Send Message</button>
-        <p class="consent-text" style="color:rgba(255,255,255,0.45);">By submitting, you consent to receive calls and texts from MalickLand. Reply STOP to opt out.</p>
+        <p class="consent-text" style="color:rgba(255,255,255,0.45);">By submitting, you consent to receive calls and texts from MalickLand. Reply STOP to opt out. <a href="/privacy">Privacy Policy</a> &middot; <a href="/terms#sms">SMS Terms</a>.</p>
       </form>
       <div class="form-success" id="ctaSuccess" style="color:var(--gold);" role="status">
         ✅ Message received! Phil will follow up as soon as practical.
@@ -1528,6 +1528,7 @@
       <a href="https://youtube.com/@malickland" target="_blank" rel="noopener" title="YouTube">▶️</a>
     </div>
   </div>
+<p class="legal-links" style="margin:.4rem 0 0;font-size:.8rem"><a href="/privacy" style="color:inherit">Privacy Policy</a> &middot; <a href="/terms" style="color:inherit">Terms &amp; SMS Terms</a></p>
 </footer>
 
 <!-- CHAT WIDGET -->
@@ -1568,7 +1569,7 @@
       </div>
       <input type="hidden" name="source" value="website_modal" />
       <button type="submit" class="btn-submit">Get My Land Alerts</button>
-      <p class="consent-text">By submitting, you consent to receive calls and texts from MalickLand. Reply STOP to opt out.</p>
+      <p class="consent-text">By submitting, you consent to receive calls and texts from MalickLand. Reply STOP to opt out. <a href="/privacy">Privacy Policy</a> &middot; <a href="/terms#sms">SMS Terms</a>.</p>
     </form>
     <div class="form-success" id="modalSuccess" role="status">
       ✅ You're on the list! Phil will be in touch soon.
@@ -1941,7 +1942,7 @@ async function showPropertyModal(id) {
             <textarea id="pm_msg" placeholder="Message" style="width:100%;padding:.6rem .9rem;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:.75rem;min-height:80px;font-size:.9rem;font-family:inherit;resize:vertical">I'd like more information about ${address}.</textarea>
             <button type="button" onclick="pmSend(${jsArg(p.id)},this)" style="width:100%;padding:.85rem;background:#D4AF37;color:#0a0a0a;border:none;border-radius:8px;font-size:1rem;font-weight:800;cursor:pointer">Send Inquiry</button>
             <p id="pm_error" role="alert" style="display:none;color:#b42318;font-size:.78rem;margin-top:.5rem"></p>
-            <p style="font-size:.72rem;color:#999;margin-top:.5rem;line-height:1.5">By submitting, you consent to receive calls and texts from MalickLand at the number provided. Message &amp; data rates may apply. Reply STOP to opt out.</p>
+            <p style="font-size:.72rem;color:#999;margin-top:.5rem;line-height:1.5">By submitting, you consent to receive calls and texts from MalickLand at the number provided. Message &amp; data rates may apply. Reply STOP to opt out. <a href="/privacy">Privacy Policy</a> &middot; <a href="/terms#sms">SMS Terms</a>.</p>
           </div>
         </div>
       </div>`;
@@ -2121,7 +2122,7 @@ function showChatContact() {
     <input id="chatLeadPhone" class="chat-input" type="tel" autocomplete="tel" placeholder="Phone (optional)" style="margin-bottom:.6rem"/>
     <button type="button" onclick="submitChatLead(this)" style="width:100%;background:var(--green);color:var(--gold);border:none;border-radius:6px;padding:.6rem;font-weight:700;cursor:pointer;font-size:.88rem">Send to Phil →</button>
     <p id="chatLeadError" role="alert" tabindex="-1" style="display:none;color:#b42318;font-size:.72rem;margin-top:.4rem;line-height:1.4"></p>
-    <p style="font-size:.7rem;color:#999;margin-top:.4rem;line-height:1.4">By submitting, you consent to receive communications from MalickLand. Reply STOP to opt out.</p>`;
+    <p style="font-size:.7rem;color:#999;margin-top:.4rem;line-height:1.4">By submitting, you consent to receive communications from MalickLand. Reply STOP to opt out. <a href="/privacy">Privacy Policy</a> &middot; <a href="/terms#sms">SMS Terms</a>.</p>`;
   if (inputRow) body.insertBefore(formEl, inputRow);
   else body.appendChild(formEl);
   body.scrollTop = body.scrollHeight;
