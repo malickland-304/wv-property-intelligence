@@ -81,6 +81,139 @@ Remaining risk: no Docker/Linux run locally; VPS still Node 20; backup cron unve
 Next owner: Codex (PR readiness), then Phil (merge)
 Next action: wait for CI on the PR; Codex gatekeeper check
 Approval needed: Phil to merge; Phil to approve any deploy (not requested here)
+## 2026-11-16 — Claude (dependency advisories)
+
+### Objective
+Clear the `npm audit` advisories for `api/` on `main` (`673bfbe`) using lockfile-only updates that stay inside the ranges already in `api/package.json`. Anything that needs a `package.json` change goes to Phil.
+
+### Changes Made
+- `api/package-lock.json` — `npm update compression multer body-parser proxy-addr qs ip-address minimatch brace-expansion` (npm `update` does not save to `package.json`). Resolved versions: compression 1.8.1→1.8.2 (adds `destroy` 1.2.0), multer 2.4.0→2.5.0, body-parser 2.3.0→2.4.0 (pulls content-type 2.1.0, iconv-lite 0.7.3), proxy-addr 2.0.7→2.0.8, qs 6.16.0→6.17.1, ip-address 10.7.2→10.7.6, minimatch 10.2.5→10.2.6, brace-expansion 5.0.8→5.0.13.
+- `api/package.json` — unchanged.
+- `PROJECT_STATE.md` — "Dependency advisories" row updated with the new lockfile versions and the two items left open.
+
+### Advisory inventory (before)
+| Package | Installed | Patched | Direct? | In existing range? |
+|---|---|---|---|---|
+| proxy-addr (critical) | 2.0.7 | 2.0.8 | no (express `^2.0.7`) | yes |
+| body-parser (high) | 2.3.0 | 2.4.0 | no (express `^2.2.1`) | yes |
+| brace-expansion (high) | 5.0.8 | 5.0.12+ | no (minimatch `^5.0.5`, dev) | yes |
+| compression (high) | 1.8.1 | 1.8.2 | yes `^1.8.1` | yes |
+| multer (high) | 2.4.0 | 2.5.0 | yes `^2.4.0` | yes |
+| sharp (high) | 0.35.4 | 0.35.5 | yes, exact pin `0.35.4` | **no** (Phil) |
+| ip-address (moderate) | 10.7.2 | 10.7.4+ | no (express-rate-limit `^10.2.0`) | yes |
+| minimatch (moderate) | 10.2.5 | 11.0.1 | no (nodemon `^10.2.1`, dev) | **no** |
+| nodemon (moderate, via minimatch) | 3.1.14 | n/a | yes, dev | n/a |
+| qs (moderate) | 6.16.0 | >6.16.0 | no (express `^6.14.0`) | yes |
+
+### Verification (Truthfulness Rule applies)
+Runtime: Node v22.22.3 / npm 10.9.8 on macOS arm64. No Node 20 was available locally (CI and the Dockerfile use Node 20), so Node 20 is NOT verified here; CI covers it.
+- `npm audit` before → 10 (1 critical, 5 high, 4 moderate). After → 3 (0 critical, 1 high, 2 moderate). `npm audit --omit=dev` after → 1 high (sharp).
+- `cd api && npm ci` → PASSED (lockfile installs cleanly).
+- `node --check` server.js, db.js, middleware/auth.js, routes/admin.js, routes/api.js, routes/public.js, routes/documents.js → PASSED.
+- `node tests/verify-security-fixes.test.js` → PASSED.
+- Every file in `tests/`: admin-document-review 9/9, ai-generator-routing 18/18, chat-assistant 14/14, document-registry 28/28, email 10/10, inquiry-forward 12/12, lead-notifications 6/6, public-assistant-flag 7/7, upload-e2e PASSED (sharp 0.35.4), verify-security-fixes PASSED. http-smoke: 13/14 in the `.claude/worktrees` path (known `GET /search` dot-directory failure), 14/14 from a copy at a path with no dot-directory.
+- `scripts/preflight.sh` NOT run as a script (macOS sandbox blocks `mktemp -d`); its steps run one by one: `npm ls express better-sqlite3 csrf-csrf` OK, syntax checks OK, the four test steps OK, startup smoke from the no-dot copy: `/api/health` 200, `/api/properties/advent-dr-lot-hampshire-wv` 200, `/properties/advent-dr-lot-hampshire-wv` 200, `POST /api/chat` 200 with `reply`. (Inside the worktree path the public property page returned 500, the same dot-directory problem as `/search`.)
+
+### Security Notes
+No application code changed. No secrets touched. No deploy, no VPS access.
+
+### Remaining Risks
+- sharp GHSA-wq5f-xc86-pv6w (high, production dependency) stays open until Phil approves moving the exact pin `0.35.4` → `0.35.5` in `api/package.json`.
+- minimatch GHSA-g3hv-75wg-m249 (moderate) stays open on the dev-only `nodemon` path; not in the Docker image (`npm ci --omit=dev`).
+- The 5 GitHub Dependabot alerts were not read one by one (no alert API in this session); the only open Dependabot PR is #150 (proxy-addr), covered here.
+
+### Recommended Next Task
+Phil decides on the sharp pin; Codex verifies the PR (checks, threads, head SHA). After merge, a deploy is still manual and Phil's call.
+
+### Update (same day) — sharp pin moved, Phil approved
+Phil: "go ahead and fix and or review anything you found". This was the item left for him in this PR.
+- `api/package.json` — `"sharp": "0.35.4"` → `"sharp": "0.35.5"` (still an exact pin; same `engines.node >=20.9.0`). Lockfile refreshed with `npm update sharp` (not `npm install <pkg>`): `sharp` and its `@img/sharp-*` platform packages changed (0.35.5; libvips binaries 1.3.4, libvips 8.18.7), plus one more entry: `tslib` 2.8.1 → 2.9.1, optional, pulled in only by sharp's wasm32 build via `@emnapi/runtime`, so not installed on the Linux/macOS builds. (Corrected after the independent review: the first version of this line said no other entry moved. That check compared package-name lines and missed a version-only change. Re-checked by comparing every lockfile entry's version: `tslib` is the only unlisted one.)
+- `npm audit` → 2 moderate (`minimatch` via dev-only `nodemon`), 0 high, 0 critical. `npm audit --omit=dev` → **0**.
+- `npm ci` OK; `node --check` list OK; every test passes. upload-e2e 5/5 with `sharp=0.35.5`. http-smoke 14/14 from a no-dot copy (13/14 in the worktree path, the known dot-directory issue). Preflight startup smoke from the copy: health, property API, property page, `POST /api/chat` all 200.
+- Still open: `minimatch` via `nodemon` (dev-only, not in the image). The only clean option is downgrading nodemon to 3.1.11; not applied (see the PR).
+- Codex is unavailable; readiness goes through the interim gate (PR #158).
+
+## 2026-11-15 — Claude (audit of PR #154 and the repo on GitHub)
+
+### Objective
+Phil asked for an audit of PR #154 and of the repository on GitHub while he was away. Read-only except for the test and comment changes below, which stay on the PR #154 branch.
+
+### Changes Made
+- `tests/inquiry-outbox.test.js` — two review gaps closed (Sourcery, PR #154). New check: the outbox INSERT is forced to fail with a TEMP trigger after the lead INSERT has run, and the lead and its mirrored contact must roll back. The `/api/contacts` check no longer kicks the worker itself: delivery must come from the route's own kick. It also checks that a failed outbox insert returns 500 and stores no contact. 19 checks (was 18).
+- `api/services/inquiryOutbox.js` — header comment only: states what "delivered" means (see Findings 1). No behaviour change.
+- 2026-11-16, Phil-approved follow-up: `api/services/inquiryForward.js` `TIMEOUT_MS` 5 s → 30 s. The draft n8n change (unpublished draft `d62f0d6b`, made in a side session) answers only after the Leads row is written, which can take longer than 5 s. With 5 s, a filed lead would time out and be retried; safe because n8n skips repeats, but every slow send would log a false failure. Delivery runs in the outbox worker, never in the visitor's request, so the form is not slowed. The 2-minute claim lease (`LEASE_MS`) is still 4× the timeout. New check in `tests/inquiry-outbox.test.js` (20 checks) asserts timeout ≥ 30 s and lease ≥ 2× timeout; it fails when the timeout is put back to 5 s. **Order: deploy this before publishing the n8n draft.**
+
+### Findings (verified in this session)
+1. **"Delivered" means accepted by n8n, not filed in the sheet.** Read from the live workflow "Inquiry intake (all brands)" (active version): the webhook node uses respond-on-receipt, so n8n returns 200 before it reads Config or writes the Leads row. The outbox therefore covers n8n down / slow / inactive / wrong secret. It does not cover a failure inside the workflow, and it does not cover `pause_switch` ON (n8n answers 200 and logs "paused; inquiry not processed"). Those leads stay in the site DB only. Fix belongs in n8n (answer after the Leads row is written); not changed here.
+2. **Replay assumption confirmed.** The workflow derives its lead id from `submission_id` and skips an id it has already filed ("replay_ignored"), so outbox retries do not create second rows or drafts. A repeat from the same contact and brand inside the dedupe window updates the existing row and creates no second draft.
+3. **PR #154 review threads:** 4 open (Sourcery), Codex review: no findings. Two were test gaps (fixed above). Two are declined for this PR: delivered-row pruning (about 1 KB per lead; production held 3 contacts on 2026-09-30) and a client idempotency key (needs a form change and a schema column; n8n already de-duplicates repeats).
+4. **PR #145 is stranded and carries real work.** PRs #146 (nightly backup script, three DECISIONS entries) and #147 (Node 24 LTS) were merged into the #145 branch, not `main`. #145 never merged and now conflicts with `main` (`PROJECT_STATE.md`, `WORK_LOG.md`). `origin/main` @ `673bfbe` still has `node:20-bookworm-slim` in `api/Dockerfile`, Node 20 in both CI workflows, and no `scripts/backup-db.sh`.
+5. **PR #150 (proxy-addr 2.0.8, GHSA-jqcg-44mw-7w3h, rated critical) has been open since 2026-10-16**, checks green, mergeable. The advisory needs a trusted proxy *subnet* written as short-prefix IPv4-mapped IPv6; this app sets `trust proxy` to `1` (hop count) in `api/server.js`, so that path is not reachable here. Still worth merging to clear the alert.
+6. PR #153: checks green, 6 of 6 threads resolved, merge state clean; waiting on Phil.
+7. `.github/dependabot.yml` only covers `devcontainers`. npm and GitHub Actions get security PRs only, no version updates.
+8. Branches: `claude/update-in-vscode` is fully merged; five older unmerged branches look like squash-merge leftovers (not verified one by one). No open issues.
+
+### Verification (Truthfulness Rule applies)
+- `node tests/inquiry-outbox.test.js` → 19 passed, 0 failed (run 5 times).
+- Mutation checks: with the route kick removed, the `/api/contacts` check fails; with the enqueue moved outside the `insertLead` transaction, the new rollback check fails. Code restored after each.
+- `node --check` on the touched files, `verify-security-fixes` 60/60, `inquiry-forward` 14/14, `lead-notifications` 8/8 → PASSED.
+- NOT run: `scripts/preflight.sh` locally (sandbox blocks `mktemp`; CI runs it). NOT checked: Dependabot / code-scanning alert pages, the VPS, real delivery to n8n.
+
+### Security Notes
+- No secrets read or printed. The n8n workflow was read, not changed.
+
+### Remaining Risks
+- Finding 1: a lead accepted by n8n but not written to the sheet is marked delivered and not retried.
+- Finding 4: production and `main` are on Node 20, which the repo's own notes list as end-of-life since 2026-04-30.
+
+### Recommended Next Task
+Rescue the Node 24 and backup-script commits from PR #145 into a fresh PR on `main`; then decide the n8n respond-after-write change.
+
+```
+Done: PR #154 audit; two test gaps closed; repo-level findings recorded
+Verified by: outbox tests 19/19, two mutation checks, security and forward suites
+Remaining risk: n8n answers before filing; main still on Node 20; #150 unmerged
+Next owner: Phil
+Next action: merge #153, then #154; decide on #145 rescue, #150, n8n change
+Approval needed: Phil (merges, deploy, any n8n change)
+```
+
+---
+
+## 2026-11-15 — Claude (durable outbox for the n8n lead forward)
+
+### Objective
+A failed copy of a website lead to the n8n inquiry intake was never retried (fire-and-forget), so a lead could be saved on the site but never reach Phil's intake sheet. Flagged by an external audit and by Sourcery/Codex on PR #153, where it was deliberately deferred to its own PR. Built on `origin/fix/lead-forms-drafts-only` @ `94e27c7` (PR #153, not yet merged at build time).
+
+### Changes Made
+- `api/db.js` — idempotent `migrateInquiryOutbox()` (`CREATE TABLE/INDEX IF NOT EXISTS`): `inquiry_outbox` (id, submission_id UNIQUE, payload JSON, status pending/delivered/failed with CHECK, attempts, next_attempt_at, last_error_class, created_at, delivered_at) + `(status, next_attempt_at)` index. Additive only; no existing table touched. The webhook secret is never stored.
+- `api/services/inquiryForward.js` — new `deliverInquiryPayload()`: one send of a pre-built payload, classified as delivered / retryable (network, timeout, 429, 5xx, other 4xx) / permanent (400, 401, 403). Keeps https-only and `redirect: 'error'`. `forwardInquiry()` now delegates to it (same behaviour).
+- `api/services/inquiryOutbox.js` (new) — `enqueueInquiry()` (`INSERT OR IGNORE`, so a submission_id is never queued twice), `processInquiryOutbox()` (compare-and-set claim, exponential backoff 30 s → 6 h cap with equal jitter, `failed` after a permanent error or 20 attempts ≈ 3 days), in-process worker with `kick()` and non-overlapping passes. Logs carry outbox id / submission_id / error class only — no PII, no secret.
+- `api/routes/api.js` (POST `/api/contacts`) and `api/routes/leads.js` (`insertLead`/`handleLeadCapture`) — the outbox row is written in the SAME transaction as the contact/lead, keeping `malickland-contact-<id>` / `malickland-lead-<lead_id>`; the worker is kicked right after so the normal case still delivers immediately. Only queued when the forward is configured (same as before).
+- `api/server.js` — startup log `[Startup] Inquiry outbox: N pending, M failed` (+ WARN when failed > 0); worker started in the `listen` callback (idles while unconfigured).
+- `tests/inquiry-outbox.test.js` (new, 18 checks, temp SQLite + injected fetch, no external network) and `scripts/preflight.sh` now runs it plus the existing `tests/inquiry-forward.test.js` (which CI was not running).
+
+### Verification (Truthfulness Rule applies)
+- `cd api && npm ci` (with a temp npm cache; sandbox cannot write `~/.npm`) → PASSED.
+- `node --check` server.js, db.js, middleware/auth.js, routes/admin.js, routes/api.js, routes/public.js, routes/leads.js, services/inquiryForward.js, services/inquiryOutbox.js → PASSED.
+- `node tests/verify-security-fixes.test.js` → 60/60 PASSED.
+- `node tests/inquiry-outbox.test.js` → 18/18 PASSED. `tests/inquiry-forward.test.js` 14/14, `tests/lead-notifications.test.js` 8/8 PASSED.
+- Preflight test steps run one by one: public-assistant-flag 7/7, upload-e2e PASS, document-registry 28/28, admin-document-review 9/9, http-smoke 14/14 (run from a copy outside `.claude/`; inside the worktree `/search` returns 500 because Express `sendFile` refuses the `.claude` dot-directory in the path — the untouched base commit behaves identically there and passes 14/14 from the same outside copy).
+- Local boot: `/api/health` 200 and the new outbox startup line printed.
+- `bash scripts/preflight.sh` itself → NOT RUN locally (sandbox blocks macOS `mktemp -d`); CI `preflight` job is the proof.
+- Real delivery to n8n → NOT TESTED (no network to n8n from tests by design).
+
+### Security Notes
+No new dependencies. Secret read from env at send time only; never in the DB or logs. Payload (customer PII) lives in the same SQLite file as the existing `contacts`/`leads` rows, not in logs. https-only and no-redirect rules unchanged.
+
+### Remaining Risks
+- Rows parked as `failed` need a person: see the startup WARN, then re-queue with `UPDATE inquiry_outbox SET status='pending', attempts=0, next_attempt_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=<id>;` after fixing the cause (e.g. a rotated secret).
+- Leads captured before this deploy that failed to forward are not back-filled.
+- Delivered rows are kept (no pruning yet); volume is tiny.
+
+### Recommended Next Task
+Phil: review and merge PR #153 first, then this PR; deploy both together (manual, VPS). After deploy, confirm `[Startup] Inquiry outbox: 0 pending, 0 failed` in the container log and send one test lead.
+
 
 ---
 

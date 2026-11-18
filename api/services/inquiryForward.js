@@ -4,10 +4,11 @@
  * services/inquiryForward.js — Forward a captured web lead to the n8n
  * "Inquiry intake (all brands)" workflow.
  *
- * The lead is already stored in `contacts` before this runs; forwarding is a
- * best-effort copy. It is a no-op that returns `false` when not configured,
- * and it never throws, so a slow or unreachable n8n cannot fail the visitor's
- * request or lose the lead.
+ * Routes queue the payload in `inquiry_outbox` together with the lead, and
+ * services/inquiryOutbox.js delivers it with deliverInquiryPayload(), retrying
+ * failures. Nothing here throws, so a slow or unreachable n8n cannot fail the
+ * visitor's request or lose the lead. forwardInquiry() is a one-shot send kept
+ * for callers that do not need retries.
  *
  * Env vars (set in the VPS .env — never in code):
  *   INQUIRY_WEBHOOK_URL     – n8n production webhook URL (must be https)
@@ -18,7 +19,11 @@
  */
 
 const SECRET_HEADER = 'X-Inquiry-Secret';
-const TIMEOUT_MS = 5000;
+// Long enough for an intake that answers only after the lead row is written
+// (Sheets append + dedupe lookups). Delivery runs in the outbox worker, never
+// in the visitor's request, so this does not slow the form. Keep it well under
+// inquiryOutbox.js LEASE_MS so a slow send cannot be claimed twice.
+const TIMEOUT_MS = 30 * 1000;
 const DEFAULT_BRAND = 'MalickLand';
 
 function getWebhookUrl() {
@@ -65,24 +70,64 @@ function buildInquiryPayload(contact, property) {
   return payload;
 }
 
-async function forwardInquiry(contact, property, { fetchImpl = globalThis.fetch } = {}) {
-  if (!contact || (contact.id == null && !contact.submission_id)) return false;
+// HTTP statuses that mean "this exact request will never succeed as-is":
+// bad payload (400) or a wrong/missing secret (401/403). Retrying them would
+// only hammer n8n, so the outbox parks them as `failed` for operator review.
+const PERMANENT_STATUSES = new Set([400, 401, 403]);
+
+/**
+ * POST an already-built payload to the intake webhook once and classify the
+ * result. Never throws. The returned errorClass is a short, PII-free label
+ * ("timeout", "network", "http_503", ...) that is safe to store and log.
+ *
+ *   { ok: true }                                  delivered (2xx)
+ *   { ok: false, retryable: true,  errorClass }   network error, timeout, 429, 5xx, other 4xx
+ *   { ok: false, retryable: false, errorClass }   400 / 401 / 403
+ *   { ok: false, retryable: true,  errorClass: 'not_configured' }  env missing or not https
+ */
+async function deliverInquiryPayload(payload, { fetchImpl = globalThis.fetch } = {}) {
   const url = getWebhookUrl();
   const secret = String(process.env.INQUIRY_WEBHOOK_SECRET || '').trim();
-  if (!url || !secret || typeof fetchImpl !== 'function') return false;
+  if (!url || !secret || typeof fetchImpl !== 'function') {
+    return { ok: false, retryable: true, errorClass: 'not_configured' };
+  }
 
+  let res;
   try {
-    const res = await fetchImpl(url, {
+    res = await fetchImpl(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', [SECRET_HEADER]: secret },
-      body: JSON.stringify(buildInquiryPayload(contact, property)),
+      body: JSON.stringify(payload),
       redirect: 'error', // never re-send the secret to a redirect target
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
-    return Boolean(res && res.ok);
-  } catch (_err) {
-    return false;
+  } catch (err) {
+    const name = err && err.name;
+    const timedOut = name === 'TimeoutError' || name === 'AbortError';
+    return { ok: false, retryable: true, errorClass: timedOut ? 'timeout' : 'network' };
   }
+
+  if (res && res.ok) return { ok: true };
+  const status = Number(res && res.status) || 0;
+  return {
+    ok: false,
+    retryable: !PERMANENT_STATUSES.has(status),
+    errorClass: status ? `http_${status}` : 'network',
+  };
 }
 
-module.exports = { isInquiryForwardConfigured, buildInquiryPayload, forwardInquiry, SECRET_HEADER };
+async function forwardInquiry(contact, property, { fetchImpl = globalThis.fetch } = {}) {
+  if (!contact || (contact.id == null && !contact.submission_id)) return false;
+  if (!isInquiryForwardConfigured()) return false;
+  const result = await deliverInquiryPayload(buildInquiryPayload(contact, property), { fetchImpl });
+  return result.ok;
+}
+
+module.exports = {
+  TIMEOUT_MS,
+  isInquiryForwardConfigured,
+  buildInquiryPayload,
+  deliverInquiryPayload,
+  forwardInquiry,
+  SECRET_HEADER,
+};
