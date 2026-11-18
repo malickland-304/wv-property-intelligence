@@ -8,23 +8,32 @@
 ## 2026-11-18 — Claude (#155 review threads: backup script hardening)
 
 ### Changes Made
-- `scripts/backup-db.sh`:
-  - takes a `flock` so two runs can't overlap; the container temp file name now includes the PID;
-  - reads the DB path from the container's `DATABASE_PATH` and fails if a pinned `DB_PATH` differs;
-  - refuses a symlinked or foreign-owned backup folder and forces it to 700;
-  - sets every backup and checksum to 600;
-  - writes the checksum to a temp file and renames it into place, so a planted symlink is replaced rather than followed;
-  - its header now says the backup only covers database-level incidents, since it stays on the same VPS.
-- `DECISIONS.md` 2026-09-30: acknowledges the existing in-app daily backup (`api/db.js`): same volume, not integrity-checked.
+- `scripts/backup-db.sh`, in two rounds (Sourcery/Codex threads, then the independent review):
+  - **Scope comment in the header:** database-level incidents only, because the copies stay on the same VPS. The first round claimed this but the edit had been dropped; the independent review caught it.
+  - **One run at a time:** `flock` on the backup folder itself (root-owned, 700), not on a file in the world-writable `/run/lock`. The container temp file sits next to the database and its name includes the PID.
+  - **Database path:**
+    - read with a `docker inspect` template that prints only `DATABASE_PATH`, so no other container env (secrets) reaches the shell;
+    - fails if a pinned `DB_PATH` differs;
+    - fails instead of guessing when the container sets none.
+  - **Backup folder:** refuses a symlinked or foreign-owned folder and forces it to 700. Files are set to 600.
+  - **Checksum:** written to a `mktemp` file and renamed into place.
+  - **Failures:** an EXIT trap removes leftover temp files and logs a single timestamped `backup FAILED` line for any failure, including steps that fail through `set -e`.
+  - The install line now uses `install -m 700 -o root` and says to reinstall after deploys.
+- `DECISIONS.md`:
+  - 2026-09-30: acknowledges the existing in-app daily backup (`api/db.js`): same volume, not integrity-checked;
+  - Node 24 entry: `sharp` 0.35.x.
+- `PROJECT_STATE.md`: the backup gate now says to copy the merged script over the cron copy and run it once. A deploy does not update the cron copy.
+- `WORK_LOG.md`: restored the closing fence and separator that my `f7e9715` merge dropped. The fence count is now even (8).
 
 ### Verification (Truthfulness Rule applies)
 - `bash -n` → OK.
-- Dry run on macOS with shims for docker, flock, `stat -c` and sha256sum:
-  - success path: dir 700, `.db.gz` and `.sha256` 600;
-  - mismatched `DB_PATH` → exit 1;
-  - symlinked folder → exit 1.
-- NOT run on Linux or against a real container. Run it once by hand on the VPS after copying it into place.
-- CI on the previous head `7acf372` was all green (verify/preflight on Node 24, upload-e2e Docker build, CodeQL, semgrep).
+- Dry runs on macOS, with shims for docker, flock, `stat -c` and sha256sum:
+  - success: folder 700, `.db.gz` and `.sha256` 600, one `backup ok` line;
+  - mismatched `DB_PATH` → exit 1, one FAILED line;
+  - no `DATABASE_PATH` → exit 1;
+  - integrity_check failure → exit 1, one FAILED line, no files left;
+  - symlinked folder → exit 1 (first round).
+- NOT run on Linux or against a real container. Run it once by hand on the VPS after installing it, as in the PROJECT_STATE gate.
 
 ---
 
@@ -81,6 +90,10 @@ Remaining risk: no Docker/Linux run locally; VPS still Node 20; backup cron unve
 Next owner: Codex (PR readiness), then Phil (merge)
 Next action: wait for CI on the PR; Codex gatekeeper check
 Approval needed: Phil to merge; Phil to approve any deploy (not requested here)
+```
+
+---
+
 ## 2026-11-16 — Claude (dependency advisories)
 
 ### Objective

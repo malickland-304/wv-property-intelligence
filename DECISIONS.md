@@ -195,7 +195,7 @@
 
 **Problem:** Node.js 20 reached end-of-life on 2026-04-30 and no longer receives security fixes. `ARCHITECTURE.md` chose the runtime for "long-term support", which Node 20 no longer has. The move was built and reviewed on 2026-09-30 (commit `f5ba8bb`, PR #147) but that PR merged into the PR #145 branch, so `main` still built and tested on `node:20-bookworm-slim` / `node-version: 20.x` on 2026-11-15.
 **Decision:** `api/Dockerfile` uses `node:24-bookworm-slim` in both stages. The Node CI and Preflight workflows use `node-version: 24.x`. Docs that named Node 20 as the runtime now say Node 24. No application code, dependency or lockfile change.
-**Reasoning:** Node 24 is an LTS line supported to 2028-04-30. The pinned native dependencies already allow it: `better-sqlite3` 12.8.0 declares `engines.node` `20.x || 22.x || 23.x || 24.x || 25.x`, and `sharp` 0.35.4 declares `>=20.9.0` (both read from `api/package-lock.json`). The runtime is a stable foundation in `AGENTS.md`, so the change is recorded here and goes through a PR and CI before any production action.
+**Reasoning:** Node 24 is an LTS line supported to 2028-04-30. The pinned native dependencies already allow it: `better-sqlite3` 12.8.0 declares `engines.node` `20.x || 22.x || 23.x || 24.x || 25.x`, and `sharp` 0.35.x declares `>=20.9.0` (0.35.4 when written; 0.35.5 since #156) (both read from `api/package-lock.json`). The runtime is a stable foundation in `AGENTS.md`, so the change is recorded here and goes through a PR and CI before any production action.
 **Alternatives considered:**
 - Stay on Node 20: rejected, no further security fixes.
 - Node 22: works (local development has used 22.22.3), but its support ends 2027-04-30, a year earlier than Node 24.

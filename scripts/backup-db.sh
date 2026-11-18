@@ -4,9 +4,14 @@
 # verifies the copy (integrity_check + row counts), compresses it, writes a checksum,
 # and prunes backups older than KEEP_DAYS. Exits non-zero on any failure.
 #
+# Scope: database-level incidents only (corruption, a bad migration, accidental deletes).
+# The copies stay on this VPS, so losing the server loses them too. An off-host copy is
+# still open (DECISIONS.md 2026-09-30).
+#
 # Install on the VPS (host cron, as root):
-#   Copy this file to /docker/wv-property-intelligence/backup-db.sh (mode 700; the checkout in src/ is a
-#   detached commit, so cron points at the stable copy), then add /etc/cron.d/wv-db-backup:
+#   install -m 700 -o root src/scripts/backup-db.sh /docker/wv-property-intelligence/backup-db.sh
+#   (the checkout in src/ is a detached commit, so cron points at the stable copy; re-run this
+#   install after every deploy that changes the script), then add /etc/cron.d/wv-db-backup:
 #   17 3 * * * root /docker/wv-property-intelligence/backup-db.sh >> /var/log/wv-db-backup.log 2>&1
 #
 # Restore drill (do NOT restore over live data unless the live DB is damaged):
@@ -17,39 +22,48 @@ set -euo pipefail
 CONTAINER="${CONTAINER:-wv-property-intelligence}"
 DEST="${BACKUP_DIR:-/docker/wv-property-intelligence/backups}"
 KEEP_DAYS="${KEEP_DAYS:-14}"
-LOCK_FILE="${LOCK_FILE:-/run/lock/wv-db-backup.lock}"
 
-fail() { echo "$(date -u +%FT%TZ) backup FAILED: $*" >&2; exit 1; }
+ts_now() { date -u +%FT%TZ; }
+reported=""
+fail() { echo "$(ts_now) backup FAILED: $*" >&2; reported=1; exit 1; }
 
-# One run at a time (cron overlap, or a manual run during the nightly one).
-exec 9>"$LOCK_FILE" || fail "cannot open lock $LOCK_FILE"
-flock -n 9 || fail "another backup is already running"
+sum_tmp=""
+tmp_in_container=""
+on_exit() {
+  rc=$?
+  [ -n "$sum_tmp" ] && rm -f "$sum_tmp"
+  [ -n "$tmp_in_container" ] && { docker exec "$CONTAINER" rm -f "$tmp_in_container" >/dev/null 2>&1 || true; }
+  # Steps that fail through set -e (docker cp, gzip, ...) still leave a FAILED line.
+  if [ "$rc" -ne 0 ] && [ -z "$reported" ]; then echo "$(ts_now) backup FAILED (exit $rc)" >&2; fi
+}
+trap on_exit EXIT
 
-# Back up the database the container actually uses. DB_PATH may be set to pin it,
-# but it must match the container's DATABASE_PATH.
-container_env="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$CONTAINER")" \
-  || fail "cannot inspect container $CONTAINER"
-container_db="$(printf '%s\n' "$container_env" | sed -n 's/^DATABASE_PATH=//p' | head -n1)"
-unset container_env   # holds the container's secrets; keep it no longer than needed
-if [ -n "${DB_PATH:-}" ] && [ -n "$container_db" ] && [ "$DB_PATH" != "$container_db" ]; then
-  fail "DB_PATH=$DB_PATH does not match the container's DATABASE_PATH=$container_db"
-fi
-DB_PATH="${DB_PATH:-${container_db:-/data/wv_property.db}}"
-
-ts="$(date -u +%Y%m%dT%H%M%SZ)"
-tmp_in_container="/data/.backup-${ts}-$$.db"
-out="${DEST}/wv_property-${ts}.db"
-
-# Backups hold customer contact details: private directory, private files.
+# Backups hold customer contact details: private folder, private files.
 umask 077
 if [ -L "$DEST" ]; then fail "$DEST is a symlink"; fi
 mkdir -p "$DEST"
 [ "$(stat -c %u "$DEST")" = "$(id -u)" ] || fail "$DEST is not owned by $(id -un)"
 chmod 700 "$DEST"
-if [ -e "$out" ] || [ -e "${out}.gz" ]; then fail "$out already exists"; fi
 
-cleanup() { docker exec "$CONTAINER" rm -f "$tmp_in_container" >/dev/null 2>&1 || true; }
-trap cleanup EXIT
+# One run at a time. Lock the backup folder itself (root-owned, 700), not a file
+# in a world-writable lock directory that another account could create first.
+exec 9<"$DEST" || fail "cannot open $DEST for locking"
+flock -n 9 || fail "another backup is already running"
+
+# Back up the database the container actually uses. The template prints only the
+# DATABASE_PATH entry, so no other container env (secrets) ever reaches this shell.
+container_db="$(docker inspect -f '{{range .Config.Env}}{{if eq (index (split . "=") 0) "DATABASE_PATH"}}{{println .}}{{end}}{{end}}' "$CONTAINER" \
+  | sed -n 's/^DATABASE_PATH=//p' | head -n1)" || fail "cannot inspect container $CONTAINER"
+if [ -n "${DB_PATH:-}" ] && [ -n "$container_db" ] && [ "$DB_PATH" != "$container_db" ]; then
+  fail "DB_PATH=$DB_PATH does not match the container's DATABASE_PATH=$container_db"
+fi
+DB_PATH="${DB_PATH:-$container_db}"
+[ -n "$DB_PATH" ] || fail "container $CONTAINER has no DATABASE_PATH; set DB_PATH explicitly"
+
+ts="$(date -u +%Y%m%dT%H%M%SZ)"
+tmp_in_container="$(dirname "$DB_PATH")/.backup-${ts}-$$.db"
+out="${DEST}/wv_property-${ts}.db"
+if [ -e "$out" ] || [ -e "${out}.gz" ]; then fail "$out already exists"; fi
 
 # Backup + verification run inside the container, where better-sqlite3 already exists.
 summary="$(docker exec -i -e SRC="$DB_PATH" -e OUT="$tmp_in_container" "$CONTAINER" node - <<'JS'
