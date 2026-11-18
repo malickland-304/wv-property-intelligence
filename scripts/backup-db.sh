@@ -15,16 +15,38 @@
 set -euo pipefail
 
 CONTAINER="${CONTAINER:-wv-property-intelligence}"
-DB_PATH="${DB_PATH:-/data/wv_property.db}"
 DEST="${BACKUP_DIR:-/docker/wv-property-intelligence/backups}"
 KEEP_DAYS="${KEEP_DAYS:-14}"
+LOCK_FILE="${LOCK_FILE:-/run/lock/wv-db-backup.lock}"
+
+fail() { echo "$(date -u +%FT%TZ) backup FAILED: $*" >&2; exit 1; }
+
+# One run at a time (cron overlap, or a manual run during the nightly one).
+exec 9>"$LOCK_FILE" || fail "cannot open lock $LOCK_FILE"
+flock -n 9 || fail "another backup is already running"
+
+# Back up the database the container actually uses. DB_PATH may be set to pin it,
+# but it must match the container's DATABASE_PATH.
+container_env="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$CONTAINER")" \
+  || fail "cannot inspect container $CONTAINER"
+container_db="$(printf '%s\n' "$container_env" | sed -n 's/^DATABASE_PATH=//p' | head -n1)"
+unset container_env   # holds the container's secrets; keep it no longer than needed
+if [ -n "${DB_PATH:-}" ] && [ -n "$container_db" ] && [ "$DB_PATH" != "$container_db" ]; then
+  fail "DB_PATH=$DB_PATH does not match the container's DATABASE_PATH=$container_db"
+fi
+DB_PATH="${DB_PATH:-${container_db:-/data/wv_property.db}}"
 
 ts="$(date -u +%Y%m%dT%H%M%SZ)"
-tmp_in_container="/data/.backup-${ts}.db"
+tmp_in_container="/data/.backup-${ts}-$$.db"
 out="${DEST}/wv_property-${ts}.db"
 
+# Backups hold customer contact details: private directory, private files.
 umask 077
+if [ -L "$DEST" ]; then fail "$DEST is a symlink"; fi
 mkdir -p "$DEST"
+[ "$(stat -c %u "$DEST")" = "$(id -u)" ] || fail "$DEST is not owned by $(id -un)"
+chmod 700 "$DEST"
+if [ -e "$out" ] || [ -e "${out}.gz" ]; then fail "$out already exists"; fi
 
 cleanup() { docker exec "$CONTAINER" rm -f "$tmp_in_container" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
@@ -50,8 +72,16 @@ JS
 )"
 
 docker cp "${CONTAINER}:${tmp_in_container}" "$out"
-gzip -9 "$out"
-( cd "$DEST" && sha256sum "$(basename "$out").gz" > "$(basename "$out").gz.sha256" )
+chmod 600 "$out"            # docker cp keeps the container's file mode
+gzip -9 "$out"              # gzip keeps the mode: the .gz is 600 too
+chmod 600 "${out}.gz"
+# Checksum: write to a fresh private temp file, then rename into place. A rename
+# replaces whatever is at the target name (even a planted symlink) instead of
+# writing through it.
+sum_tmp="$(mktemp "${DEST}/.sha256.XXXXXX")"
+( cd "$DEST" && sha256sum "$(basename "$out").gz" ) > "$sum_tmp"
+chmod 600 "$sum_tmp"
+mv -f "$sum_tmp" "${out}.gz.sha256"
 
 # Retention
 find "$DEST" -maxdepth 1 -type f \( -name 'wv_property-*.db.gz' -o -name 'wv_property-*.db.gz.sha256' \) -mtime +"$KEEP_DAYS" -delete

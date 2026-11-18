@@ -5,6 +5,29 @@
 
 ---
 
+## 2026-11-18 — Claude (#155 review threads: backup script hardening)
+
+### Changes Made
+- `scripts/backup-db.sh`:
+  - takes a `flock` so two runs can't overlap; the container temp file name now includes the PID;
+  - reads the DB path from the container's `DATABASE_PATH` and fails if a pinned `DB_PATH` differs;
+  - refuses a symlinked or foreign-owned backup folder and forces it to 700;
+  - sets every backup and checksum to 600;
+  - writes the checksum to a temp file and renames it into place, so a planted symlink is replaced rather than followed;
+  - its header now says the backup only covers database-level incidents, since it stays on the same VPS.
+- `DECISIONS.md` 2026-09-30: acknowledges the existing in-app daily backup (`api/db.js`): same volume, not integrity-checked.
+
+### Verification (Truthfulness Rule applies)
+- `bash -n` → OK.
+- Dry run on macOS with shims for docker, flock, `stat -c` and sha256sum:
+  - success path: dir 700, `.db.gz` and `.sha256` 600;
+  - mismatched `DB_PATH` → exit 1;
+  - symlinked folder → exit 1.
+- NOT run on Linux or against a real container. Run it once by hand on the VPS after copying it into place.
+- CI on the previous head `7acf372` was all green (verify/preflight on Node 24, upload-e2e Docker build, CodeQL, semgrep).
+
+---
+
 ## 2026-11-15 — Claude (Node 24 + backup script onto main)
 
 ### Objective

@@ -162,7 +162,7 @@
 
 ## 2026-09-30 — Nightly WAL-safe SQLite backup on the VPS
 
-**Problem:** The production SQLite DB (leads, listings) had no automated backup; only manual pre-deploy copies on the same host plus Hostinger's weekly whole-VM backups (kept: 2, e.g. 2026-09-27 and 2026-09-20; restore is whole-VM and overwrites everything).
+**Problem:** The production SQLite DB (leads, listings) had no verified, host-side automated backup. The app's own daily copy (`api/db.js`: `dbLive.backup()` 10 minutes after start and then daily, keeping 7) writes next to the live DB on the same volume, is not integrity-checked, and was not confirmed working in production. Beyond that there were only manual pre-deploy copies on the same host plus Hostinger's weekly whole-VM backups (kept: 2, e.g. 2026-09-27 and 2026-09-20; restore is whole-VM and overwrites everything).
 **Decision:** Nightly host cron (03:17 UTC) runs `scripts/backup-db.sh`: SQLite online backup API inside the container (DB is in WAL mode, so never a raw file copy), `integrity_check` + row counts, gzip + sha256, 14-day retention, at `/docker/wv-property-intelligence/backups/`. Installed and restore-drilled 2026-09-30.
 **Reasoning:** Cheap, WAL-safe, verifiable. Does not depend on any new credential.
 **Known gap (open):** copies are still on the same server; nightly off-host copy is not done yet (candidate: reuse the app's existing Google Drive service account, or a private Supabase Storage bucket). Failure alerting is not set up; check `/var/log/wv-db-backup.log`.
