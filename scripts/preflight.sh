@@ -66,6 +66,7 @@ echo
 
 echo "== Admin document review smoke =="
 node "$ROOT/tests/admin-document-review.test.js"
+node "$ROOT/tests/admin-auth.test.js"
 echo "✓ Admin document review smoke OK"
 echo
 

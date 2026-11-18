@@ -2,6 +2,16 @@
 
 const crypto = require('crypto');
 
+// Constant-time string comparison. Hashing both sides first gives equal-length
+// buffers, so timingSafeEqual never throws and the length of the secret is not
+// leaked through timing either.
+function safeEqual(provided, expected) {
+  if (typeof provided !== 'string' || typeof expected !== 'string') return false;
+  const a = crypto.createHash('sha256').update(provided).digest();
+  const b = crypto.createHash('sha256').update(expected).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
 // ── API key auth (REST endpoints) ─────────────────────────
 const API_KEY = process.env.API_KEY;
 
@@ -14,7 +24,7 @@ function requireApiKey(req, res, next) {
   }
   const header = req.headers['authorization'] || '';
   const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
-  if (!token || token !== API_KEY)
+  if (!token || !safeEqual(token, API_KEY))
     return res.status(401).json({ error: 'Unauthorized' });
   next();
 }
@@ -40,4 +50,4 @@ function requireCsrf(req, res, next) {
   next();
 }
 
-module.exports = { requireApiKey, requireAuth, csrfToken, requireCsrf };
+module.exports = { safeEqual, requireApiKey, requireAuth, csrfToken, requireCsrf };

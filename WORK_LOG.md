@@ -5,6 +5,33 @@
 
 ---
 
+## 2026-11-18 — Claude (admin login hardening)
+
+### Objective
+Close two small admin-auth weak points found in the 2026-11-18 product review.
+
+### Changes Made
+- `api/middleware/auth.js` — new `safeEqual()` (SHA-256 both sides, then `crypto.timingSafeEqual`). `requireApiKey` uses it instead of `!==`.
+- `api/routes/admin.js` — `POST /admin/login` compares with `safeEqual` and calls `req.session.regenerate()` before setting `admin`, so a session id planted before login is never the one that becomes authenticated (session fixation).
+- `tests/admin-auth.test.js` (new) — real HTTP on a temp DB: wrong password, correct login, new session id on login with the old id retired, API key right/wrong/different length. Added to `scripts/preflight.sh`.
+
+### Verification (Truthfulness Rule applies)
+- `node --check` on server.js, middleware/auth.js, routes/{admin,api,public}.js → PASSED
+- `node tests/admin-auth.test.js` → 5 passed. Break-it: with `regenerate` removed, the session-id test fails (4/1); restored.
+- `admin-document-review` 9/9, `http-smoke` 14/14, `upload-e2e` 5 PASS, `verify-security-fixes` PASSED (Node 22 locally).
+- `bash scripts/preflight.sh` itself NOT run locally (sandbox); CI preflight is the proof.
+
+### Security Notes
+No new dependencies, no env changes, no schema change. CSRF tokens are bound to `req.sessionID`; login is CSRF-exempt and the admin page issues fresh tokens after the redirect, so regeneration does not break forms (covered by admin-document-review and upload-e2e, which log in and post).
+
+### Remaining Risks
+Single shared admin password, no 2FA. An IP allowlist or basic auth for `/admin` at Traefik would be the next layer (VPS config, Phil).
+
+### Recommended Next Task
+Privacy policy and SMS terms pages (wording needs Phil/broker approval).
+
+---
+
 ## 2026-11-16 — Claude (dependency advisories)
 
 ### Objective
