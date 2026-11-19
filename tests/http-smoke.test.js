@@ -169,6 +169,25 @@ async function main() {
         '/37-advent should name the broker');
     });
 
+    await test('GET /privacy and /terms serve the policies with the brokerage disclosure', async () => {
+      for (const [path, phrase] of [['/privacy', 'no mobile information will be shared'], ['/terms', 'reply <strong>stop</strong>']]) {
+        const res = await fetch(`${baseUrl}${path}`, { redirect: 'manual' });
+        assert.strictEqual(res.status, 200, `${path} should be 200`);
+        const body = await res.text();
+        assert.ok(body.includes('WV Real Estate Agency, LLC'), `${path} should name the brokerage`);
+        assert.ok(body.includes('Sheila Judy'), `${path} should name the broker`);
+        assert.ok(body.toLowerCase().includes(phrase), `${path} should contain: ${phrase}`);
+      }
+    });
+
+    await test('pages with SMS consent text link to the privacy policy and SMS terms', async () => {
+      for (const path of ['/', '/search', '/37-advent', '/start']) {
+        const body = await (await fetch(`${baseUrl}${path}`)).text();
+        assert.ok(body.includes('href="/privacy"'), `${path} should link /privacy`);
+        assert.ok(body.includes('href="/terms'), `${path} should link /terms`);
+      }
+    });
+
     await test('GET /search.html canonicalizes to /search', async () => {
       const res = await fetch(`${baseUrl}/search.html`, { redirect: 'manual' });
       assert.strictEqual(res.status, 301);
