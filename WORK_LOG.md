@@ -5,6 +5,95 @@
 
 ---
 
+## 2026-11-18 — Claude (#155 review threads: backup script hardening)
+
+### Changes Made
+- `scripts/backup-db.sh`, in two rounds (Sourcery/Codex threads, then the independent review):
+  - **Scope comment in the header:** database-level incidents only, because the copies stay on the same VPS. The first round claimed this but the edit had been dropped; the independent review caught it.
+  - **One run at a time:** `flock` on the backup folder itself (root-owned, 700), not on a file in the world-writable `/run/lock`. The container temp file sits next to the database and its name includes the PID.
+  - **Database path:**
+    - read with a `docker inspect` template that prints only `DATABASE_PATH`, so no other container env (secrets) reaches the shell;
+    - fails if a pinned `DB_PATH` differs;
+    - fails instead of guessing when the container sets none.
+  - **Backup folder:** refuses a symlinked or foreign-owned folder and forces it to 700. Files are set to 600.
+  - **Checksum:** written to a `mktemp` file and renamed into place.
+  - **Failures:** an EXIT trap removes leftover temp files and logs a single timestamped `backup FAILED` line for any failure, including steps that fail through `set -e`.
+  - The install line now uses `install -m 700 -o root` and says to reinstall after deploys.
+- `DECISIONS.md`:
+  - 2026-09-30: acknowledges the existing in-app daily backup (`api/db.js`): same volume, not integrity-checked;
+  - Node 24 entry: `sharp` 0.35.x.
+- `PROJECT_STATE.md`: the backup gate now says to copy the merged script over the cron copy and run it once. A deploy does not update the cron copy.
+- `WORK_LOG.md`: restored the closing fence and separator that my `f7e9715` merge dropped. The fence count is now even (8).
+
+### Verification (Truthfulness Rule applies)
+- `bash -n` → OK.
+- Dry runs on macOS, with shims for docker, flock, `stat -c` and sha256sum:
+  - success: folder 700, `.db.gz` and `.sha256` 600, one `backup ok` line;
+  - mismatched `DB_PATH` → exit 1, one FAILED line;
+  - no `DATABASE_PATH` → exit 1;
+  - integrity_check failure → exit 1, one FAILED line, no files left;
+  - symlinked folder → exit 1 (first round).
+- NOT run on Linux or against a real container. Run it once by hand on the VPS after installing it, as in the PROJECT_STATE gate.
+
+---
+
+## 2026-11-15 — Claude (Node 24 + backup script onto main)
+
+### Objective
+Bring two finished changes onto `main` that never reached it. PR #146 (nightly backup script, commit `64b5bc6`) and PR #147 (Node 24 LTS, commit `f5ba8bb`) were merged into the PR #145 branch (`docs/record-vps-deploy-b22a119`) instead of `main`, and #145 was never merged. On `origin/main` @ `673bfbe` the Dockerfile and CI were still on Node 20 and `scripts/backup-db.sh` did not exist. Branch `chore/node-24-and-backup-script`, cut from `origin/main` @ `673bfbe`. Supersedes PR #145.
+
+### Changes Made
+- `api/Dockerfile` — both stages `node:20-bookworm-slim` → `node:24-bookworm-slim`.
+- `.github/workflows/nodejs-ci.yml`, `.github/workflows/preflight.yml` — `node-version: 20.x` → `24.x`.
+- `README.md`, `AGENTS.md`, `ARCHITECTURE.md`, `CONTEXT.md`, `PROJECT_STATE.md` — "Node.js 20" → "Node.js 24" where it names the runtime.
+- `scripts/backup-db.sh` — added, byte-for-byte from `64b5bc6` (mode 755).
+- `DECISIONS.md` — the three 2026-09-30 entries from `64b5bc6` (nightly backup; sharp LGPL accepted; Express/VPS stays primary), each with a "Recorded on `main`" note, plus a new 2026-11-15 entry for the Node 24 move (problem, decision, reasoning, alternatives, migration impact, rollback, files).
+- `PROJECT_STATE.md` — added a `DB backups` row and a `Runtime Node version` row, and two open gates (Node 24 runtime deploy; nightly backup health + off-host copy). `main`'s `12d255d` deploy record was kept as is.
+- Not carried over: the `PROJECT_STATE.md` / `WORK_LOG.md` / `TASKS.md` text from `51c2ef8`, `64b5bc6` and `f5ba8bb`. It describes `b22a119` as the live, verified deploy, which `main` has since replaced with the claimed `12d255d` deploy. The 2026-09-30 work-log entries stay readable on the `docs/record-vps-deploy-b22a119` branch.
+- No application code, dependency or lockfile change.
+
+### Other Node pins checked on `main`
+- `.github/workflows/docker-upload-e2e.yml`: no Node pin; it builds `api/Dockerfile`, so it follows. Not changed.
+- `.github/workflows/codeql.yml`, `codescan.yml`, `api-docs-consistency.yml`: no Node version pin. `compose.yml`: builds `api/Dockerfile`.
+- No `.nvmrc`, `.node-version` or `.tool-versions`. No `engines` field in `api/package.json`.
+
+### Verification (Truthfulness Rule applies)
+All run in this session on **Node v24.14.1, npm 11.11.0, macOS arm64** (not Linux, not Docker).
+- Command: `cd api && npm ci` → Result: PASSED (173 packages; lockfile unchanged).
+- Command: `require('better-sqlite3')` + in-memory query, `require('sharp')` → Result: PASSED (better-sqlite3 12.8.0, sharp 0.35.4 / libvips 8.18.6 load on Node 24).
+- Command: `npm ls express better-sqlite3 csrf-csrf` → Result: PASSED.
+- Command: `node --check` on `server.js`, `db.js`, `middleware/auth.js`, `routes/admin.js`, `routes/api.js`, `routes/documents.js`, `routes/public.js` → Result: PASSED.
+- Command: `node tests/verify-security-fixes.test.js` → Result: PASSED (60 passed, 0 failed).
+- Command: every other file in `tests/` (`admin-document-review` 9, `chat-assistant` 14, `document-registry` 28, `inquiry-forward` 12, `public-assistant-flag` 7, `upload-e2e`, `ai-generator-routing`, `email`, `lead-notifications`) → Result: PASSED (exit 0).
+- Command: `node tests/http-smoke.test.js` → Result: FAILED 1 of 14 inside the `.claude/worktrees/...` checkout (`GET /search` → 500, Express `sendFile` refuses a dot-directory path); PASSED 14 of 14 from a copy of the same tree at a path with no dot-directory. Environment artifact, not a Node 24 result.
+- Command: `bash scripts/preflight.sh` → Result: NOT RUN as a script (the sandbox blocks macOS `mktemp -d`). Its steps were run one by one, the test steps from the non-dot copy: dependency check, syntax checks, the five test steps, then server start with a temp DB, `/api/health` 200, property API 200, property page 200, `/api/chat` 200 with a `reply` field → all PASSED.
+- Command: `bash -n scripts/backup-db.sh` → Result: PASSED (syntax only; the script was not executed, it needs the production container).
+- NOT RUN: anything inside `node:24-bookworm-slim` (Docker daemon not reachable in this session); Linux x64; `docker build -f api/Dockerfile`. The `Docker upload e2e` and `Preflight` CI jobs on the PR cover the image build and Linux. The 2026-09-30 container results in `f5ba8bb` are a prior session's claim, not re-run here.
+- NOT RUN: any VPS or production check.
+
+### Security Notes
+- No secrets read or printed. No VPS access. No production data touched.
+- `npm audit` (run here, same lockfile as `main`) reports 10 advisories: 1 critical (`proxy-addr`), 5 high (`body-parser`, `brace-expansion`, `compression`, `multer`, `sharp`), 4 moderate. These exist on `main` today and are not caused or changed by this PR. They need their own dependency PR.
+
+### Remaining Risks
+- The live VPS still runs the Node 20 image. After this merges, the next manual deploy of `main` rebuilds the image on Node 24 whatever else it ships; treat that deploy as a runtime upgrade (backup, rollback SHA, `node -v` check).
+- Node 24 was verified here on macOS arm64 only. Linux x64 proof is the CI run on the PR.
+- The nightly backup install on the VPS was reported on 2026-09-30 and has not been re-checked. Backups are still on the same server.
+
+### Recommended Next Task
+Codex: verify the PR (checks, threads, merge state, head SHA). Phil: merge, then close PR #145 as superseded. Separate PR: dependency advisories above.
+
+```
+Done: Node 24 pins, backup script, 3 carried decisions + Node 24 decision on one branch off main
+Verified by: npm ci, node --check, 60/60 security tests, all tests/ files, preflight steps by hand on Node v24.14.1 (macOS arm64)
+Remaining risk: no Docker/Linux run locally; VPS still Node 20; backup cron unverified
+Next owner: Codex (PR readiness), then Phil (merge)
+Next action: wait for CI on the PR; Codex gatekeeper check
+Approval needed: Phil to merge; Phil to approve any deploy (not requested here)
+```
+
+---
+
 ## 2026-11-16 — Claude (dependency advisories)
 
 ### Objective
@@ -344,6 +433,67 @@ Forward each lead captured by `POST /api/contacts` to the n8n "Inquiry intake (a
 
 ### Recommended Next Task
 Phil-approved VPS deploy with the two env vars set, then one test lead through the live form to confirm it lands in the Ops Hub sheet.
+
+---
+
+_Ported verbatim from PR #145 (closed as superseded by #155) on 2026-11-17, so these 2026-09-30 records are not lost._
+
+## 2026-09-30 — Claude (Node 24 LTS)
+
+### Objective
+Move off Node 20 (end-of-life 2026-04-30) to Node 24 LTS (supported to 2028-04-30).
+
+### Changes Made
+- `api/Dockerfile`: both stages `node:20-bookworm-slim` -> `node:24-bookworm-slim`. `.github/workflows/nodejs-ci.yml` and `preflight.yml`: `node-version: 24.x`. Docs that stated "Node.js 20" updated (README, AGENTS, ARCHITECTURE, CONTEXT, PROJECT_STATE). No dependency or application code changes.
+
+### Verification (run in this session, Docker `node:24-bookworm-slim` v24.21.0, Linux arm64)
+- `npm ci` in `api/`, then full `scripts/preflight.sh` -> PRE-FLIGHT PASSED (7+13+28+9 tests, upload/resize e2e 5/5, startup/health/property/assistant smoke).
+- All 10 files in `tests/` pass. `docker build -f api/Dockerfile` succeeds; image runs Node v24.21.0 with better-sqlite3 12.8.0 (627 MB).
+- Note: a first preflight attempt failed only because the slim image lacks `curl`; the server started fine on Node 22 and 24 (not a Node issue).
+- Not verified: Linux x64 locally (the `Docker upload e2e` CI job runs it on the PR), production runtime, deploy.
+
+### Remaining Risks / Next
+- Live VPS still runs Node 20 until deployed. Deploy after merge with the backup + rollback runbook (rollback = previous SHA rebuild).
+
+---
+
+## 2026-09-30 — Claude (backup automation + cleanup)
+
+### Changes Made
+- Added `scripts/backup-db.sh` (WAL-safe online backup, verify, gzip+sha256, 14-day retention). Installed on the VPS at `/docker/wv-property-intelligence/backup-db.sh` with `/etc/cron.d/wv-db-backup` (03:17 UTC).
+- Removed `/docker/wv-property-intelligence/.env.codex-backup-20260622-152642` after a key-name/hash comparison against live `.env` (same 12 keys, identical values except `PUBLIC_ASSISTANT_ENABLED`); nothing unique was lost. Values were never printed.
+- Recorded three decisions in `DECISIONS.md` (nightly backup, LGPL sharp accepted, Express primary for now).
+
+### Verification (run in this session)
+- Manual run: `backup ok`, integrity ok, counts 2/3/55. sha256 check OK. Restore drill (gunzip, copy into container, integrity ok, contacts 3, `attribution` column present).
+- cron service active; entry present. Not verified: the first scheduled (03:17 UTC) run; off-host copy; failure alerting.
+- Container stayed healthy; `/api/health` 200 after cleanup.
+- Hostinger API (read-only): 2 weekly VM backups (2026-09-20, 2026-09-27); no snapshot present.
+
+### Remaining Risks / Next
+- Off-server nightly copy and failure alerting. June `wv-data-backup-*` folders and old `.db` files on the VPS kept until the nightly job has run successfully for several nights.
+
+---
+
+## 2026-09-30 — Claude
+
+### Objective
+Deploy PR #144 (merge `b22a119`) to the Hostinger VPS with a verified backup and rollback point, on Phil's explicit go-ahead.
+
+### Changes Made (production)
+- Pre-checks: src clean at `65a2b32d`, container healthy, 89G free, SQLite in WAL mode (so backup used the online backup API, not a file copy).
+- Wrote `ROLLBACK_SHA_20260930.txt` (`65a2b32d`); took consistent backup `wv_property.pre-deploy-20260930.db` via better-sqlite3 `backup()`. Backup verified: integrity ok; properties 2 / contacts 3 / counties 55 / `contacts.attribution` present, identical to live.
+- `git checkout --detach b22a119`, `docker compose build`, `docker compose up -d`.
+
+### Verification (run in this session)
+- Container `Up (healthy)`; src = `b22a11930f73cf39786823fe6329622d50ed43ca`.
+- In-container: multer 2.4.0, sharp 0.35.4, morgan 1.12.1, ip-address 10.7.2, qs 6.16.0, body-parser 2.3.0, express 5.2.1.
+- Live DB after deploy: integrity ok, same row counts, attribution column intact.
+- `EXPECTED_SHA=b22a119… scripts/verify-vps-prod.sh` -> "VPS production verified"; `/api/health` 200, `/api/config` -> `listingsEnabled:false`, `/search` 200, `/` 200.
+- Not verified: authenticated admin photo upload against production (covered by the x64 CI e2e), live lead submission/email.
+
+### Rollback
+`git -C src checkout --detach 65a2b32d` then `docker compose build && up -d`. Do not restore the DB copy unless data is damaged (would discard newer leads).
 
 ---
 
