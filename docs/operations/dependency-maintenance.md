@@ -12,7 +12,7 @@ sources:
   - code: tests/http-smoke.test.js
   - code: .github/workflows/nodejs-ci.yml
   - code: .github/dependabot.yml
-verified_at: e253685
+verified_at: 32b41d8
 ---
 
 # Dependency maintenance (api/)
@@ -66,14 +66,15 @@ installed under one Node version does not load under another without a reinstall
 
 ## Running the checks on this Mac
 
-> ⚠️ Tests run from a path that contains a dot-directory (for example a
-> `.claude/worktrees/...` checkout) fail in ways that look like real bugs:
-> `tests/http-smoke.test.js:152` (`GET /search`) fails, and the public property page
-> returns 500. Both routes serve HTML with `res.sendFile` and an absolute path
-> (`api/routes/public.js:176`, `api/routes/public.js:204`). The likely cause is that
-> Express refuses files under a dotted path segment (inferred, not traced). Re-run from a
-> copy at a path with no dot-directory before you treat it as a regression; from such a
-> copy both pass.
+> ⚠️ Every `res.sendFile` in `api/routes/public.js` must keep `{ root: APP_DIR }` and a
+> relative file name (`api/routes/public.js:50`, `api/routes/public.js:182`,
+> `api/routes/public.js:210`). `send` rejects any path with a dot-segment, and without a
+> root it checks the whole absolute path, so a checkout under a dot-directory (for example
+> `.claude/worktrees/...`) made `GET /search` and the property page fail (404/500) and
+> `tests/http-smoke.test.js` fail there. Fixed in #159 (2026-11-16);
+> `tests/verify-security-fixes.test.js` fails if a `res.sendFile(path.join(` call comes back
+> (it does not catch other ways of building an absolute path, so keep the rule in review).
+> Tests now pass from a dot-directory path too.
 
 > ⚠️ `scripts/preflight.sh` cannot run as a whole inside the agent sandbox, because
 > `mktemp -d` (`scripts/preflight.sh:17`) is blocked. Run its steps one by one: `npm ls`,

@@ -41,3 +41,13 @@ Append-only. Newest entries at the bottom.
   reminders come from the plugin's hooks; change-to-page table and security note filled.
 - [[dependency-maintenance]]: a downgrade cannot be applied with `npm update`; moved
   `verified_at` to `e253685` (none of its sources changed since `673bfbe`).
+
+## [2026-11-16] sync | after #159 (main @ 32b41d8)
+
+- `/docs-lint` reported [[dependency-maintenance]] stale by 1 commit: #159 changed
+  `api/routes/public.js`. Its dot-directory trap described the bug #159 fixed and cited
+  shifted lines. Rewritten as the rule that keeps it fixed (`sendFile` with
+  `{ root: APP_DIR }`), citations updated, `verified_at` moved to `32b41d8`.
+- `.claude/scripts/docs-lint.py`: an extensionless name (`Dockerfile`, ...) counts as a citation only with
+  a directory or a `:line`. The previous change flagged the bare names in this log as
+  missing files.
