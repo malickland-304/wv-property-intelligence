@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "MalickLand API Server",
-      "runtimeExecutable": "/opt/homebrew/Cellar/node/25.8.1_1/bin/node",
-      "runtimeArgs": ["api/server.js"],
+      "runtimeExecutable": "/opt/homebrew/opt/node/bin/node",
+      "runtimeArgs": ["--env-file-if-exists=api/.env", "api/server.js"],
       "port": 3000
     }
   ]
