@@ -7,7 +7,7 @@ const crypto   = require('crypto');
 const multer   = require('multer');
 
 const { db }                   = require('../db');
-const { requireAuth, requireCsrf, csrfToken } = require('../middleware/auth');
+const { requireAuth, requireCsrf, csrfToken, safeEqual } = require('../middleware/auth');
 const { adminLoginRateLimit, uploadRateLimit, adminActionRateLimit } = require('../middleware/rate-limits');
 const { adminShell, listingForm, loginPageHtml, loginErrorHtml } = require('../views/admin');
 const { esc, slugify, initListingFolder, isSafePathComponent, normalizeAcreage, safeListingPath } = require('../helpers');
@@ -235,13 +235,20 @@ function statusBadgeClass(status) {
 // ── Login ─────────────────────────────────────────────────
 router.get('/login', (_req, res) => res.send(loginPageHtml));
 
-router.post('/login', adminLoginRateLimit, (req, res) => {
-  if (req.body.password === ADMIN_PASSWORD) {
-    req.session.admin = true;
-    res.redirect('/admin');
-  } else {
-    res.send(loginErrorHtml);
+router.post('/login', adminLoginRateLimit, (req, res, next) => {
+  if (!safeEqual(req.body && req.body.password, ADMIN_PASSWORD)) {
+    return res.send(loginErrorHtml);
   }
+  // New session id on login, so an id planted before login (session fixation)
+  // is never the one that becomes authenticated.
+  req.session.regenerate((err) => {
+    if (err) return next(err);
+    req.session.admin = true;
+    req.session.save((saveErr) => {
+      if (saveErr) return next(saveErr);
+      res.redirect('/admin');
+    });
+  });
 });
 
 router.get('/logout', adminActionRateLimit, (req, res) => {
