@@ -180,6 +180,7 @@ threads_json="$(fetch_threads)"
 # every thread. Partial data is treated as unreadable, never as "nothing changed".
 THREADS_VALID='(.errors | not) and (.data.repository.pullRequest as $p
   | ($p.reviews.totalCount | type) == "number" and ($p.reviews.nodes | type) == "array"
+  and ($p.reviews.nodes | length) == ([$p.reviews.totalCount, 100] | min)
   and ($p.reviewThreads.totalCount | type) == "number" and ($p.reviewThreads.nodes | type) == "array"
   and ($p.reviewThreads.nodes | length) == ([$p.reviewThreads.totalCount, 100] | min)
   and all($p.reviewThreads.nodes[]; (.isResolved | type) == "boolean" and (.isOutdated | type) == "boolean"))'
@@ -189,6 +190,11 @@ if [[ -z "$threads_json" ]] || ! jq -e "$THREADS_VALID" >/dev/null 2>&1 <<<"$thr
 else
   t_total="$(jq -r '.data.repository.pullRequest.reviewThreads.totalCount' <<<"$threads_json")"
   open_count="$(jq -r '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false and .isOutdated == false)] | length' <<<"$threads_json")"
+  r_total="$(jq -r '.data.repository.pullRequest.reviews.totalCount' <<<"$threads_json")"
+  if [[ "$r_total" -gt 100 ]]; then
+    # The end-of-run review fingerprint sees only the last 100 reviews.
+    block "reviews: $r_total reviews, more than one page; verify by hand"
+  fi
   if [[ "$t_total" -gt 100 ]]; then
     block "review threads: $t_total threads, more than one page; verify by hand"
   elif [[ "$open_count" == "0" ]]; then
