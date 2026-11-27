@@ -102,22 +102,38 @@ STAMP="api/node_modules/.dev-install-stamp"
 WANT="$("$NODE" -p 'const c = require("crypto"), fs = require("fs");
   [process.versions.modules, process.platform, process.arch,
    c.createHash("sha256").update(fs.readFileSync("api/package-lock.json")).digest("hex").slice(0, 16)].join("-")')"
+# `npm ci` can succeed without building better-sqlite3's native binding (for
+# example with ignore-scripts set in ~/.npmrc), and a stamped install can lose it
+# later. So the binding is checked on every start, not only after an install.
+sqlite_loads() { (cd api && env -i "${base_env[@]}" "$NODE" -e "require('better-sqlite3')(':memory:').close()"); }
+need_install=no
 if [ ! -d api/node_modules ] || [ "$(cat "$STAMP" 2>/dev/null || true)" != "$WANT" ]; then
+  need_install=yes
+elif ! sqlite_loads 2>/dev/null; then
+  echo "dev-server: better-sqlite3 does not load from the existing install; reinstalling"
+  rm -f "$STAMP"; need_install=yes
+fi
+if [ "$need_install" = yes ]; then
   echo "dev-server: installing api dependencies (npm ci) for this Node and lockfile..."
   # Plus npm settings that carry no credentials, in either case npm accepts.
   # Left out on purpose: auth (_auth*, *token*, *password*), because npm hands its
   # environment to dependency install scripts, and install-changing flags such
-  # as ignore_scripts.
+  # as ignore_scripts. For the same reason a registry or proxy URL with
+  # credentials in it (scheme://user:pass@host) is skipped, with a warning.
   npm_env=("${base_env[@]}")
+  cred_re='://[^/]*@'
   for k in registry cache cafile strict_ssl proxy https_proxy noproxy prefer_offline fetch_retries; do
     for v in "npm_config_$k" "NPM_CONFIG_$(printf '%s' "$k" | tr '[:lower:]' '[:upper:]')"; do
-      if [ -n "${!v:-}" ]; then npm_env+=("$v=${!v}"); fi
+      [ -n "${!v:-}" ] || continue
+      if [[ "${!v}" =~ $cred_re ]]; then
+        echo "dev-server: not passing $v to npm ci: its URL contains credentials, which install scripts could read. Set it in ~/.npmrc instead." >&2
+        continue
+      fi
+      npm_env+=("$v=${!v}")
     done
   done
   (cd api && env -i "${npm_env[@]}" "$NODE_DIR/npm" ci --no-audit --no-fund)
-  # `npm ci` can succeed without building better-sqlite3's native binding, for
-  # example with ignore-scripts set in ~/.npmrc. Record the install only once it loads.
-  (cd api && env -i "${base_env[@]}" "$NODE" -e "require('better-sqlite3')(':memory:').close()") ||
+  sqlite_loads ||
     die "npm ci finished, but better-sqlite3 does not load with $NODE (was its native build skipped, e.g. ignore-scripts in your npm config?). Install not recorded; fix that and start again."
   echo "$WANT" > "$STAMP"
 fi
