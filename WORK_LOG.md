@@ -247,6 +247,45 @@ Approval needed: Phil to merge; Phil to approve any deploy (not requested here)
 
 ---
 
+## 2026-11-18 — Claude (admin login hardening)
+
+### Objective
+Close two small admin-auth weak points found in the 2026-11-18 product review.
+
+### Changes Made
+- `api/middleware/auth.js` — new `safeEqual()` (SHA-256 both sides, then `crypto.timingSafeEqual`). `requireApiKey` uses it instead of `!==`.
+- `api/routes/admin.js` — `POST /admin/login` compares with `safeEqual` and calls `req.session.regenerate()` before setting `admin`, so a session id planted before login is never the one that becomes authenticated (session fixation).
+- `tests/admin-auth.test.js` (new) — real HTTP on a temp DB: wrong password, correct login, new session id on login with the old id retired, API key right/wrong/different length. Added to `scripts/preflight.sh`.
+
+### Verification (Truthfulness Rule applies)
+- `node --check` on server.js, middleware/auth.js, routes/{admin,api,public}.js → PASSED
+- `node tests/admin-auth.test.js` → 5 passed. Break-it: with `regenerate` removed, the session-id test fails (4/1); restored.
+- `admin-document-review` 9/9, `http-smoke` 14/14, `upload-e2e` 5 PASS, `verify-security-fixes` PASSED (Node 22 locally).
+- `bash scripts/preflight.sh` itself NOT run locally (sandbox); CI preflight is the proof.
+
+### Security Notes
+No new dependencies, env changes or schema changes.
+
+**Correction (independent review, same day):** I first wrote that "regeneration does not break forms". That was wrong. CSRF tokens are bound to `req.sessionID`, and `csrf-csrf` `generateToken` throws by default when the browser still holds a `csrf_token` cookie hashed for a different session id. So:
+- logging in again after visiting `/admin` returned **403 on `/admin`**. That was a regression from `regenerate()`.
+- logout then login already returned 403 on `main`, from the same cause.
+
+Fix: `csrfToken()` in `api/middleware/auth.js` now calls `req.csrfToken(false, false)`, so a stale cookie is replaced instead of throwing. `doubleCsrfProtection` re-defines `req.csrfToken` on every admin request, which is why the arguments are passed there and not in a wrapper in `server.js`. POST validation is unchanged.
+
+`safeEqual` no longer hashes. CodeQL flagged SHA-256 of a password, a false positive here but noise. It now does a length check plus `timingSafeEqual`; only the secret's length can be inferred from timing.
+
+**Follow-up verification:**
+- `admin-auth` 7/7. The 2 new cookie-jar tests (re-login, and logout then login, each keeping both cookies) fail without the fix (5 passed, 2 failed).
+- `admin-document-review` 9/9, `upload-e2e` PASS, `verify-security-fixes` PASSED, `http-smoke` 14/14 from a path with no dot-directory.
+
+### Remaining Risks
+Single shared admin password, no 2FA. An IP allowlist or basic auth for `/admin` at Traefik would be the next layer (VPS config, Phil).
+
+### Recommended Next Task
+Privacy policy and SMS terms pages (wording needs Phil/broker approval).
+
+---
+
 ## 2026-11-16 — Claude (dependency advisories)
 
 ### Objective
