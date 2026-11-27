@@ -5,6 +5,48 @@
 
 ---
 
+## 2026-11-27 — Claude (dev-server follow-ups to Codex threads on PR #167)
+
+### Objective
+Fix three P2 findings Codex posted on PR #167 about three minutes after it merged. `scripts/dev-server.sh` is local-dev tooling only; nothing is deployed.
+
+### Changes Made
+- `scripts/dev-server.sh`:
+  - **npm settings for `npm ci` are allowlisted.** Before, every exported `npm_config_*` was passed into the `env -i` install, so a secret such as `npm_config__authToken` reached dependency install scripts. Now only `registry`, `cache`, `cafile`, `strict_ssl`, `proxy`, `https_proxy`, `noproxy`, `prefer_offline` and `fetch_retries` pass, in lowercase or uppercase form. Auth values (`_auth*`, `*token*`, `*password*`) and `ignore_scripts` stay out;
+  - **relative `DATABASE_PATH`/`LISTINGS_ROOT` are read with Node's own `.env` rules.** The old `sed` kept an inline `# comment` that `--env-file` strips, so the server got a different path. The value is now read with `util.parseEnv`, the parser behind `--env-file`; Node also strips `#` without a leading space (`./a#b` becomes `./a`). `util.parseEnv` needs Node 20.12+, so the Node 20 floor went from 20.9 to 20.12. 22 and 24 are unchanged;
+  - **the install stamp is written only after `better-sqlite3` loads.** `npm ci` can succeed while skipping native builds (for example `ignore-scripts=true` in `~/.npmrc`). Before, the stamp was still written, so later starts never reinstalled. Now the script runs `require('better-sqlite3')(':memory:').close()` after `npm ci`, and on failure exits with a clear message and no stamp.
+
+### Verification (Truthfulness Rule applies)
+Every run used a fresh `git archive` copy at a path containing a space, started from `cwd=/` under `/bin/bash` 3.2. Each used Node 22 (`DEV_NODE`, fnm v22.22.3), an empty `npm_config_cache` per run, and a poisoned environment (`RESEND_API_KEY`, `INQUIRY_WEBHOOK_URL`/`SECRET`). `DEV_NODE` pointed at a folder whose `npm` wrapper recorded the environment `npm ci` received. Old = `origin/main` (`1a9f036`, then `d86831a`; `dev-server.sh` is the same in both), new = this branch.
+- **Fix 1, npm settings:**
+  - old: `npm ci` received `npm_config__authToken` and `npm_config_ignore_scripts`;
+  - new: with `npm_config__authToken`, `NPM_CONFIG_PASSWORD` and `npm_config_ignore_scripts` also exported, `npm ci` received only `npm_config_cache`, `npm_config_registry` and `NPM_CONFIG_FETCH_RETRIES`.
+- **Fix 2, `DATABASE_PATH=./database/dev.db # local copy` in `api/.env`:**
+  - old: the server created `database/dev.db # local copy`;
+  - new: the server created `database/dev.db`.
+- **Fix 3, install that skipped native builds:**
+  - old, `npm_config_ignore_scripts=true`: `npm ci` added 174 packages, the stamp was written, and the server crashed (`Could not locate the bindings file`). The next start without the flag skipped the install and crashed again;
+  - new, `ignore-scripts=true` in `~/.npmrc` (the env var no longer gets through): `npm ci` added 174 packages, then the script exited 1 with `better-sqlite3 does not load … Install not recorded`, and no stamp was written.
+- **Healthy path, new:** fresh installs with the poisoned environment created `api/.env` (mode 600), and `GET /api/health` returned 200. Startup reported Gmail, Resend, inquiry forward and customer auto-reply all `false`. A restart with the commented `DATABASE_PATH` skipped the install, and health returned 200.
+- **Node floor rule:** checked against version strings: 20.9.0 and 20.11.1 rejected; 20.12.0, 20.19.5, 22.0.0 and 24.14.1 accepted; 21.7.0 and 26.0.0 rejected.
+- `bash -n` under `/bin/bash` 3.2.57 → OK. `node --check` on the 5 AGENTS.md files → OK. `node tests/verify-security-fixes.test.js` → 60/60 passed.
+- `scripts/preflight.sh` → NOT RUN. The PR's CI preflight job is the check for it.
+- **Sandbox limits seen in testing, not caused by this change:**
+  - Node can't read keychain trust settings in this sandbox, so `NODE_USE_SYSTEM_CA` fails. Test runs passed the keychain CAs as a PEM file through `NODE_EXTRA_CA_CERTS`, which the script already allowlists;
+  - the sandbox proxy sometimes stalls the `better-sqlite3` prebuilt download (`prebuild-install warn install aborted`). It hit old and new alike, with any npm settings: old failed twice with `npm_config_registry` set, and new failed once with only `npm_config_cache`, then passed.
+
+### Security Notes
+Install scripts now see fewer secrets. npm still reads the user's `~/.npmrc` (HOME is passed so the cache and config work), so an auth token kept there is unchanged by this PR.
+
+### Remaining Risks
+- Node 20.9–20.11 users now need 20.12+, 22 or 24. Node 20 is past end of life, and production is on Node 24 since #155.
+- `proxy`/`https_proxy` values can embed proxy credentials. They pass through as `HTTPS_PROXY` already did.
+
+### Recommended Next Task
+Phil runs `scripts/pr-readiness.sh` on this PR once the independent review threads are answered.
+
+---
+
 ## 2026-11-27 — Claude (dev server that sets itself up in any checkout, PR #167)
 
 ### Objective
