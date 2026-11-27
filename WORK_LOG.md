@@ -31,6 +31,11 @@ Every run used a fresh `git archive` copy of `1e6207a` at a path containing a sp
 - **Credential patterns under bash 3.2** (after the Sourcery threads on #170):
   - skipped: `https://u:p@reg.example/`, `http://user@proxy:8080`, `https://reg.example/?Access_Token=abc` and `https://reg.example/?apikey=1`;
   - passed: `https://registry.npmjs.org/`, `http://proxy:8080`, `https://host?x=a@b`, `https://host#frag@x`, `https://host/path@scope/`, `https://reg.example/@scope/`, `https://reg.example/?page=2&sort=a` and `https://reg.example/#token=x`.
+- **Fresh-copy re-run of `9dc99c1`**, same setup. Exported: `npm_config_registry=https://fakeuser:fakepass@…`, `NPM_CONFIG_PROXY=http://127.0.0.1:9/?token=FAKEQTOKEN` and `npm_config_noproxy=https://host.invalid?x=a@b`:
+  - both credentialed values were skipped with the new `~/.npmrc` advice;
+  - `npm ci` received `npm_config_noproxy=https://host.invalid?x=a@b`;
+  - 0 log lines contained `fakepass` or `FAKEQTOKEN`;
+  - `npm ci` added 174 packages, health returned 200, and integrations were all `false`. A restart didn't reinstall, and health returned 200.
 - `bash -n` (bash 3.2.57) OK. `node --check` on the 5 AGENTS.md files OK. `node tests/verify-security-fixes.test.js` 60/60 passed.
 - `scripts/preflight.sh`: not run locally; the PR's CI `verify` job runs it.
 
