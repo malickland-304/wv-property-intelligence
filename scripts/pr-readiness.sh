@@ -210,16 +210,32 @@ else
 fi
 
 # ── Re-read: the PR must not have moved while this ran ──────────────────────
-# Checks, threads and the VPS were read after the PR itself. A push, merge or close in
-# between would leave this verdict describing a commit that is no longer the PR head.
-if final_json="$(api "pulls/$PR")"; then
-  final_head="$(jq -r '.head.sha' <<<"$final_json")"
-  final_state="$(jq -r '.state' <<<"$final_json")"
-  if [[ "$final_head" != "$head_sha" || "$final_state" != "$state" ]]; then
-    block "PR changed during this run: head $head_sha -> $(jq -r "$JQ_CLEAN"' .head.sha | clean' <<<"$final_json"), state $state -> $(jq -r "$JQ_CLEAN"' .state | clean' <<<"$final_json"); run again"
+# Checks, threads and the VPS were read after the PR itself. A push, merge, close, draft
+# toggle or base change in between would leave this verdict describing a state that no
+# longer holds, so the PR and its check runs are read again and compared. Any read or
+# parse failure blocks (never a set -e exit before the verdict).
+pr_fingerprint='[.head.sha, .state, .draft, .mergeable, .mergeable_state, .base.ref] | map(tostring) | join(" ")'
+first_fp="$(jq -r "$pr_fingerprint" <<<"$pr_json")"
+if final_json="$(api "pulls/$PR")" \
+   && jq -e 'type == "object" and (.head.sha | type) == "string"' >/dev/null 2>&1 <<<"$final_json" \
+   && final_fp="$(jq -r "$pr_fingerprint" <<<"$final_json" 2>/dev/null)"; then
+  if [[ "$final_fp" != "$first_fp" ]]; then
+    block "PR changed during this run: $(jq -rn "$JQ_CLEAN"' $s | clean' --arg s "$first_fp") -> $(jq -rn "$JQ_CLEAN"' $s | clean' --arg s "$final_fp") (head state draft mergeable merge_state base); run again"
   fi
 else
   block "could not re-read PR #$PR at the end of the run"
+fi
+
+# Check runs again: a run that started, re-ran or failed on the same head after section 3.
+runs_fp='[.total_count] + ([.check_runs[] | "\(.id):\(.status):\(.conclusion)"] | sort) | map(tostring) | join(" ")'
+if [[ -n "${runs_json:-}" ]]; then
+  if final_runs="$(api "commits/$head_sha/check-runs?per_page=100")" \
+     && a="$(jq -r "$runs_fp" <<<"$runs_json" 2>/dev/null)" \
+     && b="$(jq -r "$runs_fp" <<<"$final_runs" 2>/dev/null)"; then
+    [[ "$a" == "$b" ]] || block "check runs changed on ${head_sha:0:7} during this run; run again"
+  else
+    block "could not re-read check runs for ${head_sha:0:7} at the end of the run"
+  fi
 fi
 
 # ── Verdict ─────────────────────────────────────────────────────────────────
