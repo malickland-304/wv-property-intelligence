@@ -156,7 +156,7 @@ else
 fi
 
 # ── 4. Review threads (GraphQL, needs auth) ─────────────────────────────────
-THREADS_QUERY='query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviews{totalCount} reviewThreads(first:100){totalCount nodes{isResolved isOutdated path line comments(first:1){nodes{author{login} body}}}}}}}'
+THREADS_QUERY='query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviews(first:1){totalCount} reviewThreads(first:100){totalCount nodes{isResolved isOutdated path line comments(first:1){nodes{author{login} body}}}}}}}'
 owner="${REPO%%/*}"; name="${REPO##*/}"
 # Prints the GraphQL response, or nothing when no auth is available or the call fails.
 fetch_threads() {
