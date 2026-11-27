@@ -56,6 +56,31 @@ Independent re-review on this PR, then Phil runs `scripts/pr-readiness.sh`.
 
 ---
 
+## 2026-11-27 — Claude (#163: readiness script re-reads PR, checks, statuses, reviews, threads and VPS SHA at the end of a run)
+
+### Objective
+Close the "stale PR state" gap (Sourcery on #158; Sourcery and Codex on #163): the readiness verdict must not describe a PR state that changed while the script ran.
+
+### Changes Made
+- `scripts/pr-readiness.sh` — after the VPS step, re-read and compare:
+  - check runs on the head (id, status, conclusion);
+  - legacy commit statuses on the head (combined state, each context's state);
+  - reviews and review threads (review count, thread total, every unresolved non-outdated thread), via a new `fetch_threads()` used by both reads;
+  - the VPS SHA over SSH, when `EXPECT_VPS_SHA` is set and the first read was a valid SHA;
+  - last, the PR itself: head SHA, state, draft, mergeable, mergeable_state, base ref and base SHA (so a push during the other re-reads is caught).
+  GraphQL responses count as unreadable (UNKNOWN on the first read, blocker on the re-read) when they carry `errors`, a non-numeric review/thread count, fewer thread or review nodes than `totalCount` (up to 100); more than 100 reviews or threads blocks (verify by hand), or a thread without boolean `isResolved`/`isOutdated`. Review ids and states are compared, so a pending review submitted mid-run is caught. A status response without a `statuses` array blocks. The PR fingerprint keeps JSON types (`tojson`), so `true` vs `"true"` is a change.
+  Any change blocks with "… changed during this run; run again". A failed or malformed re-read blocks with "could not re-read …" (no `set -e` exit before the verdict). New text from GitHub goes through the `clean` filter.
+- `AGENTS.md` — the interim-gate sentence now lists what is re-read.
+
+### Verification (Truthfulness Rule applies)
+- `bash -n` OK; `scripts/preflight.sh` PRE-FLIGHT PASSED.
+- Stand-in `curl`/`gh` with recorded JSON, each ending in NOT READY with the matching blocker: head moved, base SHA moved, draft flipped, partial or errored GraphQL response, PR re-read returns junk, check run changed, commit status turned failing, new unresolved thread mid-run, new review with no inline comments, pending review submitted mid-run, short thread page (first read and re-read), string `isResolved`, status response without `statuses`, `draft` returned as a string, thread re-read returns junk, VPS SHA moved, VPS re-read fails. Unchanged run with a matching VPS SHA → `READY`, exit 0. Unchanged run adds no re-read blocker.
+
+### Remaining Risks
+The verdict still goes stale after the script exits (and between the last re-read and the printed verdict); re-run it immediately before merge and merge with an expected head SHA (AGENTS.md).
+
+---
+
 ## 2026-11-27 — Claude (Node 24 production deploy of `d86831a`, run by Phil)
 
 ### Objective
@@ -72,6 +97,11 @@ Deploy `main` @ `d86831a` (#155: Node 24 runtime and the hardened backup script)
    - The container came up `Up 20 seconds (healthy)`, and `node -v` → `v24.22.3`.
 4. **Backup script:** `install -m 700 -o root src/scripts/backup-db.sh backup-db.sh`, then `./backup-db.sh` → `backup ok file=wv_property-20261127T082555Z.db.gz` (`integrity ok`). `backups/` is `drwx------`, and the new `.db.gz` and `.sha256` files are `-rw-------`. This was the first run of the hardened script (exec as `1001:1001`) against the real container.
 
+5. **Accidental rollback, then redeploy (same day):** after step 4 the rollback block was run by mistake, which put production back on `f17d187` (Node 20). The site stayed up, and the hardened backup script stayed installed. Phil then asked to redeploy ("No, redeploy d86831a") and ran:
+   - `./backup-db.sh` → `backup ok file=wv_property-20261127T214329Z.db.gz` (`integrity ok`; properties 2, contacts 4, counties 55);
+   - `git -C src checkout --detach d86831a…`, then `docker compose build && docker compose up -d`. Every build layer was cached, so this is the same image as the morning build (`image_created=2026-11-27T08:23:49Z`);
+   - result: `Up 20 seconds (healthy)`, `node -v` → `v24.22.3`. The rollback file still holds `f17d187`.
+
 ### Changes Made (repo, this PR)
 - `PROJECT_STATE.md`:
   - **Production deploy, DB backups, Runtime Node version and Dependency advisories rows:** updated to the proven state.
@@ -80,12 +110,13 @@ Deploy `main` @ `d86831a` (#155: Node 24 runtime and the hardened backup script)
 - `WORK_LOG.md`: this entry.
 
 ### Verification (Truthfulness Rule applies)
-- `EXPECTED_SHA=d86831ad85e7b66aad7fca41bdbf3ea97d2a968b bash scripts/verify-vps-prod.sh`, run by Phil from his Mac → `VPS production verified`:
+- `EXPECTED_SHA=d86831ad85e7b66aad7fca41bdbf3ea97d2a968b bash scripts/verify-vps-prod.sh`, run by Phil from his Mac after the first deploy **and again after the redeploy** (21:44 UTC) → `VPS production verified` both times:
   - `dns_ip=31.97.58.203`;
   - `remote_sha=d86831a…`;
   - `container=running healthy`;
   - production smoke passed (listings disabled and gated).
-- **Public read-only smoke, run by Claude after the deploy:**
+- The second proof also showed `image=2d64c675…` (created 08:23:49Z), `container=running healthy` and `/api/config` → `listingsEnabled:false`.
+- **Public read-only smoke, run by Claude after the deploy and again after the redeploy** (the second run skipped `/listings` and `/privacy`):
   - `/api/health`, `/api/config`, `/api/properties?limit=2` (DB-backed, so `better-sqlite3` loads on Node 24), `/`, `/37-advent`, `/search` and `/start` → 200;
   - `/admin` and `/listings` → 302;
   - the brokerage disclosure (`Sheila Judy`) is present on `/`, `/37-advent`, `/search` and `/start`;
@@ -107,7 +138,7 @@ Choose an off-host backup destination. Merge #164 (admin login hardening) after 
 
 ```
 Done: d86831a (Node 24 + hardened backup) live on the VPS, proven
-Verified by: verify-vps-prod.sh (Phil), node -v v24.22.3, public smoke, backup ok with the new script
+Verified by: verify-vps-prod.sh (Phil, after the deploy and after the redeploy), node -v v24.22.3, public smoke, backup ok with the new script
 Remaining risk: off-host backups; npm allowScripts behaviour in future npm
 Next owner: Phil
 Next action: off-host backup destination; #164 readiness; #165 wording
@@ -301,6 +332,45 @@ Approval needed: Phil to merge; Phil to approve any deploy (not requested here)
 
 ---
 
+## 2026-11-18 — Claude (admin login hardening)
+
+### Objective
+Close two small admin-auth weak points found in the 2026-11-18 product review.
+
+### Changes Made
+- `api/middleware/auth.js` — new `safeEqual()` (SHA-256 both sides, then `crypto.timingSafeEqual`). `requireApiKey` uses it instead of `!==`.
+- `api/routes/admin.js` — `POST /admin/login` compares with `safeEqual` and calls `req.session.regenerate()` before setting `admin`, so a session id planted before login is never the one that becomes authenticated (session fixation).
+- `tests/admin-auth.test.js` (new) — real HTTP on a temp DB: wrong password, correct login, new session id on login with the old id retired, API key right/wrong/different length. Added to `scripts/preflight.sh`.
+
+### Verification (Truthfulness Rule applies)
+- `node --check` on server.js, middleware/auth.js, routes/{admin,api,public}.js → PASSED
+- `node tests/admin-auth.test.js` → 5 passed. Break-it: with `regenerate` removed, the session-id test fails (4/1); restored.
+- `admin-document-review` 9/9, `http-smoke` 14/14, `upload-e2e` 5 PASS, `verify-security-fixes` PASSED (Node 22 locally).
+- `bash scripts/preflight.sh` itself NOT run locally (sandbox); CI preflight is the proof.
+
+### Security Notes
+No new dependencies, env changes or schema changes.
+
+**Correction (independent review, same day):** I first wrote that "regeneration does not break forms". That was wrong. CSRF tokens are bound to `req.sessionID`, and `csrf-csrf` `generateToken` throws by default when the browser still holds a `csrf_token` cookie hashed for a different session id. So:
+- logging in again after visiting `/admin` returned **403 on `/admin`**. That was a regression from `regenerate()`.
+- logout then login already returned 403 on `main`, from the same cause.
+
+Fix: `csrfToken()` in `api/middleware/auth.js` now calls `req.csrfToken(false, false)`, so a stale cookie is replaced instead of throwing. `doubleCsrfProtection` re-defines `req.csrfToken` on every admin request, which is why the arguments are passed there and not in a wrapper in `server.js`. POST validation is unchanged.
+
+`safeEqual` no longer hashes. CodeQL flagged SHA-256 of a password, a false positive here but noise. It now does a length check plus `timingSafeEqual`; only the secret's length can be inferred from timing.
+
+**Follow-up verification:**
+- `admin-auth` 7/7. The 2 new cookie-jar tests (re-login, and logout then login, each keeping both cookies) fail without the fix (5 passed, 2 failed).
+- `admin-document-review` 9/9, `upload-e2e` PASS, `verify-security-fixes` PASSED, `http-smoke` 14/14 from a path with no dot-directory.
+
+### Remaining Risks
+Single shared admin password, no 2FA. An IP allowlist or basic auth for `/admin` at Traefik would be the next layer (VPS config, Phil).
+
+### Recommended Next Task
+Privacy policy and SMS terms pages (wording needs Phil/broker approval).
+
+---
+
 ## 2026-11-16 — Claude (dependency advisories)
 
 ### Objective
@@ -434,6 +504,67 @@ No new dependencies. Secret read from env at send time only; never in the DB or 
 ### Recommended Next Task
 Phil: review and merge PR #153 first, then this PR; deploy both together (manual, VPS). After deploy, confirm `[Startup] Inquiry outbox: 0 pending, 0 failed` in the container log and send one test lead.
 
+---
+
+## 2026-11-16 — Claude (wiki sync after #159)
+
+### Objective
+Phil asked to check the auto-merged PRs (#153, #157, #159). Code on `main` @ `32b41d8` checked out clean (tree equals the tested #159 head; CI 6/6 green; every test passes). `/docs-lint` found the one wiki page stale because #159 changed `api/routes/public.js`.
+
+### Changes Made
+- `docs/operations/dependency-maintenance.md` — dot-directory trap rewritten as the rule that keeps #159's fix (`res.sendFile` with `{ root: APP_DIR }`), citations moved to `api/routes/public.js:50/182/210`, `verified_at` → `32b41d8`.
+- `.claude/scripts/docs-lint.py` — extensionless citations (`Dockerfile`, ...) need a directory or `:line`; bare names in prose were reported as missing files.
+- `docs/log.md` — sync entry.
+
+### Verification (Truthfulness Rule applies)
+- `python3 .claude/scripts/docs-lint.py --root .` → page not stale, no false "cited file not found" notes; the 10 governance-file findings remain (expected, documented).
+- Throwaway repo: `Dockerfile:9` in a 1-line file still reported; a bare `` `Dockerfile` `` in prose no longer is.
+- No code change; code tests not re-run for this PR (main's suite was run at `32b41d8`: all pass).
+
+### Remaining Risks
+None.
+
+---
+
+## 2026-11-16 — Claude (pr-readiness.sh: fixes from the independent review of #158)
+
+### Objective
+Fix the findings from the independent post-merge review of #158. #158 merged with its 9 bot threads resolved without a code change. Phil approved opening this fix PR ("Yes, open fix PR").
+
+### Changes Made
+- `scripts/pr-readiness.sh`:
+  - **Head SHA.** Both SHAs must be full 40-character SHAs, compared exactly (was a 7-char prefix match). A missing expected SHA is now a blocking fact (was listed under "Verified:").
+  - **VPS.** Without `EXPECT_VPS_SHA`, the VPS goes under a new "Not checked:" section instead of "Verified:". With it set, non-SHA output from SSH also blocks.
+  - **Control characters.** Every author- or commenter-controlled string (check-run names and conclusions, head/base ref, review path, login, comment excerpt) passes through a jq `clean` that replaces C0/C1 control characters with `?`. This blocks the terminal-redraw attack reproduced in the review.
+  - **Token.** `GITHUB_TOKEN` is passed to curl on stdin (`-H @-`), no longer in argv. `VPS_SRC` is quoted with `printf %q` for the remote shell.
+- `AGENTS.md` — "When Codex is unavailable" now matches the script: full SHAs, missing SHA blocks, VPS checked only with `EXPECT_VPS_SHA` (otherwise "Not checked:" and Phil confirms), control-character stripping. Phil merges only with any "Not checked:" line confirmed.
+
+### Verification (Truthfulness Rule applies)
+- `/bin/bash -n scripts/pr-readiness.sh` (bash 3.2.57) → OK. shellcheck is not installed here → NOT RUN.
+- Fixture runs (stand-in `curl`, `gh` and `ssh` on PATH, recorded JSON):
+  - all green + full SHA → READY, exit 0, with the VPS under "Not checked:";
+  - no expected SHA → NOT READY; short SHA → exit 2; SHA mismatch → NOT READY;
+  - check-run name and review comment carrying ESC/CSI/BEL and U+009B → 0 output lines with C0 or C1 control bytes, Unicode text kept;
+  - the token appeared 0 times in curl argv and 8 times on its stdin;
+  - VPS match → READY; mismatch → blocks; garbage output → blocks; ssh unreachable → blocks;
+  - `VPS_SRC="/srv/a'b; touch /tmp/pwn"` reaches the remote shell as one path argument.
+- Live from the sandbox: `pr-readiness.sh 160 4c64d04…` → NOT READY. The real blockers were a head mismatch (#160 had moved to `3e79a08`) and threads UNKNOWN (no GraphQL auth). Merge clean, 9/9 checks green.
+- NOT RUN: an authenticated GraphQL call (Phil's terminal).
+
+### Security Notes
+Read-only against GitHub, as before. No secret is printed or placed in argv.
+
+### Follow-up commit: the independent review of #162 (3 non-blocking comments, all applied)
+- **Bidi/zero-width characters.** `clean` also replaces U+200B–U+200F, U+2028–U+202E, U+2066–U+206F and U+FEFF. Before, a head ref like `fix/<U+202E>evil` reached the "Verified:" line of a READY run unchanged.
+- **Partial READY.** With anything unchecked, the verdict line is `VERDICT: READY (GitHub conditions only; see "Not checked:")` and the exit code is **3**, so `&& gh pr merge` or a quoted first line can't treat it as a full READY. "Not checked:" now prints right after "Blocking facts:".
+- **Uppercase SHAs** are lowercased before validation instead of being rejected.
+- **Docs.** `AGENTS.md` documents exit codes 0/1/2/3 and either-case SHAs. `DECISIONS.md` 2026-11-16 gains a dated update line for the narrowed "fails closed".
+
+### Remaining Risks
+- With the VPS unchecked, READY still depends on Phil confirming the "Not checked:" line. This is stated in `AGENTS.md`; the script now signals it with exit code 3 but cannot enforce it.
+
+### Recommended Next Task
+Independent review of this PR by a session that did not write it (it touches `scripts/` and `AGENTS.md`). Then Phil runs the script on it from his terminal.
 
 ---
 

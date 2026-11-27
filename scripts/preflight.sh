@@ -45,6 +45,17 @@ node --check routes/admin.js
 echo "✓ Syntax OK"
 echo
 
+echo "== pr-readiness output sanitizer regression =="
+# The test runs the real jq filter, so jq is a preflight prerequisite (as it is for
+# scripts/pr-readiness.sh). Fail with a clear message instead of a Node ENOENT trace.
+if ! command -v jq >/dev/null 2>&1; then
+  echo "✗ jq is required for this check (macOS: brew install jq; Debian/Ubuntu: apt-get install jq)" >&2
+  exit 1
+fi
+node "$ROOT/tests/pr-readiness-clean.test.js"
+echo "✓ pr-readiness sanitizer OK"
+echo
+
 echo "== Public assistant flag regression =="
 node "$ROOT/tests/public-assistant-flag.test.js"
 echo "✓ Public assistant flag OK"
@@ -66,6 +77,7 @@ echo
 
 echo "== Admin document review smoke =="
 node "$ROOT/tests/admin-document-review.test.js"
+node "$ROOT/tests/admin-auth.test.js"
 echo "✓ Admin document review smoke OK"
 echo
 
