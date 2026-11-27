@@ -98,7 +98,7 @@ Agents **must not** substantially alter architecture, frameworks, database strat
 Agents that cannot satisfy all three conditions must stop, document the blocker in `WORK_LOG.md`, and select a different task.
 
 Stable foundations (do not redesign without the above):
-- Node.js 20 / Express 5 runtime
+- Node.js 24 / Express 5 runtime
 - SQLite via `better-sqlite3` (no PostgreSQL migration unless Phase 1 spec requires it)
 - `csrf-csrf` v3 double-submit CSRF protection
 - `express-session` + Bearer API key auth model
