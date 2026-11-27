@@ -13,7 +13,8 @@ Fix the independent review findings on #168 (review comment: https://github.com/
 ### Changes Made
 - `scripts/dev-server.sh`:
   - **`better-sqlite3` load check on every start (blocking finding).** #168 ran the check only after an install. A stamped install that later lost its native binding therefore skipped the check, and the server crashed. Now the check runs on every start. If it fails, the stamp is deleted and `npm ci` runs again;
-  - **credential-bearing npm URLs are not passed to `npm ci`.** `registry`, `proxy` and `https_proxy` values like `scheme://user:pass@host` (pattern `://[^/]*@`) are skipped. A warning names the variable without printing its value. An `@` in a path or query still passes.
+  - **credential-bearing npm URLs are not passed to `npm ci`.** `registry`, `proxy` and `https_proxy` values are skipped when the URL has userinfo in its authority (`scheme://user:pass@host`, pattern `^[A-Za-z][A-Za-z0-9+.-]*://[^/?#]*@`), or a `token`/`auth`/`pass`/`secret`/`key` parameter in its query string. An `@` in the path, query or fragment still passes. The warning names the variable without printing its value, and says to put the credential in `~/.npmrc` as `//<registry-host>/:_authToken=…` (or `:_auth`), not in the URL;
+  - the `base_env` comment says plainly that a credentialed `HTTP(S)_PROXY` reaches `npm ci`'s install scripts and the server.
 - `WORK_LOG.md`: in the #168 entry, the preflight line now cites the CI `verify` job, and a rollback note was added. This entry was added.
 
 ### Verification (Truthfulness Rule applies)
@@ -27,16 +28,20 @@ Every run used a fresh `git archive` copy of `1e6207a` at a path containing a sp
   - previous version (`6a1c94c`): it skipped the install, and the server crashed with `Could not locate the bindings file`;
   - new: it printed `better-sqlite3 does not load from the existing install; reinstalling`, ran `npm ci` (174 packages), and health returned 200.
 - **Plain restart (new):** no reinstall; health 200.
-- **Credential pattern under bash 3.2:** `https://u:p@reg.example/` and `http://user@proxy:8080` were skipped; `https://registry.npmjs.org/`, `http://proxy:8080`, `https://reg.example/@scope/` and `https://reg.example/x?a=b@c` passed.
+- **Credential patterns under bash 3.2** (after the Sourcery threads on #170):
+  - skipped: `https://u:p@reg.example/`, `http://user@proxy:8080`, `https://reg.example/?Access_Token=abc` and `https://reg.example/?apikey=1`;
+  - passed: `https://registry.npmjs.org/`, `http://proxy:8080`, `https://host?x=a@b`, `https://host#frag@x`, `https://host/path@scope/`, `https://reg.example/@scope/`, `https://reg.example/?page=2&sort=a` and `https://reg.example/#token=x`.
 - `bash -n` (bash 3.2.57) OK. `node --check` on the 5 AGENTS.md files OK. `node tests/verify-security-fixes.test.js` 60/60 passed.
 - `scripts/preflight.sh`: not run locally; the PR's CI `verify` job runs it.
 
 ### Security Notes
-`HTTP_PROXY`/`HTTPS_PROXY` (and lowercase forms) in the shared minimal environment are still passed to `npm ci` as-is, so a proxy URL with credentials in those variables reaches install scripts. That has been true since #167. It is left unchanged here because `npm ci` needs a working proxy behind one.
+- **A credentialed `HTTP_PROXY`/`HTTPS_PROXY` (or the lowercase forms) reaches `npm ci`'s dependency install scripts and the server.** These are passed as-is in the shared minimal environment, as they have been since #167. Filtering them would break installs behind an authenticated proxy, so they are left unchanged, and the script comment now says so.
+- **A credentialed registry URL in `~/.npmrc` is still exposed.** npm 10 exports `registry=https://user:pass@…` from `~/.npmrc` to lifecycle scripts as `npm_config_registry`. It does not export the per-host `//host/:_authToken`/`:_auth` keys (checked by the reviewer with npm 10.9.8). The warning points to the per-host keys for that reason.
 
 ### Remaining Risks
 - Each start now spends one extra Node process loading `better-sqlite3` (well under a second).
-- A credentialed registry or proxy set only in the environment is now ignored, so it has to move to `~/.npmrc`.
+- A credentialed registry or proxy URL set only in the environment is now ignored. Its credential has to move to a per-host auth key in `~/.npmrc`.
+- npm doesn't authenticate through registry query strings, so the query-parameter check only catches values that were never going to work as credentials. It's there to keep them out of install scripts.
 
 ### Rollback
 `git revert` the merge commit of this PR. Local dev only; nothing is deployed and no data changes.

@@ -87,7 +87,9 @@ trap cleanup EXIT
 
 # Minimal, explicit environment for `npm ci` (whose dependency install scripts
 # run code) and for the server: integration keys in the launching shell reach
-# neither.
+# neither. The proxy variables are passed as they are, because installs behind a
+# proxy need them. So a proxy URL with credentials in HTTP(S)_PROXY (or the
+# lowercase forms) does reach npm ci's install scripts and the server.
 base_env=(PATH="$PATH" HOME="$HOME")
 for v in TMPDIR USER LOGNAME SHELL TERM LANG LC_ALL TZ NO_COLOR FORCE_COLOR \
          HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy \
@@ -119,14 +121,20 @@ if [ "$need_install" = yes ]; then
   # Left out on purpose: auth (_auth*, *token*, *password*), because npm hands its
   # environment to dependency install scripts, and install-changing flags such
   # as ignore_scripts. For the same reason a registry or proxy URL with
-  # credentials in it (scheme://user:pass@host) is skipped, with a warning.
+  # credentials in it is skipped, with a warning: userinfo in the authority
+  # (scheme://user:pass@host; an @ in the path, query or fragment doesn't count),
+  # or a token/auth/password/secret/key parameter in the query string.
   npm_env=("${base_env[@]}")
-  cred_re='://[^/]*@'
+  cred_re='^[A-Za-z][A-Za-z0-9+.-]*://[^/?#]*@'
+  query_cred_re='[?&][^=&#]*(token|auth|pass|secret|key)[^=&#]*='
   for k in registry cache cafile strict_ssl proxy https_proxy noproxy prefer_offline fetch_retries; do
     for v in "npm_config_$k" "NPM_CONFIG_$(printf '%s' "$k" | tr '[:lower:]' '[:upper:]')"; do
       [ -n "${!v:-}" ] || continue
-      if [[ "${!v}" =~ $cred_re ]]; then
-        echo "dev-server: not passing $v to npm ci: its URL contains credentials, which install scripts could read. Set it in ~/.npmrc instead." >&2
+      lc="$(printf '%s' "${!v}" | tr '[:upper:]' '[:lower:]')"
+      if [[ "${!v}" =~ $cred_re ]] || [[ "$lc" =~ $query_cred_re ]]; then
+        # npm exports a registry URL from ~/.npmrc to install scripts too, but not
+        # the per-host auth keys, so that is where the credential belongs.
+        echo "dev-server: not passing $v to npm ci: its URL contains credentials, which install scripts could read. Put the credential in ~/.npmrc as //<registry-host>/:_authToken=... (or :_auth), not in the URL." >&2
         continue
       fi
       npm_env+=("$v=${!v}")
