@@ -101,7 +101,9 @@ WANT="$("$NODE" -p 'const c = require("crypto"), fs = require("fs");
    c.createHash("sha256").update(fs.readFileSync("api/package-lock.json")).digest("hex").slice(0, 16)].join("-")')"
 if [ ! -d api/node_modules ] || [ "$(cat "$STAMP" 2>/dev/null || true)" != "$WANT" ]; then
   echo "dev-server: installing api dependencies (npm ci) for this Node and lockfile..."
-  (cd api && env -i "${base_env[@]}" "$NODE_DIR/npm" ci --no-audit --no-fund)
+  npm_env=("${base_env[@]}")   # plus npm's own settings (registry, cache, auth)
+  for v in $(compgen -e | grep '^npm_config_' || true); do npm_env+=("$v=${!v}"); done
+  (cd api && env -i "${npm_env[@]}" "$NODE_DIR/npm" ci --no-audit --no-fund)
   echo "$WANT" > "$STAMP"
 fi
 
@@ -130,5 +132,13 @@ cleanup; trap - EXIT
 # Server: the same minimal environment plus PORT; everything else comes from api/.env.
 server_env=("${base_env[@]}" NODE_ENV=development DOTENV_CONFIG_QUIET=true)
 [ -n "${PORT:-}" ] && server_env+=("PORT=$PORT")
+# Relative DATABASE_PATH / LISTINGS_ROOT in api/.env (api/.env.example ships
+# ./database/...) have always meant "from the repo root". The server now runs
+# from api/, so pass them as absolute paths; the environment wins over --env-file.
+for v in DATABASE_PATH LISTINGS_ROOT; do
+  val="$(sed -n "s/^[[:space:]]*$v[[:space:]]*=[[:space:]]*//p" api/.env | tail -n 1 |
+         sed -e 's/[[:space:]]*$//' -e "s/^[\"']//" -e "s/[\"']\$//")"
+  case "$val" in ""|/*) ;; *) server_env+=("$v=$ROOT/${val#./}") ;; esac
+done
 cd api
 exec env -i "${server_env[@]}" "$NODE" --env-file=.env server.js
