@@ -150,7 +150,8 @@ async function main() {
 
     await test('wrong password shows the login error and grants no session', async () => {
       const res = await login(baseUrl, 'wrong-password');
-      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.status, 401);
+      assert.match(await res.text(), /Incorrect password/);
       assert.strictEqual(sessionCookie(res), null, 'a failed login must not create a session');
     });
 
@@ -200,6 +201,18 @@ async function main() {
       assert.strictEqual((await call('admin-auth-test-api-kez')).status, 401);
       assert.strictEqual((await call('x')).status, 401);
       assert.strictEqual((await fetch(`${baseUrl}/api/contacts`)).status, 401);
+    });
+
+    // Last: it uses up this IP's login allowance (10 failures per 15 min).
+    await test('wrong passwords count toward the login rate limit (429 by the 11th failure)', async () => {
+      let limited = false;
+      for (let i = 0; i < 11 && !limited; i++) {
+        const res = await login(baseUrl, `wrong-password-${i}`);
+        if (res.status === 429) limited = true;
+        else assert.strictEqual(res.status, 401);
+      }
+      assert(limited, 'failed logins must reach the rate limit');
+      assert.strictEqual((await login(baseUrl, ADMIN_PASSWORD)).status, 429, 'a locked-out IP is refused even with the right password');
     });
   } finally {
     if (server && server.exitCode == null) server.kill();
