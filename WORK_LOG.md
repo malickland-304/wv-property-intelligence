@@ -90,7 +90,7 @@ Every run used a fresh `git archive` copy at a path containing a space, started 
 - **Healthy path, new:** fresh installs with the poisoned environment created `api/.env` (mode 600), and `GET /api/health` returned 200. Startup reported Gmail, Resend, inquiry forward and customer auto-reply all `false`. A restart with the commented `DATABASE_PATH` skipped the install, and health returned 200.
 - **Node floor rule:** checked against version strings: 20.9.0 and 20.11.1 rejected; 20.12.0, 20.19.5, 22.0.0 and 24.14.1 accepted; 21.7.0 and 26.0.0 rejected.
 - `bash -n` under `/bin/bash` 3.2.57 → OK. `node --check` on the 5 AGENTS.md files → OK. `node tests/verify-security-fixes.test.js` → 60/60 passed.
-- `scripts/preflight.sh` → NOT RUN. The PR's CI preflight job is the check for it.
+- `scripts/preflight.sh` → not run locally. The CI job `verify` (`.github/workflows/preflight.yml`, Node 24) runs `./scripts/preflight.sh` and passed on `6a1c94c` (run 45964959631).
 - **Sandbox limits seen in testing, not caused by this change:**
   - Node can't read keychain trust settings in this sandbox, so `NODE_USE_SYSTEM_CA` fails. Test runs passed the keychain CAs as a PEM file through `NODE_EXTRA_CA_CERTS`, which the script already allowlists;
   - the sandbox proxy sometimes stalls the `better-sqlite3` prebuilt download (`prebuild-install warn install aborted`). It hit old and new alike, with any npm settings: old failed twice with `npm_config_registry` set, and new failed once with only `npm_config_cache`, then passed.
@@ -101,6 +101,9 @@ Install scripts now see fewer secrets. npm still reads the user's `~/.npmrc` (HO
 ### Remaining Risks
 - Node 20.9–20.11 users now need 20.12+, 22 or 24. Node 20 is past end of life, and production is on Node 24 since #155.
 - `proxy`/`https_proxy` values can embed proxy credentials. They pass through as `HTTPS_PROXY` already did.
+
+### Rollback
+`git revert` the merge commit of this PR. It touches only `scripts/dev-server.sh` (local dev) and this log; nothing is deployed and no data changes.
 
 ### Recommended Next Task
 Phil runs `scripts/pr-readiness.sh` on this PR once the independent review threads are answered.
