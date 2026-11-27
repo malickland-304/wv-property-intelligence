@@ -8,7 +8,8 @@ const { requireApiKey }   = require('../middleware/auth');
 const createDocumentsRouter = require('./documents');
 const { contactsRateLimit, publicReadRateLimit, generateDescRateLimit, apiWriteRateLimit } = require('../middleware/rate-limits');
 const { sendLeadNotification } = require('../services/email');
-const { isInquiryForwardConfigured, forwardInquiry } = require('../services/inquiryForward');
+const { isInquiryForwardConfigured, buildInquiryPayload } = require('../services/inquiryForward');
+const { enqueueInquiry, kickInquiryOutbox } = require('../services/inquiryOutbox');
 const { isValidEmail, normalizeAcreage, slugify, VALID_PROP_TYPES, VALID_PROP_STATUSES } = require('../helpers');
 const { publicListingsEnabled } = require('../featureFlags');
 
@@ -125,15 +126,27 @@ router.post('/contacts', contactsRateLimit, (req, res) => {
   if (!name || !email) return res.status(400).json({ error: 'Name and email required' });
   if (!isValidEmail(email)) return res.status(400).json({ error: 'Invalid email address' });
 
-  const result = db.prepare(
-    'INSERT INTO contacts (property_id,name,email,phone,message,source,attribution) VALUES (?,?,?,?,?,?,?)'
-  ).run(property_id||null, name, email, phone, combinedMessage, source, attribution ? JSON.stringify(attribution) : null);
-
   const property = property_id
     ? db.prepare(`SELECT p.id, p.address, p.city, c.name AS county
                   FROM properties p LEFT JOIN counties c ON c.id=p.county_id
                   WHERE p.id=?`).get(property_id)
     : null;
+
+  // Store the lead and, when the intake forward is configured, queue its copy
+  // for n8n in ONE transaction: either both are saved or neither is.
+  const forwardConfigured = isInquiryForwardConfigured();
+  const result = db.transaction(() => {
+    const inserted = db.prepare(
+      'INSERT INTO contacts (property_id,name,email,phone,message,source,attribution) VALUES (?,?,?,?,?,?,?)'
+    ).run(property_id||null, name, email, phone, combinedMessage, source, attribution ? JSON.stringify(attribution) : null);
+    if (forwardConfigured) {
+      enqueueInquiry(db, buildInquiryPayload(
+        { id: inserted.lastInsertRowid, name, email, phone, message: combinedMessage, source },
+        property
+      ));
+    }
+    return inserted;
+  })();
   sendLeadNotification({ name, email, phone, message: combinedMessage, source, attribution }, property)
     .then((sent) => {
       if (!sent) {
@@ -144,18 +157,9 @@ router.post('/contacts', contactsRateLimit, (req, res) => {
       console.error(`[Contacts] Lead #${result.lastInsertRowid} notification error:`, err && err.message ? err.message : err);
     });
 
-  // Best-effort copy to the n8n inquiry intake. The lead is already stored
-  // above; a failed forward is logged (id only, no PII) and never fails the request.
-  if (isInquiryForwardConfigured()) {
-    forwardInquiry(
-      { id: result.lastInsertRowid, name, email, phone, message: combinedMessage, source },
-      property
-    ).then((forwarded) => {
-      if (!forwarded) {
-        console.warn(`[Contacts] Lead #${result.lastInsertRowid} CAPTURED but NOT forwarded to inquiry intake.`);
-      }
-    });
-  }
+  // Deliver the queued copy to the n8n inquiry intake now. Failures are retried
+  // by the outbox worker and never fail this request.
+  if (forwardConfigured) kickInquiryOutbox();
 
   res.status(201).json({ id: result.lastInsertRowid });
 });

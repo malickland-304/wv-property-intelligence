@@ -309,6 +309,30 @@ if (db.prepare('SELECT COUNT(*) as c FROM counties').get().c === 0) {
   }
 }
 
+// Durable outbox for copies of captured leads sent to the n8n inquiry intake.
+// A row is written in the same transaction as the lead/contact, then delivered
+// (and retried with backoff) by services/inquiryOutbox.js. `payload` is the
+// exact JSON body n8n receives; the webhook secret is never stored here.
+// Times are ISO-8601 UTC strings so they compare correctly as text.
+function migrateInquiryOutbox(database) {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS inquiry_outbox (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      submission_id    TEXT NOT NULL UNIQUE,
+      payload          TEXT NOT NULL,
+      status           TEXT NOT NULL DEFAULT 'pending'
+                       CHECK (status IN ('pending','delivered','failed')),
+      attempts         INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      last_error_class TEXT,
+      created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      delivered_at     TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_inquiry_outbox_due ON inquiry_outbox(status, next_attempt_at);
+  `);
+}
+migrateInquiryOutbox(db);
+
 // ── Listing seed/migration: 37 Advent Dr ─────────────────
 {
   const hampshire = db.prepare("SELECT id FROM counties WHERE name='Hampshire'").get();
@@ -429,4 +453,4 @@ function pruneOldBackups() {
 setTimeout(runDbBackup, 10 * 60 * 1000);
 setInterval(runDbBackup, BACKUP_INTERVAL_MS);
 
-module.exports = { db, DB_PATH };
+module.exports = { db, DB_PATH, migrateInquiryOutbox };

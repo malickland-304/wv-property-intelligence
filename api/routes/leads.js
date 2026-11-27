@@ -12,7 +12,8 @@ const {
   sendLeadAutoReplyEmail,
 } = require('../services/leadNotifications');
 const { markFollowUpSent } = require('../services/leadFollowupWorker');
-const { isInquiryForwardConfigured, forwardInquiry } = require('../services/inquiryForward');
+const { isInquiryForwardConfigured, buildInquiryPayload } = require('../services/inquiryForward');
+const { enqueueInquiry, kickInquiryOutbox } = require('../services/inquiryOutbox');
 const {
   ADVENT_LISTING_SLUG,
   buildLeadSchedule,
@@ -43,7 +44,8 @@ function getPropertyBySlug(db, slug) {
   `).get(slug, slug);
 }
 
-function insertLead(db, lead, followUps) {
+// outboxPayload (optional): the n8n intake copy, queued in the same transaction.
+function insertLead(db, lead, followUps, outboxPayload = null) {
   if (!db) return;
 
   const insertLeadStmt = db.prepare(`
@@ -96,7 +98,24 @@ function insertLead(db, lead, followUps) {
       buildAdminLeadMessage(lead),
       lead.source || 'property-lead'
     );
+
+    if (outboxPayload) enqueueInquiry(db, outboxPayload);
   })();
+}
+
+// The copy n8n receives. submission_id is stable per lead so retries are replays.
+function buildLeadInquiryPayload(lead) {
+  return buildInquiryPayload({
+    submission_id: `malickland-lead-${lead.lead_id}`,
+    name: lead.name,
+    email: lead.email,
+    phone: lead.phone,
+    message: buildAdminLeadMessage(lead),
+    source: lead.source,
+    location: lead.property_address,
+    need_type: lead.buyer_type || lead.lead_type,
+    consent_sms: Boolean(lead.sms_consent),
+  }, null);
 }
 
 async function handleLeadCapture({ payload, property, db, appendFn }) {
@@ -127,8 +146,11 @@ async function handleLeadCapture({ payload, property, db, appendFn }) {
     console.error('[Leads] Failed to append lead:', error.message);
   }
 
+  // Copy for the n8n inquiry intake (drafts a reply for Phil to review),
+  // queued atomically with the lead and delivered/retried by the outbox worker.
+  const forwardConfigured = Boolean(db) && isInquiryForwardConfigured();
   try {
-    insertLead(db, lead, followUps);
+    insertLead(db, lead, followUps, forwardConfigured ? buildLeadInquiryPayload(lead) : null);
   } catch (error) {
     console.error('[Leads] Failed to persist lead locally:', error.message);
     return { status: 500, body: { error: 'Lead capture failed. Please try again.' } };
@@ -143,26 +165,9 @@ async function handleLeadCapture({ payload, property, db, appendFn }) {
     })
     .catch(() => {});
 
-  // Best-effort copy to the n8n inquiry intake, which drafts a reply for Phil
-  // to review. The lead is already stored above; a failed forward is logged
-  // (id only, no PII) and never fails the request.
-  if (isInquiryForwardConfigured()) {
-    forwardInquiry({
-      submission_id: `malickland-lead-${lead.lead_id}`,
-      name: lead.name,
-      email: lead.email,
-      phone: lead.phone,
-      message: buildAdminLeadMessage(lead),
-      source: lead.source,
-      location: lead.property_address,
-      need_type: lead.buyer_type || lead.lead_type,
-      consent_sms: Boolean(lead.sms_consent),
-    }).then((forwarded) => {
-      if (!forwarded) {
-        console.warn(`[Leads] Lead ${lead.lead_id} CAPTURED but NOT forwarded to inquiry intake.`);
-      }
-    });
-  }
+  // Deliver the queued copy now; failures are retried by the outbox worker
+  // and never fail this request.
+  if (forwardConfigured) kickInquiryOutbox();
 
   return {
     status: 201,
@@ -232,3 +237,6 @@ function createLeadsRouter({ db } = {}) {
 }
 
 module.exports = createLeadsRouter;
+// Exposed for tests (tests/inquiry-outbox.test.js).
+module.exports.insertLead = insertLead;
+module.exports.buildLeadInquiryPayload = buildLeadInquiryPayload;

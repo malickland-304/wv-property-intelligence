@@ -5,6 +5,383 @@
 
 ---
 
+## 2026-11-27 — Claude (Node 24 production deploy of `d86831a`, run by Phil)
+
+### Objective
+Deploy `main` @ `d86831a` (#155: Node 24 runtime and the hardened backup script) to the Hostinger VPS, with a pre-deploy DB backup, a recorded rollback SHA, and production proof. Phil approved the deploy in chat ("deploy d86831a to the VPS") and ran every command himself over SSH. The agent sandbox can't SSH, and the Hostinger API returned 401 "Unauthenticated".
+
+### Changes Made (on the VPS, by Phil)
+1. **Checked state before deploying:** src @ `f17d187`; container Node `v20.20.2`. `/etc/cron.d/wv-db-backup` and `backup-db.sh` exist, and `/var/log/wv-db-backup.log` showed nightly `backup ok` (`integrity ok`) on 2026-11-25, 26 and 27.
+2. **Rollback SHA and pre-deploy backup:**
+   - `f17d187` written to `rollback-sha-2026-11-27.txt`;
+   - the old script copied to `backup-db.sh.pre-d86831a`;
+   - `./backup-db.sh` → `backup ok file=wv_property-20261127T082252Z.db.gz` (`integrity ok`; properties 2, contacts 4, counties 55).
+3. **Deploy:** `git -C src fetch origin && git -C src checkout --detach d86831a…`, then `docker compose build && docker compose up -d`.
+   - The image built on `node:24-bookworm-slim`, and `npm ci --omit=dev` reported "found 0 vulnerabilities".
+   - The container came up `Up 20 seconds (healthy)`, and `node -v` → `v24.22.3`.
+4. **Backup script:** `install -m 700 -o root src/scripts/backup-db.sh backup-db.sh`, then `./backup-db.sh` → `backup ok file=wv_property-20261127T082555Z.db.gz` (`integrity ok`). `backups/` is `drwx------`, and the new `.db.gz` and `.sha256` files are `-rw-------`. This was the first run of the hardened script (exec as `1001:1001`) against the real container.
+
+### Changes Made (repo, this PR)
+- `PROJECT_STATE.md`:
+  - **Production deploy, DB backups, Runtime Node version and Dependency advisories rows:** updated to the proven state.
+  - **Closed gates:** the Node 24 runtime deploy, the #153 deploy, and the `12d255d` SHA-proof gate (superseded).
+  - **Backup gate:** narrowed to the off-host copy plus alerting.
+- `WORK_LOG.md`: this entry.
+
+### Verification (Truthfulness Rule applies)
+- `EXPECTED_SHA=d86831ad85e7b66aad7fca41bdbf3ea97d2a968b bash scripts/verify-vps-prod.sh`, run by Phil from his Mac → `VPS production verified`:
+  - `dns_ip=31.97.58.203`;
+  - `remote_sha=d86831a…`;
+  - `container=running healthy`;
+  - production smoke passed (listings disabled and gated).
+- **Public read-only smoke, run by Claude after the deploy:**
+  - `/api/health`, `/api/config`, `/api/properties?limit=2` (DB-backed, so `better-sqlite3` loads on Node 24), `/`, `/37-advent`, `/search` and `/start` → 200;
+  - `/admin` and `/listings` → 302;
+  - the brokerage disclosure (`Sheila Judy`) is present on `/`, `/37-advent`, `/search` and `/start`;
+  - `/privacy` → 404 (expected until #165).
+- **NOT run:** a `POST /api/contacts` test lead. It would reach the live intake sheet and need cleanup, and was skipped by choice. The notification path is still unverified (Resend domain not verified).
+
+### Security Notes
+- No secrets were printed. The deploy used SSH from Phil's Mac.
+- If port 22 was opened in the Hostinger firewall for this deploy, it should be closed again (`web-ssh-only` group).
+- Pre-existing backups made by the old script were `-rw-r--r--`, but `backups/` is now 700, so other accounts can't reach them.
+
+### Remaining Risks
+- **npm 11.19** warns that `better-sqlite3`'s install scripts are "not yet covered by allowScripts". They still ran this time. If a later npm blocks them by default, image builds would ship without the native driver, so the Dockerfile would then need an explicit approval.
+- **Off-host backup copy and backup failure alerting:** still open.
+- **Rollback:** rebuild `f17d187` (Node 20 Dockerfile) with `git -C src checkout --detach "$(cat rollback-sha-2026-11-27.txt)"` and then `docker compose build && docker compose up -d`.
+
+### Recommended Next Task
+Choose an off-host backup destination. Merge #164 (admin login hardening) after Phil's readiness run. Have Phil and Sheila approve the #165 privacy/terms wording.
+
+```
+Done: d86831a (Node 24 + hardened backup) live on the VPS, proven
+Verified by: verify-vps-prod.sh (Phil), node -v v24.22.3, public smoke, backup ok with the new script
+Remaining risk: off-host backups; npm allowScripts behaviour in future npm
+Next owner: Phil
+Next action: off-host backup destination; #164 readiness; #165 wording
+Approval needed: none for this docs PR beyond the normal merge
+```
+
+---
+
+## 2026-11-27 — Claude (dev-server follow-ups to Codex threads on PR #167)
+
+### Objective
+Fix three P2 findings Codex posted on PR #167 about three minutes after it merged. `scripts/dev-server.sh` is local-dev tooling only; nothing is deployed.
+
+### Changes Made
+- `scripts/dev-server.sh`:
+  - **npm settings for `npm ci` are allowlisted.** Before, every exported `npm_config_*` was passed into the `env -i` install, so a secret such as `npm_config__authToken` reached dependency install scripts. Now only `registry`, `cache`, `cafile`, `strict_ssl`, `proxy`, `https_proxy`, `noproxy`, `prefer_offline` and `fetch_retries` pass, in lowercase or uppercase form. Auth values (`_auth*`, `*token*`, `*password*`) and `ignore_scripts` stay out;
+  - **relative `DATABASE_PATH`/`LISTINGS_ROOT` are read with Node's own `.env` rules.** The old `sed` kept an inline `# comment` that `--env-file` strips, so the server got a different path. The value is now read with `util.parseEnv`, the parser behind `--env-file`; Node also strips `#` without a leading space (`./a#b` becomes `./a`). `util.parseEnv` needs Node 20.12+, so the Node 20 floor went from 20.9 to 20.12. 22 and 24 are unchanged;
+  - **the install stamp is written only after `better-sqlite3` loads.** `npm ci` can succeed while skipping native builds (for example `ignore-scripts=true` in `~/.npmrc`). Before, the stamp was still written, so later starts never reinstalled. Now the script runs `require('better-sqlite3')(':memory:').close()` after `npm ci`, and on failure exits with a clear message and no stamp.
+
+### Verification (Truthfulness Rule applies)
+Every run used a fresh `git archive` copy at a path containing a space, started from `cwd=/` under `/bin/bash` 3.2. Each used Node 22 (`DEV_NODE`, fnm v22.22.3), an empty `npm_config_cache` per run, and a poisoned environment (`RESEND_API_KEY`, `INQUIRY_WEBHOOK_URL`/`SECRET`). `DEV_NODE` pointed at a folder whose `npm` wrapper recorded the environment `npm ci` received. Old = `origin/main` (`1a9f036`, then `d86831a`; `dev-server.sh` is the same in both), new = this branch.
+- **Fix 1, npm settings:**
+  - old: `npm ci` received `npm_config__authToken` and `npm_config_ignore_scripts`;
+  - new: with `npm_config__authToken`, `NPM_CONFIG_PASSWORD` and `npm_config_ignore_scripts` also exported, `npm ci` received only `npm_config_cache`, `npm_config_registry` and `NPM_CONFIG_FETCH_RETRIES`.
+- **Fix 2, `DATABASE_PATH=./database/dev.db # local copy` in `api/.env`:**
+  - old: the server created `database/dev.db # local copy`;
+  - new: the server created `database/dev.db`.
+- **Fix 3, install that skipped native builds:**
+  - old, `npm_config_ignore_scripts=true`: `npm ci` added 174 packages, the stamp was written, and the server crashed (`Could not locate the bindings file`). The next start without the flag skipped the install and crashed again;
+  - new, `ignore-scripts=true` in `~/.npmrc` (the env var no longer gets through): `npm ci` added 174 packages, then the script exited 1 with `better-sqlite3 does not load … Install not recorded`, and no stamp was written.
+- **Healthy path, new:** fresh installs with the poisoned environment created `api/.env` (mode 600), and `GET /api/health` returned 200. Startup reported Gmail, Resend, inquiry forward and customer auto-reply all `false`. A restart with the commented `DATABASE_PATH` skipped the install, and health returned 200.
+- **Node floor rule:** checked against version strings: 20.9.0 and 20.11.1 rejected; 20.12.0, 20.19.5, 22.0.0 and 24.14.1 accepted; 21.7.0 and 26.0.0 rejected.
+- `bash -n` under `/bin/bash` 3.2.57 → OK. `node --check` on the 5 AGENTS.md files → OK. `node tests/verify-security-fixes.test.js` → 60/60 passed.
+- `scripts/preflight.sh` → NOT RUN. The PR's CI preflight job is the check for it.
+- **Sandbox limits seen in testing, not caused by this change:**
+  - Node can't read keychain trust settings in this sandbox, so `NODE_USE_SYSTEM_CA` fails. Test runs passed the keychain CAs as a PEM file through `NODE_EXTRA_CA_CERTS`, which the script already allowlists;
+  - the sandbox proxy sometimes stalls the `better-sqlite3` prebuilt download (`prebuild-install warn install aborted`). It hit old and new alike, with any npm settings: old failed twice with `npm_config_registry` set, and new failed once with only `npm_config_cache`, then passed.
+
+### Security Notes
+Install scripts now see fewer secrets. npm still reads the user's `~/.npmrc` (HOME is passed so the cache and config work), so an auth token kept there is unchanged by this PR.
+
+### Remaining Risks
+- Node 20.9–20.11 users now need 20.12+, 22 or 24. Node 20 is past end of life, and production is on Node 24 since #155.
+- `proxy`/`https_proxy` values can embed proxy credentials. They pass through as `HTTPS_PROXY` already did.
+
+### Recommended Next Task
+Phil runs `scripts/pr-readiness.sh` on this PR once the independent review threads are answered.
+
+---
+
+## 2026-11-27 — Claude (dev server that sets itself up in any checkout, PR #167)
+
+### Objective
+The preview dev server kept failing in new Claude Code sessions. Each session gets a fresh worktree with no `api/node_modules` and no `api/.env` (gitignored), and Homebrew's Node is now 26, which has no prebuilt `better-sqlite3`.
+
+### Changes Made
+- `scripts/dev-server.sh` (new):
+  - picks Node 24, then 22, then 20.9+ (20.6 added `--env-file`; the locked `sharp` needs 20.9). Candidates are `/usr/local/bin/node`, Homebrew `node@N` under `/opt/homebrew` and `/usr/local`, fnm, nvm, then `PATH`. An invalid `DEV_NODE` override is an error, not a silent fallback;
+  - runs `npm ci` with that Node's npm when `api/node_modules` is missing, or the stamp (`api/node_modules/.dev-install-stamp`: Node ABI, platform, arch and a `package-lock.json` hash) differs. The stamp is written only after a successful install;
+  - takes a per-checkout lock (in `$TMPDIR`) around setup, so two first starts don't run `npm ci` into the same folder. A stale lock is taken over under a second lock with a PID re-check, so two waiters can't both remove it;
+  - creates a mode-600 `api/.env` with random local-only secrets when none exists. It writes a temp file, checks every value is non-empty, then renames it into place, so `api/.env` is never left half written. The temp name `api/.env.tmp.*` is gitignored. An existing `api/.env` is never touched;
+  - runs `npm ci` under `env -i` with a minimal environment (including the proxy and CA settings such as `NODE_USE_SYSTEM_CA`, so prebuilt downloads work behind a proxy) plus `npm_config_*`, so dependency install scripts never see integration keys;
+  - a relative `DATABASE_PATH` or `LISTINGS_ROOT` in `api/.env` (the `.env.example` value is `./database/...`) still resolves from the repo root, as before; the script passes it as an absolute path;
+  - starts `api/server.js` from `api/` with `env -i` and an explicit minimal environment: PATH, HOME, PORT, locale and proxy basics, plus `NODE_ENV=development`. Integration keys exported in the launching shell, or a root `.env`, never reach the server: only `api/.env` configures it.
+- `.claude/launch.json`: runs `bash scripts/dev-server.sh` instead of a fixed Node path.
+
+### Verification (Truthfulness Rule applies)
+All runs below used a fresh copy of the branch at a path containing a space, started from `cwd=/`. Node 22 (`DEV_NODE`) unless noted.
+- `bash -n` → OK.
+- **Invalid `DEV_NODE`** (Node 26) → exits 1 with a clear message.
+- **First start, poisoned environment:**
+  - inherited `NODE_ENV=production`, `INQUIRY_WEBHOOK_URL`/`SECRET`, `RESEND_API_KEY`, `GOOGLE_REFRESH_TOKEN`, and a root `.env` with fake integration values;
+  - result: installed, created `api/.env` (600, all 3 secrets non-empty), and `/api/health`, `/`, `/search`, `/37-advent` and `/start` returned 200 on the preset `PORT`;
+  - startup reported Gmail, Resend and inquiry forward all **off**, and the request log used dev format (`NODE_ENV` was not production).
+- **Two simultaneous starts after forcing a reinstall:** the second waited for the lock, the first ran `npm ci`, and both came up healthy. `api/.env` was unchanged.
+- **Restart with the same Node and lockfile:** no reinstall, health 200.
+- **AGENTS.md validation on the copy:**
+  - `node --check` on all 5 files → OK;
+  - `tests/verify-security-fixes.test.js` → 60/60;
+  - `scripts/preflight.sh` → PASSED. It ran from a copy whose `mktemp -d` pointed at a sandbox-writable folder; the sandbox blocks the default temp folder.
+  - `api/package-lock.json` was byte-identical after `npm ci`.
+- **Node 24 (`/usr/local/bin/node` v24.14.1), outside the sandbox:** Phil ran `bash scripts/dev-server.sh` at `6c1bc60` in his own terminal. It picked Node 24, `npm ci` took 3 s, and the server started on :3000. That was the earlier version of the script, and the current version was not re-run on Node 24. Inside the agent sandbox, Node 24's npm can't download the prebuilt (keychain block): a sandbox limit.
+
+### Remaining Risks
+- The first start in a fresh checkout needs network access for `npm ci` and takes about 10–30 s.
+- Production and CI still run Node 20 until #155 merges, so local dev prefers Node 24 ahead of that change.
+
+---
+
+## 2026-11-18 — Claude (#155 review threads: backup script hardening)
+
+### Changes Made
+- `scripts/backup-db.sh`, in three rounds (Sourcery/Codex threads, then the independent review, then two Codex P2 threads on `98c3e83`, fixed 2026-11-27):
+  - **Scope comment in the header:** database-level incidents only, because the copies stay on the same VPS. The first round claimed this but the edit had been dropped; the independent review caught it.
+  - **One run at a time:** `flock` on the backup folder itself (root-owned, 700), not on a file in the world-writable `/run/lock`. The container temp file sits next to the database and its name includes the PID.
+  - **Database path:**
+    - read with a `docker inspect` template that prints only `DATABASE_PATH`, so no other container env (secrets) reaches the shell;
+    - fails if a pinned `DB_PATH` differs;
+    - fails instead of guessing when the container sets none.
+  - **Backup folder:** refuses a symlinked or foreign-owned folder and forces it to 700. Files are set to 600.
+  - **Checksum:** written to a `mktemp` file and renamed into place.
+  - **Failures:** an EXIT trap removes leftover temp files and logs a single timestamped `backup FAILED` line for any failure, including steps that fail through `set -e`.
+  - The install line now uses `install -m 700 -o root` and says to reinstall after deploys.
+  - **Round 3 (Codex P2 threads `PRRT_kwDORme_NM65GYx4` and `PRRT_kwDORme_NM65GYyH`, confirmed by the independent review session):**
+    - the `DB_PATH` mismatch failure now logs a fixed message without either path, because `DATABASE_PATH` is on the never-print list in `AGENTS.md` and the message goes to `/var/log/wv-db-backup.log`;
+    - both `docker exec` calls (the node backup and the cleanup `rm -f`) run as `-u 1001:1001` (`appuser:appgroup`, `api/Dockerfile`). Before, they ran as container root while writing a temp file with a predictable name into the data folder, which `appuser` owns; a symlink planted there could have pointed a root write anywhere in the container;
+    - found while re-running the dry runs: the cleanup removed only the temp `.db`. The copy inherits WAL mode, so opening it read-only for the integrity check leaves `-wal` and `-shm` side files, and every run would have left two files in the data folder. Cleanup now removes all three.
+- `DECISIONS.md`:
+  - 2026-09-30: acknowledges the existing in-app daily backup (`api/db.js`): same volume, not integrity-checked;
+  - Node 24 entry: `sharp` 0.35.x.
+- `PROJECT_STATE.md`: the backup gate now says to copy the merged script over the cron copy and run it once. A deploy does not update the cron copy.
+- `WORK_LOG.md`: restored the closing fence and separator that my `f7e9715` merge dropped. The fence count is now even (8).
+
+### Verification (Truthfulness Rule applies)
+- `bash -n` → OK.
+- Dry runs on macOS, with shims for docker, flock, `stat -c` and sha256sum:
+  - success: folder 700, `.db.gz` and `.sha256` 600, one `backup ok` line;
+  - mismatched `DB_PATH` → exit 1, one FAILED line;
+  - no `DATABASE_PATH` → exit 1;
+  - integrity_check failure → exit 1, one FAILED line, no files left;
+  - symlinked folder → exit 1 (first round).
+- Round 3 (2026-11-27, macOS arm64, Node v24.14.1, shims for docker, flock, `stat -c` and sha256sum; the docker shim runs the script's real better-sqlite3 code against a WAL-mode fixture DB and records every call):
+  - `bash -n` → OK;
+  - success → exit 0, one `backup ok` line, folder 700, `.db.gz` and `.sha256` 600, `shasum -c` OK, both `docker exec` calls carry `-u 1001:1001`, no temp files left;
+  - pinned `DB_PATH` that matches → exit 0;
+  - mismatched `DB_PATH` → exit 1, one FAILED line with no path in it;
+  - no `DATABASE_PATH` → exit 1;
+  - integrity_check failure → exit 1, one FAILED line, no new backup files, no temp files left (before this round: `-wal` and `-shm` were left);
+  - symlinked folder → exit 1, nothing written through the link.
+- NOT run on Linux or against a real container, so `-u 1001:1001` reading `/workspace/api/node_modules` and writing next to the database is inferred from `api/Dockerfile` and `api/docker-entrypoint.sh` (the app itself runs as 1001), not observed. Run it once by hand on the VPS after installing it, as in the PROJECT_STATE gate.
+
+---
+
+## 2026-11-15 — Claude (Node 24 + backup script onto main)
+
+### Objective
+Bring two finished changes onto `main` that never reached it. PR #146 (nightly backup script, commit `64b5bc6`) and PR #147 (Node 24 LTS, commit `f5ba8bb`) were merged into the PR #145 branch (`docs/record-vps-deploy-b22a119`) instead of `main`, and #145 was never merged. On `origin/main` @ `673bfbe` the Dockerfile and CI were still on Node 20 and `scripts/backup-db.sh` did not exist. Branch `chore/node-24-and-backup-script`, cut from `origin/main` @ `673bfbe`. Supersedes PR #145.
+
+### Changes Made
+- `api/Dockerfile` — both stages `node:20-bookworm-slim` → `node:24-bookworm-slim`.
+- `.github/workflows/nodejs-ci.yml`, `.github/workflows/preflight.yml` — `node-version: 20.x` → `24.x`.
+- `README.md`, `AGENTS.md`, `ARCHITECTURE.md`, `CONTEXT.md`, `PROJECT_STATE.md` — "Node.js 20" → "Node.js 24" where it names the runtime.
+- `scripts/backup-db.sh` — added, byte-for-byte from `64b5bc6` (mode 755).
+- `DECISIONS.md` — the three 2026-09-30 entries from `64b5bc6` (nightly backup; sharp LGPL accepted; Express/VPS stays primary), each with a "Recorded on `main`" note, plus a new 2026-11-15 entry for the Node 24 move (problem, decision, reasoning, alternatives, migration impact, rollback, files).
+- `PROJECT_STATE.md` — added a `DB backups` row and a `Runtime Node version` row, and two open gates (Node 24 runtime deploy; nightly backup health + off-host copy). `main`'s `12d255d` deploy record was kept as is.
+- Not carried over: the `PROJECT_STATE.md` / `WORK_LOG.md` / `TASKS.md` text from `51c2ef8`, `64b5bc6` and `f5ba8bb`. It describes `b22a119` as the live, verified deploy, which `main` has since replaced with the claimed `12d255d` deploy. The 2026-09-30 work-log entries stay readable on the `docs/record-vps-deploy-b22a119` branch.
+- No application code, dependency or lockfile change.
+
+### Other Node pins checked on `main`
+- `.github/workflows/docker-upload-e2e.yml`: no Node pin; it builds `api/Dockerfile`, so it follows. Not changed.
+- `.github/workflows/codeql.yml`, `codescan.yml`, `api-docs-consistency.yml`: no Node version pin. `compose.yml`: builds `api/Dockerfile`.
+- No `.nvmrc`, `.node-version` or `.tool-versions`. No `engines` field in `api/package.json`.
+
+### Verification (Truthfulness Rule applies)
+All run in this session on **Node v24.14.1, npm 11.11.0, macOS arm64** (not Linux, not Docker).
+- Command: `cd api && npm ci` → Result: PASSED (173 packages; lockfile unchanged).
+- Command: `require('better-sqlite3')` + in-memory query, `require('sharp')` → Result: PASSED (better-sqlite3 12.8.0, sharp 0.35.4 / libvips 8.18.6 load on Node 24).
+- Command: `npm ls express better-sqlite3 csrf-csrf` → Result: PASSED.
+- Command: `node --check` on `server.js`, `db.js`, `middleware/auth.js`, `routes/admin.js`, `routes/api.js`, `routes/documents.js`, `routes/public.js` → Result: PASSED.
+- Command: `node tests/verify-security-fixes.test.js` → Result: PASSED (60 passed, 0 failed).
+- Command: every other file in `tests/` (`admin-document-review` 9, `chat-assistant` 14, `document-registry` 28, `inquiry-forward` 12, `public-assistant-flag` 7, `upload-e2e`, `ai-generator-routing`, `email`, `lead-notifications`) → Result: PASSED (exit 0).
+- Command: `node tests/http-smoke.test.js` → Result: FAILED 1 of 14 inside the `.claude/worktrees/...` checkout (`GET /search` → 500, Express `sendFile` refuses a dot-directory path); PASSED 14 of 14 from a copy of the same tree at a path with no dot-directory. Environment artifact, not a Node 24 result.
+- Command: `bash scripts/preflight.sh` → Result: NOT RUN as a script (the sandbox blocks macOS `mktemp -d`). Its steps were run one by one, the test steps from the non-dot copy: dependency check, syntax checks, the five test steps, then server start with a temp DB, `/api/health` 200, property API 200, property page 200, `/api/chat` 200 with a `reply` field → all PASSED.
+- Command: `bash -n scripts/backup-db.sh` → Result: PASSED (syntax only; the script was not executed, it needs the production container).
+- NOT RUN: anything inside `node:24-bookworm-slim` (Docker daemon not reachable in this session); Linux x64; `docker build -f api/Dockerfile`. The `Docker upload e2e` and `Preflight` CI jobs on the PR cover the image build and Linux. The 2026-09-30 container results in `f5ba8bb` are a prior session's claim, not re-run here.
+- NOT RUN: any VPS or production check.
+
+### Security Notes
+- No secrets read or printed. No VPS access. No production data touched.
+- `npm audit` (run here, same lockfile as `main`) reports 10 advisories: 1 critical (`proxy-addr`), 5 high (`body-parser`, `brace-expansion`, `compression`, `multer`, `sharp`), 4 moderate. These exist on `main` today and are not caused or changed by this PR. They need their own dependency PR.
+
+### Remaining Risks
+- The live VPS still runs the Node 20 image. After this merges, the next manual deploy of `main` rebuilds the image on Node 24 whatever else it ships; treat that deploy as a runtime upgrade (backup, rollback SHA, `node -v` check).
+- Node 24 was verified here on macOS arm64 only. Linux x64 proof is the CI run on the PR.
+- The nightly backup install on the VPS was reported on 2026-09-30 and has not been re-checked. Backups are still on the same server.
+
+### Recommended Next Task
+Codex: verify the PR (checks, threads, merge state, head SHA). Phil: merge, then close PR #145 as superseded. Separate PR: dependency advisories above.
+
+```
+Done: Node 24 pins, backup script, 3 carried decisions + Node 24 decision on one branch off main
+Verified by: npm ci, node --check, 60/60 security tests, all tests/ files, preflight steps by hand on Node v24.14.1 (macOS arm64)
+Remaining risk: no Docker/Linux run locally; VPS still Node 20; backup cron unverified
+Next owner: Codex (PR readiness), then Phil (merge)
+Next action: wait for CI on the PR; Codex gatekeeper check
+Approval needed: Phil to merge; Phil to approve any deploy (not requested here)
+```
+
+---
+
+## 2026-11-16 — Claude (dependency advisories)
+
+### Objective
+Clear the `npm audit` advisories for `api/` on `main` (`673bfbe`) using lockfile-only updates that stay inside the ranges already in `api/package.json`. Anything that needs a `package.json` change goes to Phil.
+
+### Changes Made
+- `api/package-lock.json` — `npm update compression multer body-parser proxy-addr qs ip-address minimatch brace-expansion` (npm `update` does not save to `package.json`). Resolved versions: compression 1.8.1→1.8.2 (adds `destroy` 1.2.0), multer 2.4.0→2.5.0, body-parser 2.3.0→2.4.0 (pulls content-type 2.1.0, iconv-lite 0.7.3), proxy-addr 2.0.7→2.0.8, qs 6.16.0→6.17.1, ip-address 10.7.2→10.7.6, minimatch 10.2.5→10.2.6, brace-expansion 5.0.8→5.0.13.
+- `api/package.json` — unchanged.
+- `PROJECT_STATE.md` — "Dependency advisories" row updated with the new lockfile versions and the two items left open.
+
+### Advisory inventory (before)
+| Package | Installed | Patched | Direct? | In existing range? |
+|---|---|---|---|---|
+| proxy-addr (critical) | 2.0.7 | 2.0.8 | no (express `^2.0.7`) | yes |
+| body-parser (high) | 2.3.0 | 2.4.0 | no (express `^2.2.1`) | yes |
+| brace-expansion (high) | 5.0.8 | 5.0.12+ | no (minimatch `^5.0.5`, dev) | yes |
+| compression (high) | 1.8.1 | 1.8.2 | yes `^1.8.1` | yes |
+| multer (high) | 2.4.0 | 2.5.0 | yes `^2.4.0` | yes |
+| sharp (high) | 0.35.4 | 0.35.5 | yes, exact pin `0.35.4` | **no** (Phil) |
+| ip-address (moderate) | 10.7.2 | 10.7.4+ | no (express-rate-limit `^10.2.0`) | yes |
+| minimatch (moderate) | 10.2.5 | 11.0.1 | no (nodemon `^10.2.1`, dev) | **no** |
+| nodemon (moderate, via minimatch) | 3.1.14 | n/a | yes, dev | n/a |
+| qs (moderate) | 6.16.0 | >6.16.0 | no (express `^6.14.0`) | yes |
+
+### Verification (Truthfulness Rule applies)
+Runtime: Node v22.22.3 / npm 10.9.8 on macOS arm64. No Node 20 was available locally (CI and the Dockerfile use Node 20), so Node 20 is NOT verified here; CI covers it.
+- `npm audit` before → 10 (1 critical, 5 high, 4 moderate). After → 3 (0 critical, 1 high, 2 moderate). `npm audit --omit=dev` after → 1 high (sharp).
+- `cd api && npm ci` → PASSED (lockfile installs cleanly).
+- `node --check` server.js, db.js, middleware/auth.js, routes/admin.js, routes/api.js, routes/public.js, routes/documents.js → PASSED.
+- `node tests/verify-security-fixes.test.js` → PASSED.
+- Every file in `tests/`: admin-document-review 9/9, ai-generator-routing 18/18, chat-assistant 14/14, document-registry 28/28, email 10/10, inquiry-forward 12/12, lead-notifications 6/6, public-assistant-flag 7/7, upload-e2e PASSED (sharp 0.35.4), verify-security-fixes PASSED. http-smoke: 13/14 in the `.claude/worktrees` path (known `GET /search` dot-directory failure), 14/14 from a copy at a path with no dot-directory.
+- `scripts/preflight.sh` NOT run as a script (macOS sandbox blocks `mktemp -d`); its steps run one by one: `npm ls express better-sqlite3 csrf-csrf` OK, syntax checks OK, the four test steps OK, startup smoke from the no-dot copy: `/api/health` 200, `/api/properties/advent-dr-lot-hampshire-wv` 200, `/properties/advent-dr-lot-hampshire-wv` 200, `POST /api/chat` 200 with `reply`. (Inside the worktree path the public property page returned 500, the same dot-directory problem as `/search`.)
+
+### Security Notes
+No application code changed. No secrets touched. No deploy, no VPS access.
+
+### Remaining Risks
+- sharp GHSA-wq5f-xc86-pv6w (high, production dependency) stays open until Phil approves moving the exact pin `0.35.4` → `0.35.5` in `api/package.json`.
+- minimatch GHSA-g3hv-75wg-m249 (moderate) stays open on the dev-only `nodemon` path; not in the Docker image (`npm ci --omit=dev`).
+- The 5 GitHub Dependabot alerts were not read one by one (no alert API in this session); the only open Dependabot PR is #150 (proxy-addr), covered here.
+
+### Recommended Next Task
+Phil decides on the sharp pin; Codex verifies the PR (checks, threads, head SHA). After merge, a deploy is still manual and Phil's call.
+
+### Update (same day) — sharp pin moved, Phil approved
+Phil: "go ahead and fix and or review anything you found". This was the item left for him in this PR.
+- `api/package.json` — `"sharp": "0.35.4"` → `"sharp": "0.35.5"` (still an exact pin; same `engines.node >=20.9.0`). Lockfile refreshed with `npm update sharp` (not `npm install <pkg>`): `sharp` and its `@img/sharp-*` platform packages changed (0.35.5; libvips binaries 1.3.4, libvips 8.18.7), plus one more entry: `tslib` 2.8.1 → 2.9.1, optional, pulled in only by sharp's wasm32 build via `@emnapi/runtime`, so not installed on the Linux/macOS builds. (Corrected after the independent review: the first version of this line said no other entry moved. That check compared package-name lines and missed a version-only change. Re-checked by comparing every lockfile entry's version: `tslib` is the only unlisted one.)
+- `npm audit` → 2 moderate (`minimatch` via dev-only `nodemon`), 0 high, 0 critical. `npm audit --omit=dev` → **0**.
+- `npm ci` OK; `node --check` list OK; every test passes. upload-e2e 5/5 with `sharp=0.35.5`. http-smoke 14/14 from a no-dot copy (13/14 in the worktree path, the known dot-directory issue). Preflight startup smoke from the copy: health, property API, property page, `POST /api/chat` all 200.
+- Still open: `minimatch` via `nodemon` (dev-only, not in the image). The only clean option is downgrading nodemon to 3.1.11; not applied (see the PR).
+- Codex is unavailable; readiness goes through the interim gate (PR #158).
+
+## 2026-11-15 — Claude (audit of PR #154 and the repo on GitHub)
+
+### Objective
+Phil asked for an audit of PR #154 and of the repository on GitHub while he was away. Read-only except for the test and comment changes below, which stay on the PR #154 branch.
+
+### Changes Made
+- `tests/inquiry-outbox.test.js` — two review gaps closed (Sourcery, PR #154). New check: the outbox INSERT is forced to fail with a TEMP trigger after the lead INSERT has run, and the lead and its mirrored contact must roll back. The `/api/contacts` check no longer kicks the worker itself: delivery must come from the route's own kick. It also checks that a failed outbox insert returns 500 and stores no contact. 19 checks (was 18).
+- `api/services/inquiryOutbox.js` — header comment only: states what "delivered" means (see Findings 1). No behaviour change.
+- 2026-11-16, Phil-approved follow-up: `api/services/inquiryForward.js` `TIMEOUT_MS` 5 s → 30 s. The draft n8n change (unpublished draft `d62f0d6b`, made in a side session) answers only after the Leads row is written, which can take longer than 5 s. With 5 s, a filed lead would time out and be retried; safe because n8n skips repeats, but every slow send would log a false failure. Delivery runs in the outbox worker, never in the visitor's request, so the form is not slowed. The 2-minute claim lease (`LEASE_MS`) is still 4× the timeout. New check in `tests/inquiry-outbox.test.js` (20 checks) asserts timeout ≥ 30 s and lease ≥ 2× timeout; it fails when the timeout is put back to 5 s. **Order: deploy this before publishing the n8n draft.**
+
+### Findings (verified in this session)
+1. **"Delivered" means accepted by n8n, not filed in the sheet.** Read from the live workflow "Inquiry intake (all brands)" (active version): the webhook node uses respond-on-receipt, so n8n returns 200 before it reads Config or writes the Leads row. The outbox therefore covers n8n down / slow / inactive / wrong secret. It does not cover a failure inside the workflow, and it does not cover `pause_switch` ON (n8n answers 200 and logs "paused; inquiry not processed"). Those leads stay in the site DB only. Fix belongs in n8n (answer after the Leads row is written); not changed here.
+2. **Replay assumption confirmed.** The workflow derives its lead id from `submission_id` and skips an id it has already filed ("replay_ignored"), so outbox retries do not create second rows or drafts. A repeat from the same contact and brand inside the dedupe window updates the existing row and creates no second draft.
+3. **PR #154 review threads:** 4 open (Sourcery), Codex review: no findings. Two were test gaps (fixed above). Two are declined for this PR: delivered-row pruning (about 1 KB per lead; production held 3 contacts on 2026-09-30) and a client idempotency key (needs a form change and a schema column; n8n already de-duplicates repeats).
+4. **PR #145 is stranded and carries real work.** PRs #146 (nightly backup script, three DECISIONS entries) and #147 (Node 24 LTS) were merged into the #145 branch, not `main`. #145 never merged and now conflicts with `main` (`PROJECT_STATE.md`, `WORK_LOG.md`). `origin/main` @ `673bfbe` still has `node:20-bookworm-slim` in `api/Dockerfile`, Node 20 in both CI workflows, and no `scripts/backup-db.sh`.
+5. **PR #150 (proxy-addr 2.0.8, GHSA-jqcg-44mw-7w3h, rated critical) has been open since 2026-10-16**, checks green, mergeable. The advisory needs a trusted proxy *subnet* written as short-prefix IPv4-mapped IPv6; this app sets `trust proxy` to `1` (hop count) in `api/server.js`, so that path is not reachable here. Still worth merging to clear the alert.
+6. PR #153: checks green, 6 of 6 threads resolved, merge state clean; waiting on Phil.
+7. `.github/dependabot.yml` only covers `devcontainers`. npm and GitHub Actions get security PRs only, no version updates.
+8. Branches: `claude/update-in-vscode` is fully merged; five older unmerged branches look like squash-merge leftovers (not verified one by one). No open issues.
+
+### Verification (Truthfulness Rule applies)
+- `node tests/inquiry-outbox.test.js` → 19 passed, 0 failed (run 5 times).
+- Mutation checks: with the route kick removed, the `/api/contacts` check fails; with the enqueue moved outside the `insertLead` transaction, the new rollback check fails. Code restored after each.
+- `node --check` on the touched files, `verify-security-fixes` 60/60, `inquiry-forward` 14/14, `lead-notifications` 8/8 → PASSED.
+- NOT run: `scripts/preflight.sh` locally (sandbox blocks `mktemp`; CI runs it). NOT checked: Dependabot / code-scanning alert pages, the VPS, real delivery to n8n.
+
+### Security Notes
+- No secrets read or printed. The n8n workflow was read, not changed.
+
+### Remaining Risks
+- Finding 1: a lead accepted by n8n but not written to the sheet is marked delivered and not retried.
+- Finding 4: production and `main` are on Node 20, which the repo's own notes list as end-of-life since 2026-04-30.
+
+### Recommended Next Task
+Rescue the Node 24 and backup-script commits from PR #145 into a fresh PR on `main`; then decide the n8n respond-after-write change.
+
+```
+Done: PR #154 audit; two test gaps closed; repo-level findings recorded
+Verified by: outbox tests 19/19, two mutation checks, security and forward suites
+Remaining risk: n8n answers before filing; main still on Node 20; #150 unmerged
+Next owner: Phil
+Next action: merge #153, then #154; decide on #145 rescue, #150, n8n change
+Approval needed: Phil (merges, deploy, any n8n change)
+```
+
+---
+
+## 2026-11-15 — Claude (durable outbox for the n8n lead forward)
+
+### Objective
+A failed copy of a website lead to the n8n inquiry intake was never retried (fire-and-forget), so a lead could be saved on the site but never reach Phil's intake sheet. Flagged by an external audit and by Sourcery/Codex on PR #153, where it was deliberately deferred to its own PR. Built on `origin/fix/lead-forms-drafts-only` @ `94e27c7` (PR #153, not yet merged at build time).
+
+### Changes Made
+- `api/db.js` — idempotent `migrateInquiryOutbox()` (`CREATE TABLE/INDEX IF NOT EXISTS`): `inquiry_outbox` (id, submission_id UNIQUE, payload JSON, status pending/delivered/failed with CHECK, attempts, next_attempt_at, last_error_class, created_at, delivered_at) + `(status, next_attempt_at)` index. Additive only; no existing table touched. The webhook secret is never stored.
+- `api/services/inquiryForward.js` — new `deliverInquiryPayload()`: one send of a pre-built payload, classified as delivered / retryable (network, timeout, 429, 5xx, other 4xx) / permanent (400, 401, 403). Keeps https-only and `redirect: 'error'`. `forwardInquiry()` now delegates to it (same behaviour).
+- `api/services/inquiryOutbox.js` (new) — `enqueueInquiry()` (`INSERT OR IGNORE`, so a submission_id is never queued twice), `processInquiryOutbox()` (compare-and-set claim, exponential backoff 30 s → 6 h cap with equal jitter, `failed` after a permanent error or 20 attempts ≈ 3 days), in-process worker with `kick()` and non-overlapping passes. Logs carry outbox id / submission_id / error class only — no PII, no secret.
+- `api/routes/api.js` (POST `/api/contacts`) and `api/routes/leads.js` (`insertLead`/`handleLeadCapture`) — the outbox row is written in the SAME transaction as the contact/lead, keeping `malickland-contact-<id>` / `malickland-lead-<lead_id>`; the worker is kicked right after so the normal case still delivers immediately. Only queued when the forward is configured (same as before).
+- `api/server.js` — startup log `[Startup] Inquiry outbox: N pending, M failed` (+ WARN when failed > 0); worker started in the `listen` callback (idles while unconfigured).
+- `tests/inquiry-outbox.test.js` (new, 18 checks, temp SQLite + injected fetch, no external network) and `scripts/preflight.sh` now runs it plus the existing `tests/inquiry-forward.test.js` (which CI was not running).
+
+### Verification (Truthfulness Rule applies)
+- `cd api && npm ci` (with a temp npm cache; sandbox cannot write `~/.npm`) → PASSED.
+- `node --check` server.js, db.js, middleware/auth.js, routes/admin.js, routes/api.js, routes/public.js, routes/leads.js, services/inquiryForward.js, services/inquiryOutbox.js → PASSED.
+- `node tests/verify-security-fixes.test.js` → 60/60 PASSED.
+- `node tests/inquiry-outbox.test.js` → 18/18 PASSED. `tests/inquiry-forward.test.js` 14/14, `tests/lead-notifications.test.js` 8/8 PASSED.
+- Preflight test steps run one by one: public-assistant-flag 7/7, upload-e2e PASS, document-registry 28/28, admin-document-review 9/9, http-smoke 14/14 (run from a copy outside `.claude/`; inside the worktree `/search` returns 500 because Express `sendFile` refuses the `.claude` dot-directory in the path — the untouched base commit behaves identically there and passes 14/14 from the same outside copy).
+- Local boot: `/api/health` 200 and the new outbox startup line printed.
+- `bash scripts/preflight.sh` itself → NOT RUN locally (sandbox blocks macOS `mktemp -d`); CI `preflight` job is the proof.
+- Real delivery to n8n → NOT TESTED (no network to n8n from tests by design).
+
+### Security Notes
+No new dependencies. Secret read from env at send time only; never in the DB or logs. Payload (customer PII) lives in the same SQLite file as the existing `contacts`/`leads` rows, not in logs. https-only and no-redirect rules unchanged.
+
+### Remaining Risks
+- Rows parked as `failed` need a person: see the startup WARN, then re-queue with `UPDATE inquiry_outbox SET status='pending', attempts=0, next_attempt_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=<id>;` after fixing the cause (e.g. a rotated secret).
+- Leads captured before this deploy that failed to forward are not back-filled.
+- Delivered rows are kept (no pruning yet); volume is tiny.
+
+### Recommended Next Task
+Phil: review and merge PR #153 first, then this PR; deploy both together (manual, VPS). After deploy, confirm `[Startup] Inquiry outbox: 0 pending, 0 failed` in the container log and send one test lead.
+
+---
+
 ## 2026-11-16 — Claude (wiki sync after #159)
 
 ### Objective
@@ -228,6 +605,67 @@ Forward each lead captured by `POST /api/contacts` to the n8n "Inquiry intake (a
 
 ### Recommended Next Task
 Phil-approved VPS deploy with the two env vars set, then one test lead through the live form to confirm it lands in the Ops Hub sheet.
+
+---
+
+_Ported verbatim from PR #145 (closed as superseded by #155) on 2026-11-17, so these 2026-09-30 records are not lost._
+
+## 2026-09-30 — Claude (Node 24 LTS)
+
+### Objective
+Move off Node 20 (end-of-life 2026-04-30) to Node 24 LTS (supported to 2028-04-30).
+
+### Changes Made
+- `api/Dockerfile`: both stages `node:20-bookworm-slim` -> `node:24-bookworm-slim`. `.github/workflows/nodejs-ci.yml` and `preflight.yml`: `node-version: 24.x`. Docs that stated "Node.js 20" updated (README, AGENTS, ARCHITECTURE, CONTEXT, PROJECT_STATE). No dependency or application code changes.
+
+### Verification (run in this session, Docker `node:24-bookworm-slim` v24.21.0, Linux arm64)
+- `npm ci` in `api/`, then full `scripts/preflight.sh` -> PRE-FLIGHT PASSED (7+13+28+9 tests, upload/resize e2e 5/5, startup/health/property/assistant smoke).
+- All 10 files in `tests/` pass. `docker build -f api/Dockerfile` succeeds; image runs Node v24.21.0 with better-sqlite3 12.8.0 (627 MB).
+- Note: a first preflight attempt failed only because the slim image lacks `curl`; the server started fine on Node 22 and 24 (not a Node issue).
+- Not verified: Linux x64 locally (the `Docker upload e2e` CI job runs it on the PR), production runtime, deploy.
+
+### Remaining Risks / Next
+- Live VPS still runs Node 20 until deployed. Deploy after merge with the backup + rollback runbook (rollback = previous SHA rebuild).
+
+---
+
+## 2026-09-30 — Claude (backup automation + cleanup)
+
+### Changes Made
+- Added `scripts/backup-db.sh` (WAL-safe online backup, verify, gzip+sha256, 14-day retention). Installed on the VPS at `/docker/wv-property-intelligence/backup-db.sh` with `/etc/cron.d/wv-db-backup` (03:17 UTC).
+- Removed `/docker/wv-property-intelligence/.env.codex-backup-20260622-152642` after a key-name/hash comparison against live `.env` (same 12 keys, identical values except `PUBLIC_ASSISTANT_ENABLED`); nothing unique was lost. Values were never printed.
+- Recorded three decisions in `DECISIONS.md` (nightly backup, LGPL sharp accepted, Express primary for now).
+
+### Verification (run in this session)
+- Manual run: `backup ok`, integrity ok, counts 2/3/55. sha256 check OK. Restore drill (gunzip, copy into container, integrity ok, contacts 3, `attribution` column present).
+- cron service active; entry present. Not verified: the first scheduled (03:17 UTC) run; off-host copy; failure alerting.
+- Container stayed healthy; `/api/health` 200 after cleanup.
+- Hostinger API (read-only): 2 weekly VM backups (2026-09-20, 2026-09-27); no snapshot present.
+
+### Remaining Risks / Next
+- Off-server nightly copy and failure alerting. June `wv-data-backup-*` folders and old `.db` files on the VPS kept until the nightly job has run successfully for several nights.
+
+---
+
+## 2026-09-30 — Claude
+
+### Objective
+Deploy PR #144 (merge `b22a119`) to the Hostinger VPS with a verified backup and rollback point, on Phil's explicit go-ahead.
+
+### Changes Made (production)
+- Pre-checks: src clean at `65a2b32d`, container healthy, 89G free, SQLite in WAL mode (so backup used the online backup API, not a file copy).
+- Wrote `ROLLBACK_SHA_20260930.txt` (`65a2b32d`); took consistent backup `wv_property.pre-deploy-20260930.db` via better-sqlite3 `backup()`. Backup verified: integrity ok; properties 2 / contacts 3 / counties 55 / `contacts.attribution` present, identical to live.
+- `git checkout --detach b22a119`, `docker compose build`, `docker compose up -d`.
+
+### Verification (run in this session)
+- Container `Up (healthy)`; src = `b22a11930f73cf39786823fe6329622d50ed43ca`.
+- In-container: multer 2.4.0, sharp 0.35.4, morgan 1.12.1, ip-address 10.7.2, qs 6.16.0, body-parser 2.3.0, express 5.2.1.
+- Live DB after deploy: integrity ok, same row counts, attribution column intact.
+- `EXPECTED_SHA=b22a119… scripts/verify-vps-prod.sh` -> "VPS production verified"; `/api/health` 200, `/api/config` -> `listingsEnabled:false`, `/search` 200, `/` 200.
+- Not verified: authenticated admin photo upload against production (covered by the x64 CI e2e), live lead submission/email.
+
+### Rollback
+`git -C src checkout --detach 65a2b32d` then `docker compose build && up -d`. Do not restore the DB copy unless data is damaged (would discard newer leads).
 
 ---
 

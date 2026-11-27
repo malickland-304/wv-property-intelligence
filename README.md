@@ -10,7 +10,7 @@ West Virginia real estate listing platform. Admin panel, public listing pages, p
 
 | Layer | Tech |
 |-------|------|
-| Runtime | Node.js 20 LTS |
+| Runtime | Node.js 24 LTS |
 | Framework | Express 5 |
 | Database | SQLite via better-sqlite3 |
 | Auth | Session-based (admin panel) + API key (REST) |
