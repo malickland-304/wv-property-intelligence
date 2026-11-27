@@ -89,7 +89,7 @@ trap cleanup EXIT
 base_env=(PATH="$PATH" HOME="$HOME")
 for v in TMPDIR USER LOGNAME SHELL TERM LANG LC_ALL TZ NO_COLOR FORCE_COLOR \
          HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy \
-         NODE_EXTRA_CA_CERTS SSL_CERT_FILE SSL_CERT_DIR; do
+         NODE_USE_SYSTEM_CA NODE_EXTRA_CA_CERTS SSL_CERT_FILE SSL_CERT_DIR; do
   [ -n "${!v:-}" ] && base_env+=("$v=${!v}")
 done
 
