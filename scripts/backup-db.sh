@@ -22,6 +22,8 @@ set -euo pipefail
 CONTAINER="${CONTAINER:-wv-property-intelligence}"
 DEST="${BACKUP_DIR:-/docker/wv-property-intelligence/backups}"
 KEEP_DAYS="${KEEP_DAYS:-14}"
+# appuser:appgroup in api/Dockerfile. Every docker exec runs as this, never as container root.
+APP_UID_GID="1001:1001"
 
 ts_now() { date -u +%FT%TZ; }
 reported=""
@@ -32,7 +34,9 @@ tmp_in_container=""
 on_exit() {
   rc=$?
   [ -n "$sum_tmp" ] && rm -f "$sum_tmp"
-  [ -n "$tmp_in_container" ] && { docker exec "$CONTAINER" rm -f "$tmp_in_container" >/dev/null 2>&1 || true; }
+  # The copy is in WAL mode (inherited from the source), so opening it read-only leaves
+  # -wal and -shm side files next to it. Remove all three.
+  [ -n "$tmp_in_container" ] && { docker exec -u "$APP_UID_GID" "$CONTAINER" rm -f "$tmp_in_container" "${tmp_in_container}-wal" "${tmp_in_container}-shm" >/dev/null 2>&1 || true; }
   # Steps that fail through set -e (docker cp, gzip, ...) still leave a FAILED line.
   if [ "$rc" -ne 0 ] && [ -z "$reported" ]; then echo "$(ts_now) backup FAILED (exit $rc)" >&2; fi
 }
@@ -55,7 +59,8 @@ flock -n 9 || fail "another backup is already running"
 container_db="$(docker inspect -f '{{range .Config.Env}}{{if eq (index (split . "=") 0) "DATABASE_PATH"}}{{println .}}{{end}}{{end}}' "$CONTAINER" \
   | sed -n 's/^DATABASE_PATH=//p' | head -n1)" || fail "cannot inspect container $CONTAINER"
 if [ -n "${DB_PATH:-}" ] && [ -n "$container_db" ] && [ "$DB_PATH" != "$container_db" ]; then
-  fail "DB_PATH=$DB_PATH does not match the container's DATABASE_PATH=$container_db"
+  # Fixed message: DATABASE_PATH is on the never-print list (AGENTS.md), and this goes to the log.
+  fail "DB_PATH does not match the container's DATABASE_PATH"
 fi
 DB_PATH="${DB_PATH:-$container_db}"
 [ -n "$DB_PATH" ] || fail "container $CONTAINER has no DATABASE_PATH; set DB_PATH explicitly"
@@ -66,7 +71,10 @@ out="${DEST}/wv_property-${ts}.db"
 if [ -e "$out" ] || [ -e "${out}.gz" ]; then fail "$out already exists"; fi
 
 # Backup + verification run inside the container, where better-sqlite3 already exists.
-summary="$(docker exec -i -e SRC="$DB_PATH" -e OUT="$tmp_in_container" "$CONTAINER" node - <<'JS'
+# Run as appuser, not as container root: the temp file goes into the data folder, which
+# appuser can write to, so a symlink planted there at the predictable name could
+# otherwise make a root process write wherever it points.
+summary="$(docker exec -u "$APP_UID_GID" -i -e SRC="$DB_PATH" -e OUT="$tmp_in_container" "$CONTAINER" node - <<'JS'
 const D = require('/workspace/api/node_modules/better-sqlite3');
 (async () => {
   const src = new D(process.env.SRC, { readonly: true });

@@ -8,7 +8,7 @@
 ## 2026-11-18 — Claude (#155 review threads: backup script hardening)
 
 ### Changes Made
-- `scripts/backup-db.sh`, in two rounds (Sourcery/Codex threads, then the independent review):
+- `scripts/backup-db.sh`, in three rounds (Sourcery/Codex threads, then the independent review, then two Codex P2 threads on `98c3e83`, fixed 2026-11-27):
   - **Scope comment in the header:** database-level incidents only, because the copies stay on the same VPS. The first round claimed this but the edit had been dropped; the independent review caught it.
   - **One run at a time:** `flock` on the backup folder itself (root-owned, 700), not on a file in the world-writable `/run/lock`. The container temp file sits next to the database and its name includes the PID.
   - **Database path:**
@@ -19,6 +19,10 @@
   - **Checksum:** written to a `mktemp` file and renamed into place.
   - **Failures:** an EXIT trap removes leftover temp files and logs a single timestamped `backup FAILED` line for any failure, including steps that fail through `set -e`.
   - The install line now uses `install -m 700 -o root` and says to reinstall after deploys.
+  - **Round 3 (Codex P2 threads `PRRT_kwDORme_NM65GYx4` and `PRRT_kwDORme_NM65GYyH`, confirmed by the independent review session):**
+    - the `DB_PATH` mismatch failure now logs a fixed message without either path, because `DATABASE_PATH` is on the never-print list in `AGENTS.md` and the message goes to `/var/log/wv-db-backup.log`;
+    - both `docker exec` calls (the node backup and the cleanup `rm -f`) run as `-u 1001:1001` (`appuser:appgroup`, `api/Dockerfile`). Before, they ran as container root while writing a temp file with a predictable name into the data folder, which `appuser` owns; a symlink planted there could have pointed a root write anywhere in the container;
+    - found while re-running the dry runs: the cleanup removed only the temp `.db`. The copy inherits WAL mode, so opening it read-only for the integrity check leaves `-wal` and `-shm` side files, and every run would have left two files in the data folder. Cleanup now removes all three.
 - `DECISIONS.md`:
   - 2026-09-30: acknowledges the existing in-app daily backup (`api/db.js`): same volume, not integrity-checked;
   - Node 24 entry: `sharp` 0.35.x.
@@ -33,7 +37,15 @@
   - no `DATABASE_PATH` → exit 1;
   - integrity_check failure → exit 1, one FAILED line, no files left;
   - symlinked folder → exit 1 (first round).
-- NOT run on Linux or against a real container. Run it once by hand on the VPS after installing it, as in the PROJECT_STATE gate.
+- Round 3 (2026-11-27, macOS arm64, Node v24.14.1, shims for docker, flock, `stat -c` and sha256sum; the docker shim runs the script's real better-sqlite3 code against a WAL-mode fixture DB and records every call):
+  - `bash -n` → OK;
+  - success → exit 0, one `backup ok` line, folder 700, `.db.gz` and `.sha256` 600, `shasum -c` OK, both `docker exec` calls carry `-u 1001:1001`, no temp files left;
+  - pinned `DB_PATH` that matches → exit 0;
+  - mismatched `DB_PATH` → exit 1, one FAILED line with no path in it;
+  - no `DATABASE_PATH` → exit 1;
+  - integrity_check failure → exit 1, one FAILED line, no new backup files, no temp files left (before this round: `-wal` and `-shm` were left);
+  - symlinked folder → exit 1, nothing written through the link.
+- NOT run on Linux or against a real container, so `-u 1001:1001` reading `/workspace/api/node_modules` and writing next to the database is inferred from `api/Dockerfile` and `api/docker-entrypoint.sh` (the app itself runs as 1001), not observed. Run it once by hand on the VPS after installing it, as in the PROJECT_STATE gate.
 
 ---
 
