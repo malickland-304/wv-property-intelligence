@@ -74,6 +74,12 @@ node "$ROOT/tests/admin-document-review.test.js"
 echo "✓ Admin document review smoke OK"
 echo
 
+echo "== Inquiry forward + outbox (no network) =="
+node "$ROOT/tests/inquiry-forward.test.js"
+node "$ROOT/tests/inquiry-outbox.test.js"
+echo "✓ Inquiry forward + outbox OK"
+echo
+
 echo "== Startup smoke =="
 PORT="$PORT_TO_USE" DATABASE_PATH="$TMP_DIR/preflight.db" NODE_ENV=test PUBLIC_LISTINGS_ENABLED=true API_KEY=preflight-api-key SESSION_SECRET=preflight-session-secret ADMIN_PASSWORD=preflight-admin-password node server.js > "$APP_LOG" 2>&1 &
 PID=$!
