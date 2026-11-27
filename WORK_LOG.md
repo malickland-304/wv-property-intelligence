@@ -12,17 +12,18 @@ Close the "stale PR state" gap (Sourcery on #158; Sourcery and Codex on #163): t
 
 ### Changes Made
 - `scripts/pr-readiness.sh` — after the VPS step, re-read and compare:
-  - the PR: head SHA, state, draft, mergeable, mergeable_state, base ref;
   - check runs on the head (id, status, conclusion);
   - legacy commit statuses on the head (combined state, each context's state);
   - reviews and review threads (review count, thread total, every unresolved non-outdated thread), via a new `fetch_threads()` used by both reads;
-  - the VPS SHA over SSH, last, when `EXPECT_VPS_SHA` is set and the first read was a valid SHA.
+  - the VPS SHA over SSH, when `EXPECT_VPS_SHA` is set and the first read was a valid SHA;
+  - last, the PR itself: head SHA, state, draft, mergeable, mergeable_state, base ref and base SHA (so a push during the other re-reads is caught).
+  GraphQL responses with `errors` or a non-numeric review/thread count count as unreadable (UNKNOWN on the first read, blocker on the re-read).
   Any change blocks with "… changed during this run; run again". A failed or malformed re-read blocks with "could not re-read …" (no `set -e` exit before the verdict). New text from GitHub goes through the `clean` filter.
 - `AGENTS.md` — the interim-gate sentence now lists what is re-read.
 
 ### Verification (Truthfulness Rule applies)
 - `bash -n` OK; `scripts/preflight.sh` PRE-FLIGHT PASSED.
-- Stand-in `curl`/`gh` with recorded JSON, each ending in NOT READY with the matching blocker: head moved, draft flipped, PR re-read returns junk, check run changed, commit status turned failing, new unresolved thread mid-run, new review with no inline comments, thread re-read returns junk, VPS SHA moved, VPS re-read fails. Unchanged run with a matching VPS SHA → `READY`, exit 0. Unchanged run adds no re-read blocker.
+- Stand-in `curl`/`gh` with recorded JSON, each ending in NOT READY with the matching blocker: head moved, base SHA moved, draft flipped, partial or errored GraphQL response, PR re-read returns junk, check run changed, commit status turned failing, new unresolved thread mid-run, new review with no inline comments, thread re-read returns junk, VPS SHA moved, VPS re-read fails. Unchanged run with a matching VPS SHA → `READY`, exit 0. Unchanged run adds no re-read blocker.
 
 ### Remaining Risks
 The verdict still goes stale after the script exits; re-run it immediately before merge (AGENTS.md).

@@ -175,9 +175,12 @@ fetch_threads() {
   printf '%s' "$out"
 }
 threads_json="$(fetch_threads)"
+# A usable response has no GraphQL errors and numeric review and thread counts; partial
+# data (errors, or a null field) is treated as unreadable, never as "nothing changed".
+THREADS_VALID='(.errors | not) and (.data.repository.pullRequest.reviews.totalCount | type) == "number" and (.data.repository.pullRequest.reviewThreads.totalCount | type) == "number" and (.data.repository.pullRequest.reviewThreads.nodes | type) == "array"'
 
-if [[ -z "$threads_json" ]] || ! jq -e '.data.repository.pullRequest.reviewThreads' >/dev/null 2>&1 <<<"$threads_json"; then
-  block "review threads: UNKNOWN (needs an authenticated gh or GITHUB_TOKEN for GraphQL)"
+if [[ -z "$threads_json" ]] || ! jq -e "$THREADS_VALID" >/dev/null 2>&1 <<<"$threads_json"; then
+  block "review threads: UNKNOWN (GraphQL read failed or incomplete; needs an authenticated gh or GITHUB_TOKEN)"
 else
   t_total="$(jq -r '.data.repository.pullRequest.reviewThreads.totalCount' <<<"$threads_json")"
   open_count="$(jq -r '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false and .isOutdated == false)] | length' <<<"$threads_json")"
@@ -220,20 +223,9 @@ fi
 # ── Re-read: the PR must not have moved while this ran ──────────────────────
 # Checks, threads and the VPS were read after the PR itself. A push, merge, close, draft
 # toggle or base change in between would leave this verdict describing a state that no
-# longer holds, so the PR, its check runs and statuses, its reviews and threads, and the VPS SHA
-# (when checked) are read again and compared. Any read or parse failure blocks (never a
-# set -e exit before the verdict).
-pr_fingerprint='[.head.sha, .state, .draft, .mergeable, .mergeable_state, .base.ref] | map(tostring) | join(" ")'
-first_fp="$(jq -r "$pr_fingerprint" <<<"$pr_json")"
-if final_json="$(api "pulls/$PR")" \
-   && jq -e 'type == "object" and (.head.sha | type) == "string"' >/dev/null 2>&1 <<<"$final_json" \
-   && final_fp="$(jq -r "$pr_fingerprint" <<<"$final_json" 2>/dev/null)"; then
-  if [[ "$final_fp" != "$first_fp" ]]; then
-    block "PR changed during this run: $(jq -rn "$JQ_CLEAN"' $s | clean' --arg s "$first_fp") -> $(jq -rn "$JQ_CLEAN"' $s | clean' --arg s "$final_fp") (head state draft mergeable merge_state base); run again"
-  fi
-else
-  block "could not re-read PR #$PR at the end of the run"
-fi
+# longer holds, so the check runs and statuses, reviews and threads, the VPS SHA (when
+# checked) and, last, the PR itself are read again and compared. Any read or parse
+# failure blocks (never a set -e exit before the verdict).
 
 # Check runs again: a run that started, re-ran or failed on the same head after section 3.
 runs_fp='[.total_count] + ([.check_runs[] | "\(.id):\(.status):\(.conclusion)"] | sort) | map(tostring) | join(" ")'
@@ -263,16 +255,18 @@ fi
 # new or re-opened thread after section 4. Only compared when the
 # first read worked; an UNKNOWN thread state already blocks.
 threads_fp='[.data.repository.pullRequest.reviews.totalCount, .data.repository.pullRequest.reviewThreads.totalCount] + ([.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false and .isOutdated == false) | "\(.path):\(.line)"] | sort) | map(tostring) | join(" ")'
-if [[ -n "$threads_json" ]] && a="$(jq -er "$threads_fp" <<<"$threads_json" 2>/dev/null)"; then
+if [[ -n "$threads_json" ]] && jq -e "$THREADS_VALID" >/dev/null 2>&1 <<<"$threads_json" \
+   && a="$(jq -er "$threads_fp" <<<"$threads_json" 2>/dev/null)"; then
   final_threads="$(fetch_threads)"
-  if [[ -n "$final_threads" ]] && b="$(jq -er "$threads_fp" <<<"$final_threads" 2>/dev/null)"; then
+  if [[ -n "$final_threads" ]] && jq -e "$THREADS_VALID" >/dev/null 2>&1 <<<"$final_threads" \
+     && b="$(jq -er "$threads_fp" <<<"$final_threads" 2>/dev/null)"; then
     [[ "$a" == "$b" ]] || block "reviews or review threads changed during this run; run again"
   else
     block "could not re-read reviews and review threads at the end of the run"
   fi
 fi
 
-# VPS SHA again, last: a deploy during the GitHub re-reads above. Only when the first read
+# VPS SHA again: a deploy during the GitHub re-reads above. Only when the first read
 # was a valid SHA; an unreachable or bad first read already blocks.
 if [[ -n "${EXPECT_VPS_SHA:-}" && "${vps_sha:-}" =~ ^[0-9a-f]{40}$ ]]; then
   if final_vps="$(ssh -o BatchMode=yes -o ConnectTimeout=10 "$VPS_TARGET" "$remote_cmd" 2>/dev/null)"; then
@@ -280,6 +274,20 @@ if [[ -n "${EXPECT_VPS_SHA:-}" && "${vps_sha:-}" =~ ^[0-9a-f]{40}$ ]]; then
   else
     block "could not re-read the VPS SHA at the end of the run"
   fi
+fi
+
+# The PR itself, last of all: a push during the re-reads above would leave them describing
+# the old head, so the head (and base) must still match after everything else was read.
+pr_fingerprint='[.head.sha, .state, .draft, .mergeable, .mergeable_state, .base.ref, .base.sha] | map(tostring) | join(" ")'
+first_fp="$(jq -r "$pr_fingerprint" <<<"$pr_json")"
+if final_json="$(api "pulls/$PR")" \
+   && jq -e 'type == "object" and (.head.sha | type) == "string"' >/dev/null 2>&1 <<<"$final_json" \
+   && final_fp="$(jq -r "$pr_fingerprint" <<<"$final_json" 2>/dev/null)"; then
+  if [[ "$final_fp" != "$first_fp" ]]; then
+    block "PR changed during this run: $(jq -rn "$JQ_CLEAN"' $s | clean' --arg s "$first_fp") -> $(jq -rn "$JQ_CLEAN"' $s | clean' --arg s "$final_fp") (head state draft mergeable merge_state base base_sha); run again"
+  fi
+else
+  block "could not re-read PR #$PR at the end of the run"
 fi
 
 # ── Verdict ─────────────────────────────────────────────────────────────────
