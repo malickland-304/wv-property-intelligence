@@ -419,6 +419,25 @@ No new dependencies. Secret read from env at send time only; never in the DB or 
 ### Recommended Next Task
 Phil: review and merge PR #153 first, then this PR; deploy both together (manual, VPS). After deploy, confirm `[Startup] Inquiry outbox: 0 pending, 0 failed` in the container log and send one test lead.
 
+---
+
+## 2026-11-16 — Claude (wiki sync after #159)
+
+### Objective
+Phil asked to check the auto-merged PRs (#153, #157, #159). Code on `main` @ `32b41d8` checked out clean (tree equals the tested #159 head; CI 6/6 green; every test passes). `/docs-lint` found the one wiki page stale because #159 changed `api/routes/public.js`.
+
+### Changes Made
+- `docs/operations/dependency-maintenance.md` — dot-directory trap rewritten as the rule that keeps #159's fix (`res.sendFile` with `{ root: APP_DIR }`), citations moved to `api/routes/public.js:50/182/210`, `verified_at` → `32b41d8`.
+- `.claude/scripts/docs-lint.py` — extensionless citations (`Dockerfile`, ...) need a directory or `:line`; bare names in prose were reported as missing files.
+- `docs/log.md` — sync entry.
+
+### Verification (Truthfulness Rule applies)
+- `python3 .claude/scripts/docs-lint.py --root .` → page not stale, no false "cited file not found" notes; the 10 governance-file findings remain (expected, documented).
+- Throwaway repo: `Dockerfile:9` in a 1-line file still reported; a bare `` `Dockerfile` `` in prose no longer is.
+- No code change; code tests not re-run for this PR (main's suite was run at `32b41d8`: all pass).
+
+### Remaining Risks
+None.
 
 ---
 
