@@ -237,7 +237,9 @@ router.get('/login', (_req, res) => res.send(loginPageHtml));
 
 router.post('/login', adminLoginRateLimit, (req, res, next) => {
   if (!safeEqual(req.body && req.body.password, ADMIN_PASSWORD)) {
-    return res.send(loginErrorHtml);
+    // 401, not 200: adminLoginRateLimit uses skipSuccessfulRequests, which un-counts
+    // every response below 400, so a 200 here would never count toward the limit.
+    return res.status(401).send(loginErrorHtml);
   }
   // New session id on login, so an id planted before login (session fixation)
   // is never the one that becomes authenticated.

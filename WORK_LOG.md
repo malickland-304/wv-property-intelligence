@@ -5,6 +5,27 @@
 
 ---
 
+## 2026-11-27 — Claude (admin login rate limit never counted failed logins)
+
+### Objective
+Repo audit finding: `adminLoginRateLimit` (`api/middleware/rate-limits.js`) uses `skipSuccessfulRequests: true`, which un-counts every response with status < 400. `POST /admin/login` answered a wrong password with **200** (the error page), so failed logins were never counted and the 10-per-15-minutes limit never triggered. Local probe on `main` @ `848cb71`: 14 wrong passwords in a row, all 200, no 429.
+
+### Changes Made
+- `api/routes/admin.js` — a wrong password now returns the same error page with status 401, so it counts toward the limit.
+- `tests/admin-auth.test.js` — the wrong-password test expects 401 and the error text; a new last test sends wrong passwords until 429 (by the 11th failure) and checks that the right password is then also refused with 429.
+
+### Verification (Truthfulness Rule applies)
+- `node tests/admin-auth.test.js` → 8 passed; against the unfixed `admin.js` the two new assertions fail (6 passed, 2 failed).
+- `node tests/verify-security-fixes.test.js` → 60/60 passed; `bash scripts/preflight.sh` → PRE-FLIGHT PASSED (both on Node 22.23.5 locally; CI uses Node 24, not run here).
+
+### Security Notes
+`scripts/smoke-admin.sh` already treats any status other than 302/200 as a failed login, so a wrong `ADMIN_PASSWORD` there now reports "→ 401". No change to the limiter, session or CSRF code.
+
+### Remaining Risks
+The limit is per client IP (`trust proxy` = 1); it is only as good as the proxy's `X-Forwarded-For`. Not deployed: merge is not a deploy.
+
+---
+
 ## 2026-11-27 — Claude (#163: readiness script re-reads PR, checks, statuses, reviews, threads and VPS SHA at the end of a run)
 
 ### Objective
