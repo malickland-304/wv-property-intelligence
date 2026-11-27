@@ -156,7 +156,7 @@ else
 fi
 
 # ── 4. Review threads (GraphQL, needs auth) ─────────────────────────────────
-THREADS_QUERY='query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviews(first:1){totalCount} reviewThreads(first:100){totalCount nodes{isResolved isOutdated path line comments(first:1){nodes{author{login} body}}}}}}}'
+THREADS_QUERY='query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviews(last:100){totalCount nodes{id state}} reviewThreads(first:100){totalCount nodes{isResolved isOutdated path line comments(first:1){nodes{author{login} body}}}}}}}'
 owner="${REPO%%/*}"; name="${REPO##*/}"
 # Prints the GraphQL response, or nothing when no auth is available or the call fails.
 fetch_threads() {
@@ -175,9 +175,14 @@ fetch_threads() {
   printf '%s' "$out"
 }
 threads_json="$(fetch_threads)"
-# A usable response has no GraphQL errors and numeric review and thread counts; partial
-# data (errors, or a null field) is treated as unreadable, never as "nothing changed".
-THREADS_VALID='(.errors | not) and (.data.repository.pullRequest.reviews.totalCount | type) == "number" and (.data.repository.pullRequest.reviewThreads.totalCount | type) == "number" and (.data.repository.pullRequest.reviewThreads.nodes | type) == "array"'
+# A usable response has no GraphQL errors, numeric review and thread counts, a full first
+# page of nodes (as many as totalCount, up to 100) and boolean isResolved/isOutdated on
+# every thread. Partial data is treated as unreadable, never as "nothing changed".
+THREADS_VALID='(.errors | not) and (.data.repository.pullRequest as $p
+  | ($p.reviews.totalCount | type) == "number" and ($p.reviews.nodes | type) == "array"
+  and ($p.reviewThreads.totalCount | type) == "number" and ($p.reviewThreads.nodes | type) == "array"
+  and ($p.reviewThreads.nodes | length) == ([$p.reviewThreads.totalCount, 100] | min)
+  and all($p.reviewThreads.nodes[]; (.isResolved | type) == "boolean" and (.isOutdated | type) == "boolean"))'
 
 if [[ -z "$threads_json" ]] || ! jq -e "$THREADS_VALID" >/dev/null 2>&1 <<<"$threads_json"; then
   block "review threads: UNKNOWN (GraphQL read failed or incomplete; needs an authenticated gh or GITHUB_TOKEN)"
@@ -240,7 +245,8 @@ if [[ -n "${runs_json:-}" ]]; then
 fi
 
 # Legacy commit statuses again: a status context that turned failing after section 3.
-status_fp='[.state, .total_count] + ([.statuses[]? | "\(.context):\(.state)"] | sort) | map(tostring) | join(" ")'
+# .statuses[] (no ?) makes a response without a statuses array a parse failure, so it blocks.
+status_fp='[.state, .total_count] + ([.statuses[] | "\(.context):\(.state)"] | sort) | map(tostring) | join(" ")'
 if [[ -n "${status_json:-}" ]]; then
   if final_status="$(api "commits/$head_sha/status")" \
      && a="$(jq -r "$status_fp" <<<"$status_json" 2>/dev/null)" \
@@ -251,10 +257,10 @@ if [[ -n "${status_json:-}" ]]; then
   fi
 fi
 
-# Reviews and review threads again: a new review (even one with no inline comments) or a
-# new or re-opened thread after section 4. Only compared when the
+# Reviews and review threads again: a new or newly submitted review (even one with no
+# inline comments: review ids and states are compared) or a new or re-opened thread after section 4. Only compared when the
 # first read worked; an UNKNOWN thread state already blocks.
-threads_fp='[.data.repository.pullRequest.reviews.totalCount, .data.repository.pullRequest.reviewThreads.totalCount] + ([.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false and .isOutdated == false) | "\(.path):\(.line)"] | sort) | map(tostring) | join(" ")'
+threads_fp='[.data.repository.pullRequest.reviews.totalCount, .data.repository.pullRequest.reviewThreads.totalCount] + ([.data.repository.pullRequest.reviews.nodes[] | "\(.id):\(.state)"] | sort) + ([.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false and .isOutdated == false) | "\(.path):\(.line)"] | sort) | map(tostring) | join(" ")'
 if [[ -n "$threads_json" ]] && jq -e "$THREADS_VALID" >/dev/null 2>&1 <<<"$threads_json" \
    && a="$(jq -er "$threads_fp" <<<"$threads_json" 2>/dev/null)"; then
   final_threads="$(fetch_threads)"
@@ -278,7 +284,8 @@ fi
 
 # The PR itself, last of all: a push during the re-reads above would leave them describing
 # the old head, so the head (and base) must still match after everything else was read.
-pr_fingerprint='[.head.sha, .state, .draft, .mergeable, .mergeable_state, .base.ref, .base.sha] | map(tostring) | join(" ")'
+# tojson keeps JSON types, so a boolean that comes back as a string ("true") counts as a change.
+pr_fingerprint='[.head.sha, .state, .draft, .mergeable, .mergeable_state, .base.ref, .base.sha] | tojson'
 first_fp="$(jq -r "$pr_fingerprint" <<<"$pr_json")"
 if final_json="$(api "pulls/$PR")" \
    && jq -e 'type == "object" and (.head.sha | type) == "string"' >/dev/null 2>&1 <<<"$final_json" \
