@@ -1,31 +1,29 @@
 # WORK_LOG.md — Malickland 2.0 Coordination Ledger
 > All agents must append an entry here after any session that makes changes.
 > This is the memory layer between agents. Do not delete prior entries.
-> Format: ## 2026-11-16 — Claude (readiness script: end-of-run re-read, on top of #162)
-
-### Objective
-Phil kept #162 over #161 and approved adding the one #161 item #162 lacks: re-reading the PR at the end of a run (Sourcery's "stale PR state" thread on #158, `:52`).
-
-### Changes Made
-- `scripts/pr-readiness.sh` — after the VPS step, re-read `pulls/<n>`. If the head SHA or state differs from the first read, block with "PR changed during this run … run again", or "could not re-read" if the call fails. New text from GitHub goes through #162's `clean` filter.
-- `AGENTS.md` — one sentence in the interim-gate section.
-
-### Verification (Truthfulness Rule applies)
-- `/bin/bash -n` (bash 3.2.57) OK.
-- Stand-in `curl`/`gh`/`ssh` with recorded JSON:
-  - normal run → `READY (GitHub conditions only)`, exit 3;
-  - head moves between first and last read → NOT READY, exit 1;
-  - SSH match, no move → READY, exit 0;
-  - the same move against unpatched #162 → `READY (GitHub conditions only)`, exit 3 (the gap);
-  - escape codes in the re-read state → 0 ESC bytes in the output.
-- Live REST on #162 @ `0d33afb`: head matches, clean, 9/9 green, no false "changed" blocker; threads UNKNOWN in the sandbox (no auth).
-
-### Remaining Risks
-Merge only after #162 (stacked on it).
+> Format: ## YYYY-MM-DD — Agent Name
 
 ---
 
-## YYYY-MM-DD — Agent Name
+## 2026-11-27 — Claude (#163: readiness script re-reads PR, checks and threads at the end of a run)
+
+### Objective
+Close the "stale PR state" gap (Sourcery on #158; Sourcery and Codex on #163): the readiness verdict must not describe a PR state that changed while the script ran.
+
+### Changes Made
+- `scripts/pr-readiness.sh` — after the VPS step, re-read and compare:
+  - the PR: head SHA, state, draft, mergeable, mergeable_state, base ref;
+  - check runs on the head (id, status, conclusion);
+  - review threads (total plus every unresolved, non-outdated thread), via a new `fetch_threads()` used by both reads.
+  Any change blocks with "… changed during this run; run again". A failed or malformed re-read blocks with "could not re-read …" (no `set -e` exit before the verdict). New text from GitHub goes through the `clean` filter.
+- `AGENTS.md` — the interim-gate sentence now lists what is re-read.
+
+### Verification (Truthfulness Rule applies)
+- `bash -n` OK; `scripts/preflight.sh` PRE-FLIGHT PASSED.
+- Stand-in `curl`/`gh` with recorded JSON, each ending in NOT READY with the matching blocker: head moved, draft flipped, PR re-read returns junk, check run changed, new unresolved thread mid-run, thread re-read returns junk. Unchanged run adds no re-read blocker.
+
+### Remaining Risks
+The verdict still goes stale after the script exits; re-run it immediately before merge (AGENTS.md).
 
 ---
 
