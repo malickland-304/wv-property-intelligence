@@ -21,6 +21,11 @@ Deploy `main` @ `d86831a` (#155: Node 24 runtime and the hardened backup script)
    - The container came up `Up 20 seconds (healthy)`, and `node -v` → `v24.22.3`.
 4. **Backup script:** `install -m 700 -o root src/scripts/backup-db.sh backup-db.sh`, then `./backup-db.sh` → `backup ok file=wv_property-20261127T082555Z.db.gz` (`integrity ok`). `backups/` is `drwx------`, and the new `.db.gz` and `.sha256` files are `-rw-------`. This was the first run of the hardened script (exec as `1001:1001`) against the real container.
 
+5. **Accidental rollback, then redeploy (same day):** after step 4 the rollback block was run by mistake, which put production back on `f17d187` (Node 20). The site stayed up, and the hardened backup script stayed installed. Phil then asked to redeploy ("No, redeploy d86831a") and ran:
+   - `./backup-db.sh` → `backup ok file=wv_property-20261127T214329Z.db.gz` (`integrity ok`; properties 2, contacts 4, counties 55);
+   - `git -C src checkout --detach d86831a…`, then `docker compose build && docker compose up -d`. Every build layer was cached, so this is the same image as the morning build (`image_created=2026-11-27T08:23:49Z`);
+   - result: `Up 20 seconds (healthy)`, `node -v` → `v24.22.3`. The rollback file still holds `f17d187`.
+
 ### Changes Made (repo, this PR)
 - `PROJECT_STATE.md`:
   - **Production deploy, DB backups, Runtime Node version and Dependency advisories rows:** updated to the proven state.
@@ -29,12 +34,13 @@ Deploy `main` @ `d86831a` (#155: Node 24 runtime and the hardened backup script)
 - `WORK_LOG.md`: this entry.
 
 ### Verification (Truthfulness Rule applies)
-- `EXPECTED_SHA=d86831ad85e7b66aad7fca41bdbf3ea97d2a968b bash scripts/verify-vps-prod.sh`, run by Phil from his Mac → `VPS production verified`:
+- `EXPECTED_SHA=d86831ad85e7b66aad7fca41bdbf3ea97d2a968b bash scripts/verify-vps-prod.sh`, run by Phil from his Mac after the first deploy **and again after the redeploy** (21:44 UTC) → `VPS production verified` both times:
   - `dns_ip=31.97.58.203`;
   - `remote_sha=d86831a…`;
   - `container=running healthy`;
   - production smoke passed (listings disabled and gated).
-- **Public read-only smoke, run by Claude after the deploy:**
+- The second proof also showed `image=2d64c675…` (created 08:23:49Z), `container=running healthy` and `/api/config` → `listingsEnabled:false`.
+- **Public read-only smoke, run by Claude after the deploy and again after the redeploy** (the second run skipped `/listings` and `/privacy`):
   - `/api/health`, `/api/config`, `/api/properties?limit=2` (DB-backed, so `better-sqlite3` loads on Node 24), `/`, `/37-advent`, `/search` and `/start` → 200;
   - `/admin` and `/listings` → 302;
   - the brokerage disclosure (`Sheila Judy`) is present on `/`, `/37-advent`, `/search` and `/start`;
@@ -56,7 +62,7 @@ Choose an off-host backup destination. Merge #164 (admin login hardening) after 
 
 ```
 Done: d86831a (Node 24 + hardened backup) live on the VPS, proven
-Verified by: verify-vps-prod.sh (Phil), node -v v24.22.3, public smoke, backup ok with the new script
+Verified by: verify-vps-prod.sh (Phil, after the deploy and after the redeploy), node -v v24.22.3, public smoke, backup ok with the new script
 Remaining risk: off-host backups; npm allowScripts behaviour in future npm
 Next owner: Phil
 Next action: off-host backup destination; #164 readiness; #165 wording
