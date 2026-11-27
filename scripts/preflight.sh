@@ -45,6 +45,11 @@ node --check routes/admin.js
 echo "✓ Syntax OK"
 echo
 
+echo "== pr-readiness output sanitizer regression =="
+node "$ROOT/tests/pr-readiness-clean.test.js"
+echo "✓ pr-readiness sanitizer OK"
+echo
+
 echo "== Public assistant flag regression =="
 node "$ROOT/tests/public-assistant-flag.test.js"
 echo "✓ Public assistant flag OK"
@@ -67,6 +72,12 @@ echo
 echo "== Admin document review smoke =="
 node "$ROOT/tests/admin-document-review.test.js"
 echo "✓ Admin document review smoke OK"
+echo
+
+echo "== Inquiry forward + outbox (no network) =="
+node "$ROOT/tests/inquiry-forward.test.js"
+node "$ROOT/tests/inquiry-outbox.test.js"
+echo "✓ Inquiry forward + outbox OK"
 echo
 
 echo "== Startup smoke =="

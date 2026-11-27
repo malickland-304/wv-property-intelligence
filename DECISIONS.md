@@ -160,6 +160,52 @@
 
 ---
 
+## 2026-09-30 — Nightly WAL-safe SQLite backup on the VPS
+
+**Problem:** The production SQLite DB (leads, listings) had no verified, host-side automated backup. The app's own daily copy (`api/db.js`: `dbLive.backup()` 10 minutes after start and then daily, keeping 7) writes next to the live DB on the same volume, is not integrity-checked, and was not confirmed working in production. Beyond that there were only manual pre-deploy copies on the same host plus Hostinger's weekly whole-VM backups (kept: 2, e.g. 2026-09-27 and 2026-09-20; restore is whole-VM and overwrites everything).
+**Decision:** Nightly host cron (03:17 UTC) runs `scripts/backup-db.sh`: SQLite online backup API inside the container (DB is in WAL mode, so never a raw file copy), `integrity_check` + row counts, gzip + sha256, 14-day retention, at `/docker/wv-property-intelligence/backups/`. Installed and restore-drilled 2026-09-30.
+**Reasoning:** Cheap, WAL-safe, verifiable. Does not depend on any new credential.
+**Known gap (open):** copies are still on the same server; nightly off-host copy is not done yet (candidate: reuse the app's existing Google Drive service account, or a private Supabase Storage bucket). Failure alerting is not set up; check `/var/log/wv-db-backup.log`.
+**Files:** `scripts/backup-db.sh`, `/etc/cron.d/wv-db-backup` (VPS)
+**Recorded on `main`:** 2026-11-15. Written on 2026-09-30 in commit `64b5bc6` (PR #146), which merged into the PR #145 branch and never reached `main`. The VPS install, cron entry and restore drill are as reported on 2026-09-30 and were not re-checked on 2026-11-15.
+
+---
+
+## 2026-09-30 — sharp's LGPL libvips binaries are accepted
+
+**Problem:** Sourcery's license policy flags `@img/sharp-libvips-*` (LGPL-3.0-or-later) in `api/package-lock.json` on every dependency PR; the check is not a required status.
+**Decision:** Accept. sharp is an unmodified npm dependency used via its documented API; libvips is an unmodified dynamically-loaded library. Sourcery license findings on `@img/*` lockfile entries may be resolved without further review. Any other new copyleft license still needs a look.
+**Reasoning:** Standard, widely used commercial practice. This is an engineering judgment, not legal advice; revisit if the app ever redistributes the binaries or modifies libvips.
+**Owner call:** delegated by Phil on 2026-09-30.
+**Recorded on `main`:** 2026-11-15 (carried over unchanged from commit `64b5bc6`, PR #146).
+
+---
+
+## 2026-09-30 — Express/VPS stays the primary stack; the Next.js (Vercel) site is not cut over yet
+
+**Problem:** Two live stacks (this Express app on the VPS behind `malickland.net`, and the Next.js 2.0 rebuild on Vercel) double the patching and verification work.
+**Decision:** Keep this app as the primary production stack for now. Do not cut the apex DNS over until the Next.js site reaches parity on compliance disclosures, listings gating, admin/data needs, CI and branch protection. Longer term direction: one public front door (Vercel) with a small private back-office/API, data on a managed database; decide and document the cutover with a rollback plan before moving DNS.
+**Reasoning:** The Express stack is the verified, compliant, deployed one; the Next.js repo currently has no CI or branch protection. Moving early would trade a known system for an under-gated one.
+**Owner call:** delegated by Phil on 2026-09-30.
+**Recorded on `main`:** 2026-11-15 (carried over unchanged from commit `64b5bc6`, PR #146). The statement about the Next.js repo's CI and branch protection is as of 2026-09-30 and was not re-checked.
+
+---
+
+## 2026-11-15 — Runtime moves from Node.js 20 to Node.js 24 LTS
+
+**Problem:** Node.js 20 reached end-of-life on 2026-04-30 and no longer receives security fixes. `ARCHITECTURE.md` chose the runtime for "long-term support", which Node 20 no longer has. The move was built and reviewed on 2026-09-30 (commit `f5ba8bb`, PR #147) but that PR merged into the PR #145 branch, so `main` still built and tested on `node:20-bookworm-slim` / `node-version: 20.x` on 2026-11-15.
+**Decision:** `api/Dockerfile` uses `node:24-bookworm-slim` in both stages. The Node CI and Preflight workflows use `node-version: 24.x`. Docs that named Node 20 as the runtime now say Node 24. No application code, dependency or lockfile change.
+**Reasoning:** Node 24 is an LTS line supported to 2028-04-30. The pinned native dependencies already allow it: `better-sqlite3` 12.8.0 declares `engines.node` `20.x || 22.x || 23.x || 24.x || 25.x`, and `sharp` 0.35.x declares `>=20.9.0` (0.35.4 when written; 0.35.5 since #156) (both read from `api/package-lock.json`). The runtime is a stable foundation in `AGENTS.md`, so the change is recorded here and goes through a PR and CI before any production action.
+**Alternatives considered:**
+- Stay on Node 20: rejected, no further security fixes.
+- Node 22: works (local development has used 22.22.3), but its support ends 2027-04-30, a year earlier than Node 24.
+- A line newer than 24: not the version tested in PR #147, and `better-sqlite3` 12.8.0's declared range stops at 25.x, so it would need a dependency change. Out of scope.
+**Migration impact:** None on the repo beyond the files below. The SQLite database, session store and uploaded files do not depend on the Node version. Native modules (`better-sqlite3`, `sharp`) are installed for the Node 24 ABI by `npm ci` during the image build. **The live VPS keeps running the Node 20 image until Phil's next manual deploy. Any deploy of a `main` SHA that includes this change rebuilds the image on Node 24, so that deploy is a runtime upgrade:** take the pre-deploy DB backup, record the rollback SHA, and after it run `scripts/verify-vps-prod.sh` plus `docker exec wv-property-intelligence node -v` (expect `v24.x`).
+**Rollback strategy:** Before deploy: revert the commit (docs and three config files). After deploy: check out the recorded previous SHA on the VPS and `docker compose build && docker compose up -d`; that SHA's Dockerfile is `node:20-bookworm-slim`, so the old runtime comes back with it. No data migration to undo.
+**Files:** `api/Dockerfile`, `.github/workflows/nodejs-ci.yml`, `.github/workflows/preflight.yml`, `README.md`, `AGENTS.md`, `ARCHITECTURE.md`, `CONTEXT.md`, `PROJECT_STATE.md`. Not changed: `.github/workflows/docker-upload-e2e.yml` (builds `api/Dockerfile`, so it follows), `compose.yml`, `api/package.json` (no `engines` field), no `.nvmrc` exists.
+
+---
+
 ## 2026-11-16 — Interim PR readiness gate while Codex is unavailable
 
 **Problem:** The Codex Gatekeeper Protocol (2026-06-17) makes Codex the only party that may declare a PR READY. On 2026-11-16 Phil reported Codex down indefinitely, so no PR can meet the documented requirement. Four PRs are open (#154, #155, #156, #157); #153 was merged the same day on Phil's call without a Codex verdict.
@@ -173,5 +219,6 @@
 - The script fails closed on every **GitHub** condition. A missing expected head SHA now blocks, and SHAs must be full and match exactly.
 - The VPS condition is checked only with `EXPECT_VPS_SHA`, because SSH is closed by default. Without it, the output says `VERDICT: READY (GitHub conditions only; …)` with exit code 3 and lists the VPS under "Not checked:", and Phil confirms it before merging.
 - Text controlled by PR authors and commenters is stripped of control and bidi/zero-width characters before printing.
+- Update 2026-11-17: the stripping now covers the full Unicode Cc/Cf/Zl/Zp set (Codex review on #162 found U+061C ARABIC LETTER MARK surviving; U+180E, U+2060-U+2064, U+FFF9-U+FFFB and the tag block U+E0000-U+E007F did too). `tests/pr-readiness-clean.test.js` enumerates that set from Node's Unicode tables and runs in `scripts/preflight.sh`, so a missed code point fails CI.
 - The token goes to curl on stdin, not argv.
-**Files:** `scripts/pr-readiness.sh`, `AGENTS.md`, `DECISIONS.md`, `PROJECT_STATE.md`, `WORK_LOG.md`.
+**Files:** `scripts/pr-readiness.sh`, `tests/pr-readiness-clean.test.js`, `scripts/preflight.sh`, `AGENTS.md`, `DECISIONS.md`, `PROJECT_STATE.md`, `WORK_LOG.md`.

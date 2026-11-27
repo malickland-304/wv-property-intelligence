@@ -18,6 +18,7 @@ const adminRoutes  = require('./routes/admin');
 const apiRoutes    = require('./routes/api');
 const createLeadsRouter = require('./routes/leads');
 const { isInquiryForwardConfigured } = require('./services/inquiryForward');
+const { startInquiryOutboxWorker, getInquiryOutboxCounts } = require('./services/inquiryOutbox');
 const { isLeadAutoReplyEnabled } = require('./services/leadNotifications');
 const createChatRouter = require('./routes/chat');
 const publicRoutes = require('./routes/public');
@@ -100,6 +101,11 @@ const inquiryForwardConfigured = isInquiryForwardConfigured();
 console.log(`[Startup] Inquiry forward configured: ${inquiryForwardConfigured}`);
 if (!inquiryForwardConfigured) {
   console.warn('[WARN] Inquiry forward is OFF (INQUIRY_WEBHOOK_URL must be https and INQUIRY_WEBHOOK_SECRET set): leads are stored locally but will not reach the intake sheet');
+}
+const outboxCounts = getInquiryOutboxCounts(db);
+console.log(`[Startup] Inquiry outbox: ${outboxCounts.pending} pending, ${outboxCounts.failed} failed`);
+if (outboxCounts.failed) {
+  console.warn(`[WARN] ${outboxCounts.failed} lead(s) in inquiry_outbox are status 'failed' (never reached the intake sheet) — review and re-queue`);
 }
 console.log(`[Startup] Customer auto-reply enabled: ${isLeadAutoReplyEnabled()}`);
 if (!gmailConfigured && !resendConfigured) {
@@ -197,8 +203,11 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'Server error' });
 });
 
-app.listen(PORT, () =>
-  console.log(`✅ WV Property API → http://localhost:${PORT}\n   Admin Panel  → http://localhost:${PORT}/admin`)
-);
+app.listen(PORT, () => {
+  console.log(`✅ WV Property API → http://localhost:${PORT}\n   Admin Panel  → http://localhost:${PORT}/admin`);
+  // Delivers queued lead copies to the n8n intake and retries failures.
+  // Idles (sends nothing) while the inquiry forward is not configured.
+  startInquiryOutboxWorker({ db });
+});
 
 module.exports = app;

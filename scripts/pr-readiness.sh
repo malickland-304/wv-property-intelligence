@@ -50,13 +50,22 @@ skip()   { unchecked+=("$1"); }
 
 # jq helper: replace C0/C1 control characters (ESC, CSI, BEL, CR, ...) with "?".
 # Works on codepoints, not a regex, so it does not depend on the regex engine's escapes.
-# Also replaces Unicode format characters that reorder or hide text: zero-width and
-# LRM/RLM (U+200B-U+200F), line/paragraph separators and bidi embeddings/overrides
-# (U+2028-U+202E), bidi isolates and invisible operators (U+2066-U+206F), BOM (U+FEFF).
+# Also replaces EVERY Unicode format (Cf), line-separator (Zl) and paragraph-separator
+# (Zp) character, because they reorder or hide text: bidi marks/embeddings/overrides/
+# isolates (incl. U+061C ARABIC LETTER MARK), zero-width chars, invisible operators,
+# BOM, interlinear annotations, and the tag block U+E0000-U+E007F (invisible text that
+# agents reading this output would still see). The ranges are the full Cf/Zl/Zp set as
+# of Unicode 16; tests/pr-readiness-clean.test.js checks them against Node's own
+# Unicode tables, so a gap fails CI instead of waiting for a reviewer to find it.
 JQ_CLEAN='def clean: tostring | explode | map(
-  if . < 32 or (. >= 127 and . < 160)
+  if . < 32 or (. >= 127 and . < 160) or . == 173
+     or (. >= 1536 and . <= 1541) or . == 1564 or . == 1757 or . == 1807
+     or (. >= 2192 and . <= 2193) or . == 2274 or . == 6158
      or (. >= 8203 and . <= 8207) or (. >= 8232 and . <= 8238)
-     or (. >= 8294 and . <= 8303) or . == 65279
+     or (. >= 8288 and . <= 8303) or . == 65279 or (. >= 65529 and . <= 65531)
+     or . == 69821 or . == 69837 or (. >= 78896 and . <= 78911)
+     or (. >= 113824 and . <= 113827) or (. >= 119155 and . <= 119162)
+     or (. >= 917504 and . <= 917631)
   then 63 else . end) | implode;'
 
 # The token goes to curl on stdin (-H @-), not in argv, so `ps` cannot show it.
