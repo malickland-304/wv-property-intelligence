@@ -1,7 +1,11 @@
 # WORK_LOG.md — Malickland 2.0 Coordination Ledger
 > All agents must append an entry here after any session that makes changes.
 > This is the memory layer between agents. Do not delete prior entries.
-> Format: ## 2026-11-16 — Claude (wiki sync after #159)
+> Format: ## YYYY-MM-DD — Agent Name
+
+---
+
+## 2026-11-16 — Claude (wiki sync after #159)
 
 ### Objective
 Phil asked to check the auto-merged PRs (#153, #157, #159). Code on `main` @ `32b41d8` checked out clean (tree equals the tested #159 head; CI 6/6 green; every test passes). `/docs-lint` found the one wiki page stale because #159 changed `api/routes/public.js`.
@@ -18,10 +22,6 @@ Phil asked to check the auto-merged PRs (#153, #157, #159). Code on `main` @ `32
 
 ### Remaining Risks
 None.
-
----
-
-## YYYY-MM-DD — Agent Name
 
 ---
 
