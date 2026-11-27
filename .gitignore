@@ -5,6 +5,7 @@ api/node_modules/
 # Environment secrets
 .env
 api/.env
+api/.env.tmp.*
 secrets/
 
 # SQLite — live database files (backups stay gitignored too)

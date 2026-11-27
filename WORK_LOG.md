@@ -5,6 +5,45 @@
 
 ---
 
+## 2026-11-27 — Claude (dev server that sets itself up in any checkout, PR #167)
+
+### Objective
+The preview dev server kept failing in new Claude Code sessions. Each session gets a fresh worktree with no `api/node_modules` and no `api/.env` (gitignored), and Homebrew's Node is now 26, which has no prebuilt `better-sqlite3`.
+
+### Changes Made
+- `scripts/dev-server.sh` (new):
+  - picks Node 24, then 22, then 20.9+ (20.6 added `--env-file`; the locked `sharp` needs 20.9). Candidates are `/usr/local/bin/node`, Homebrew `node@N` under `/opt/homebrew` and `/usr/local`, fnm, nvm, then `PATH`. An invalid `DEV_NODE` override is an error, not a silent fallback;
+  - runs `npm ci` with that Node's npm when `api/node_modules` is missing, or the stamp (`api/node_modules/.dev-install-stamp`: Node ABI, platform, arch and a `package-lock.json` hash) differs. The stamp is written only after a successful install;
+  - takes a per-checkout lock (in `$TMPDIR`) around setup, so two first starts don't run `npm ci` into the same folder. A stale lock is taken over under a second lock with a PID re-check, so two waiters can't both remove it;
+  - creates a mode-600 `api/.env` with random local-only secrets when none exists. It writes a temp file, checks every value is non-empty, then renames it into place, so `api/.env` is never left half written. The temp name `api/.env.tmp.*` is gitignored. An existing `api/.env` is never touched;
+  - runs `npm ci` under `env -i` with a minimal environment (including the proxy and CA settings such as `NODE_USE_SYSTEM_CA`, so prebuilt downloads work behind a proxy) plus `npm_config_*`, so dependency install scripts never see integration keys;
+  - a relative `DATABASE_PATH` or `LISTINGS_ROOT` in `api/.env` (the `.env.example` value is `./database/...`) still resolves from the repo root, as before; the script passes it as an absolute path;
+  - starts `api/server.js` from `api/` with `env -i` and an explicit minimal environment: PATH, HOME, PORT, locale and proxy basics, plus `NODE_ENV=development`. Integration keys exported in the launching shell, or a root `.env`, never reach the server: only `api/.env` configures it.
+- `.claude/launch.json`: runs `bash scripts/dev-server.sh` instead of a fixed Node path.
+
+### Verification (Truthfulness Rule applies)
+All runs below used a fresh copy of the branch at a path containing a space, started from `cwd=/`. Node 22 (`DEV_NODE`) unless noted.
+- `bash -n` → OK.
+- **Invalid `DEV_NODE`** (Node 26) → exits 1 with a clear message.
+- **First start, poisoned environment:**
+  - inherited `NODE_ENV=production`, `INQUIRY_WEBHOOK_URL`/`SECRET`, `RESEND_API_KEY`, `GOOGLE_REFRESH_TOKEN`, and a root `.env` with fake integration values;
+  - result: installed, created `api/.env` (600, all 3 secrets non-empty), and `/api/health`, `/`, `/search`, `/37-advent` and `/start` returned 200 on the preset `PORT`;
+  - startup reported Gmail, Resend and inquiry forward all **off**, and the request log used dev format (`NODE_ENV` was not production).
+- **Two simultaneous starts after forcing a reinstall:** the second waited for the lock, the first ran `npm ci`, and both came up healthy. `api/.env` was unchanged.
+- **Restart with the same Node and lockfile:** no reinstall, health 200.
+- **AGENTS.md validation on the copy:**
+  - `node --check` on all 5 files → OK;
+  - `tests/verify-security-fixes.test.js` → 60/60;
+  - `scripts/preflight.sh` → PASSED. It ran from a copy whose `mktemp -d` pointed at a sandbox-writable folder; the sandbox blocks the default temp folder.
+  - `api/package-lock.json` was byte-identical after `npm ci`.
+- **Node 24 (`/usr/local/bin/node` v24.14.1), outside the sandbox:** Phil ran `bash scripts/dev-server.sh` at `6c1bc60` in his own terminal. It picked Node 24, `npm ci` took 3 s, and the server started on :3000. That was the earlier version of the script, and the current version was not re-run on Node 24. Inside the agent sandbox, Node 24's npm can't download the prebuilt (keychain block): a sandbox limit.
+
+### Remaining Risks
+- The first start in a fresh checkout needs network access for `npm ci` and takes about 10–30 s.
+- Production and CI still run Node 20 until #155 merges, so local dev prefers Node 24 ahead of that change.
+
+---
+
 ## 2026-11-16 — Claude (dependency advisories)
 
 ### Objective
