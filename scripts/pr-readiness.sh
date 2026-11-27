@@ -12,6 +12,8 @@
 # "Not checked:", never under "Verified:".
 # Exit code: 0 READY (everything checked), 1 NOT READY, 2 usage or tooling error,
 # 3 READY on the GitHub conditions only, with the VPS not checked (Phil confirms it).
+# At the end the PR, checks, statuses, reviews, threads and (if checked) the VPS SHA are re-read;
+# if any moved during the run, or a re-read fails, NOT READY.
 #
 # Needs curl and jq. Review-thread state comes from GitHub GraphQL, which needs
 # authentication: an authenticated `gh` CLI, or GITHUB_TOKEN in the environment.
@@ -154,24 +156,45 @@ else
 fi
 
 # ── 4. Review threads (GraphQL, needs auth) ─────────────────────────────────
-THREADS_QUERY='query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviewThreads(first:100){totalCount nodes{isResolved isOutdated path line comments(first:1){nodes{author{login} body}}}}}}}'
+THREADS_QUERY='query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviews(last:100){totalCount nodes{id state}} reviewThreads(first:100){totalCount nodes{isResolved isOutdated path line comments(first:1){nodes{author{login} body}}}}}}}'
 owner="${REPO%%/*}"; name="${REPO##*/}"
-threads_json=""
-if command -v gh >/dev/null 2>&1 && threads_json="$(gh api graphql -f query="$THREADS_QUERY" -F owner="$owner" -F name="$name" -F n="$PR" 2>/dev/null)"; then
-  :
-elif [[ -n "${GITHUB_TOKEN:-}" ]]; then
-  body="$(jq -n --arg q "$THREADS_QUERY" --arg owner "$owner" --arg name "$name" --argjson n "$PR" \
-           '{query:$q, variables:{owner:$owner, name:$name, n:$n}}')"
-  threads_json="$(printf 'Authorization: Bearer %s\n' "$GITHUB_TOKEN" |
-                  curl -fsS --max-time 20 -H @- -H "Content-Type: application/json" \
-                    --data-binary "$body" https://api.github.com/graphql)" || threads_json=""
-fi
+# Prints the GraphQL response, or nothing when no auth is available or the call fails.
+fetch_threads() {
+  local out="" body
+  if command -v gh >/dev/null 2>&1 && out="$(gh api graphql -f query="$THREADS_QUERY" -F owner="$owner" -F name="$name" -F n="$PR" 2>/dev/null)"; then
+    :
+  elif [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    body="$(jq -n --arg q "$THREADS_QUERY" --arg owner "$owner" --arg name "$name" --argjson n "$PR" \
+             '{query:$q, variables:{owner:$owner, name:$name, n:$n}}')"
+    out="$(printf 'Authorization: Bearer %s\n' "$GITHUB_TOKEN" |
+           curl -fsS --max-time 20 -H @- -H "Content-Type: application/json" \
+             --data-binary "$body" https://api.github.com/graphql)" || out=""
+  else
+    out=""
+  fi
+  printf '%s' "$out"
+}
+threads_json="$(fetch_threads)"
+# A usable response has no GraphQL errors, numeric review and thread counts, a full first
+# page of nodes (as many as totalCount, up to 100) and boolean isResolved/isOutdated on
+# every thread. Partial data is treated as unreadable, never as "nothing changed".
+THREADS_VALID='(.errors | not) and (.data.repository.pullRequest as $p
+  | ($p.reviews.totalCount | type) == "number" and ($p.reviews.nodes | type) == "array"
+  and ($p.reviews.nodes | length) == ([$p.reviews.totalCount, 100] | min)
+  and ($p.reviewThreads.totalCount | type) == "number" and ($p.reviewThreads.nodes | type) == "array"
+  and ($p.reviewThreads.nodes | length) == ([$p.reviewThreads.totalCount, 100] | min)
+  and all($p.reviewThreads.nodes[]; (.isResolved | type) == "boolean" and (.isOutdated | type) == "boolean"))'
 
-if [[ -z "$threads_json" ]] || ! jq -e '.data.repository.pullRequest.reviewThreads' >/dev/null 2>&1 <<<"$threads_json"; then
-  block "review threads: UNKNOWN (needs an authenticated gh or GITHUB_TOKEN for GraphQL)"
+if [[ -z "$threads_json" ]] || ! jq -e "$THREADS_VALID" >/dev/null 2>&1 <<<"$threads_json"; then
+  block "review threads: UNKNOWN (GraphQL read failed or incomplete; needs an authenticated gh or GITHUB_TOKEN)"
 else
   t_total="$(jq -r '.data.repository.pullRequest.reviewThreads.totalCount' <<<"$threads_json")"
   open_count="$(jq -r '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false and .isOutdated == false)] | length' <<<"$threads_json")"
+  r_total="$(jq -r '.data.repository.pullRequest.reviews.totalCount' <<<"$threads_json")"
+  if [[ "$r_total" -gt 100 ]]; then
+    # The end-of-run review fingerprint sees only the last 100 reviews.
+    block "reviews: $r_total reviews, more than one page; verify by hand"
+  fi
   if [[ "$t_total" -gt 100 ]]; then
     block "review threads: $t_total threads, more than one page; verify by hand"
   elif [[ "$open_count" == "0" ]]; then
@@ -206,6 +229,78 @@ if [[ -n "${EXPECT_VPS_SHA:-}" ]]; then
   fi
 else
   skip "VPS SHA (no unapproved deploy): set EXPECT_VPS_SHA=<full sha> to check over SSH, or Phil confirms it"
+fi
+
+# ── Re-read: the PR must not have moved while this ran ──────────────────────
+# Checks, threads and the VPS were read after the PR itself. A push, merge, close, draft
+# toggle or base change in between would leave this verdict describing a state that no
+# longer holds, so the check runs and statuses, reviews and threads, the VPS SHA (when
+# checked) and, last, the PR itself are read again and compared. Any read or parse
+# failure blocks (never a set -e exit before the verdict).
+
+# Check runs again: a run that started, re-ran or failed on the same head after section 3.
+runs_fp='[.total_count] + ([.check_runs[] | "\(.id):\(.status):\(.conclusion)"] | sort) | map(tostring) | join(" ")'
+if [[ -n "${runs_json:-}" ]]; then
+  if final_runs="$(api "commits/$head_sha/check-runs?per_page=100")" \
+     && a="$(jq -r "$runs_fp" <<<"$runs_json" 2>/dev/null)" \
+     && b="$(jq -r "$runs_fp" <<<"$final_runs" 2>/dev/null)"; then
+    [[ "$a" == "$b" ]] || block "check runs changed on ${head_sha:0:7} during this run; run again"
+  else
+    block "could not re-read check runs for ${head_sha:0:7} at the end of the run"
+  fi
+fi
+
+# Legacy commit statuses again: a status context that turned failing after section 3.
+# .statuses[] (no ?) makes a response without a statuses array a parse failure, so it blocks.
+status_fp='[.state, .total_count] + ([.statuses[] | "\(.context):\(.state)"] | sort) | map(tostring) | join(" ")'
+if [[ -n "${status_json:-}" ]]; then
+  if final_status="$(api "commits/$head_sha/status")" \
+     && a="$(jq -r "$status_fp" <<<"$status_json" 2>/dev/null)" \
+     && b="$(jq -r "$status_fp" <<<"$final_status" 2>/dev/null)"; then
+    [[ "$a" == "$b" ]] || block "commit statuses changed on ${head_sha:0:7} during this run; run again"
+  else
+    block "could not re-read commit statuses for ${head_sha:0:7} at the end of the run"
+  fi
+fi
+
+# Reviews and review threads again: a new or newly submitted review (even one with no
+# inline comments: review ids and states are compared) or a new or re-opened thread after section 4. Only compared when the
+# first read worked; an UNKNOWN thread state already blocks.
+threads_fp='[.data.repository.pullRequest.reviews.totalCount, .data.repository.pullRequest.reviewThreads.totalCount] + ([.data.repository.pullRequest.reviews.nodes[] | "\(.id):\(.state)"] | sort) + ([.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false and .isOutdated == false) | "\(.path):\(.line)"] | sort) | map(tostring) | join(" ")'
+if [[ -n "$threads_json" ]] && jq -e "$THREADS_VALID" >/dev/null 2>&1 <<<"$threads_json" \
+   && a="$(jq -er "$threads_fp" <<<"$threads_json" 2>/dev/null)"; then
+  final_threads="$(fetch_threads)"
+  if [[ -n "$final_threads" ]] && jq -e "$THREADS_VALID" >/dev/null 2>&1 <<<"$final_threads" \
+     && b="$(jq -er "$threads_fp" <<<"$final_threads" 2>/dev/null)"; then
+    [[ "$a" == "$b" ]] || block "reviews or review threads changed during this run; run again"
+  else
+    block "could not re-read reviews and review threads at the end of the run"
+  fi
+fi
+
+# VPS SHA again: a deploy during the GitHub re-reads above. Only when the first read
+# was a valid SHA; an unreachable or bad first read already blocks.
+if [[ -n "${EXPECT_VPS_SHA:-}" && "${vps_sha:-}" =~ ^[0-9a-f]{40}$ ]]; then
+  if final_vps="$(ssh -o BatchMode=yes -o ConnectTimeout=10 "$VPS_TARGET" "$remote_cmd" 2>/dev/null)"; then
+    [[ "$final_vps" == "$vps_sha" ]] || block "VPS SHA changed during this run; run again"
+  else
+    block "could not re-read the VPS SHA at the end of the run"
+  fi
+fi
+
+# The PR itself, last of all: a push during the re-reads above would leave them describing
+# the old head, so the head (and base) must still match after everything else was read.
+# tojson keeps JSON types, so a boolean that comes back as a string ("true") counts as a change.
+pr_fingerprint='[.head.sha, .state, .draft, .mergeable, .mergeable_state, .base.ref, .base.sha] | tojson'
+first_fp="$(jq -r "$pr_fingerprint" <<<"$pr_json")"
+if final_json="$(api "pulls/$PR")" \
+   && jq -e 'type == "object" and (.head.sha | type) == "string"' >/dev/null 2>&1 <<<"$final_json" \
+   && final_fp="$(jq -r "$pr_fingerprint" <<<"$final_json" 2>/dev/null)"; then
+  if [[ "$final_fp" != "$first_fp" ]]; then
+    block "PR changed during this run: $(jq -rn "$JQ_CLEAN"' $s | clean' --arg s "$first_fp") -> $(jq -rn "$JQ_CLEAN"' $s | clean' --arg s "$final_fp") (head state draft mergeable merge_state base base_sha); run again"
+  fi
+else
+  block "could not re-read PR #$PR at the end of the run"
 fi
 
 # ── Verdict ─────────────────────────────────────────────────────────────────

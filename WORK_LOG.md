@@ -5,6 +5,31 @@
 
 ---
 
+## 2026-11-27 — Claude (#163: readiness script re-reads PR, checks, statuses, reviews, threads and VPS SHA at the end of a run)
+
+### Objective
+Close the "stale PR state" gap (Sourcery on #158; Sourcery and Codex on #163): the readiness verdict must not describe a PR state that changed while the script ran.
+
+### Changes Made
+- `scripts/pr-readiness.sh` — after the VPS step, re-read and compare:
+  - check runs on the head (id, status, conclusion);
+  - legacy commit statuses on the head (combined state, each context's state);
+  - reviews and review threads (review count, thread total, every unresolved non-outdated thread), via a new `fetch_threads()` used by both reads;
+  - the VPS SHA over SSH, when `EXPECT_VPS_SHA` is set and the first read was a valid SHA;
+  - last, the PR itself: head SHA, state, draft, mergeable, mergeable_state, base ref and base SHA (so a push during the other re-reads is caught).
+  GraphQL responses count as unreadable (UNKNOWN on the first read, blocker on the re-read) when they carry `errors`, a non-numeric review/thread count, fewer thread or review nodes than `totalCount` (up to 100); more than 100 reviews or threads blocks (verify by hand), or a thread without boolean `isResolved`/`isOutdated`. Review ids and states are compared, so a pending review submitted mid-run is caught. A status response without a `statuses` array blocks. The PR fingerprint keeps JSON types (`tojson`), so `true` vs `"true"` is a change.
+  Any change blocks with "… changed during this run; run again". A failed or malformed re-read blocks with "could not re-read …" (no `set -e` exit before the verdict). New text from GitHub goes through the `clean` filter.
+- `AGENTS.md` — the interim-gate sentence now lists what is re-read.
+
+### Verification (Truthfulness Rule applies)
+- `bash -n` OK; `scripts/preflight.sh` PRE-FLIGHT PASSED.
+- Stand-in `curl`/`gh` with recorded JSON, each ending in NOT READY with the matching blocker: head moved, base SHA moved, draft flipped, partial or errored GraphQL response, PR re-read returns junk, check run changed, commit status turned failing, new unresolved thread mid-run, new review with no inline comments, pending review submitted mid-run, short thread page (first read and re-read), string `isResolved`, status response without `statuses`, `draft` returned as a string, thread re-read returns junk, VPS SHA moved, VPS re-read fails. Unchanged run with a matching VPS SHA → `READY`, exit 0. Unchanged run adds no re-read blocker.
+
+### Remaining Risks
+The verdict still goes stale after the script exits (and between the last re-read and the printed verdict); re-run it immediately before merge and merge with an expected head SHA (AGENTS.md).
+
+---
+
 ## 2026-11-27 — Claude (Node 24 production deploy of `d86831a`, run by Phil)
 
 ### Objective
