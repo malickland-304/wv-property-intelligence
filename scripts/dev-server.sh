@@ -87,7 +87,9 @@ trap cleanup EXIT
 
 # Minimal, explicit environment for `npm ci` (whose dependency install scripts
 # run code) and for the server: integration keys in the launching shell reach
-# neither.
+# neither. The proxy variables are passed as they are, because installs behind a
+# proxy need them. So a proxy URL with credentials in HTTP(S)_PROXY (or the
+# lowercase forms) does reach npm ci's install scripts and the server.
 base_env=(PATH="$PATH" HOME="$HOME")
 for v in TMPDIR USER LOGNAME SHELL TERM LANG LC_ALL TZ NO_COLOR FORCE_COLOR \
          HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy \
@@ -102,22 +104,44 @@ STAMP="api/node_modules/.dev-install-stamp"
 WANT="$("$NODE" -p 'const c = require("crypto"), fs = require("fs");
   [process.versions.modules, process.platform, process.arch,
    c.createHash("sha256").update(fs.readFileSync("api/package-lock.json")).digest("hex").slice(0, 16)].join("-")')"
+# `npm ci` can succeed without building better-sqlite3's native binding (for
+# example with ignore-scripts set in ~/.npmrc), and a stamped install can lose it
+# later. So the binding is checked on every start, not only after an install.
+sqlite_loads() { (cd api && env -i "${base_env[@]}" "$NODE" -e "require('better-sqlite3')(':memory:').close()"); }
+need_install=no
 if [ ! -d api/node_modules ] || [ "$(cat "$STAMP" 2>/dev/null || true)" != "$WANT" ]; then
+  need_install=yes
+elif ! sqlite_loads 2>/dev/null; then
+  echo "dev-server: better-sqlite3 does not load from the existing install; reinstalling"
+  rm -f "$STAMP"; need_install=yes
+fi
+if [ "$need_install" = yes ]; then
   echo "dev-server: installing api dependencies (npm ci) for this Node and lockfile..."
   # Plus npm settings that carry no credentials, in either case npm accepts.
   # Left out on purpose: auth (_auth*, *token*, *password*), because npm hands its
   # environment to dependency install scripts, and install-changing flags such
-  # as ignore_scripts.
+  # as ignore_scripts. For the same reason a registry or proxy URL with
+  # credentials in it is skipped, with a warning: userinfo in the authority
+  # (scheme://user:pass@host; an @ in the path, query or fragment doesn't count),
+  # or a token/auth/password/secret/key parameter in the query string.
   npm_env=("${base_env[@]}")
+  cred_re='^[A-Za-z][A-Za-z0-9+.-]*://[^/?#]*@'
+  query_cred_re='[?&][^=&#]*(token|auth|pass|secret|key)[^=&#]*='
   for k in registry cache cafile strict_ssl proxy https_proxy noproxy prefer_offline fetch_retries; do
     for v in "npm_config_$k" "NPM_CONFIG_$(printf '%s' "$k" | tr '[:lower:]' '[:upper:]')"; do
-      if [ -n "${!v:-}" ]; then npm_env+=("$v=${!v}"); fi
+      [ -n "${!v:-}" ] || continue
+      lc="$(printf '%s' "${!v}" | tr '[:upper:]' '[:lower:]')"
+      if [[ "${!v}" =~ $cred_re ]] || [[ "$lc" =~ $query_cred_re ]]; then
+        # npm exports a registry URL from ~/.npmrc to install scripts too, but not
+        # the per-host auth keys, so that is where the credential belongs.
+        echo "dev-server: not passing $v to npm ci: its URL contains credentials, which install scripts could read. Put the credential in ~/.npmrc as //<registry-host>/:_authToken=... (or :_auth), not in the URL." >&2
+        continue
+      fi
+      npm_env+=("$v=${!v}")
     done
   done
   (cd api && env -i "${npm_env[@]}" "$NODE_DIR/npm" ci --no-audit --no-fund)
-  # `npm ci` can succeed without building better-sqlite3's native binding, for
-  # example with ignore-scripts set in ~/.npmrc. Record the install only once it loads.
-  (cd api && env -i "${base_env[@]}" "$NODE" -e "require('better-sqlite3')(':memory:').close()") ||
+  sqlite_loads ||
     die "npm ci finished, but better-sqlite3 does not load with $NODE (was its native build skipped, e.g. ignore-scripts in your npm config?). Install not recorded; fix that and start again."
   echo "$WANT" > "$STAMP"
 fi
