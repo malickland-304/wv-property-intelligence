@@ -5,6 +5,47 @@
 
 ---
 
+## 2026-11-27 — Claude (dev-server load check on every start, follow-up to PR #168)
+
+### Objective
+Fix the independent review findings on #168 (review comment: https://github.com/malickland-304/wv-property-intelligence/pull/168#issuecomment-7213539718) and its Sourcery threads. #168 was merged at `6a1c94c` before that review finished. `scripts/dev-server.sh` is local-dev tooling only; nothing is deployed.
+
+### Changes Made
+- `scripts/dev-server.sh`:
+  - **`better-sqlite3` load check on every start (blocking finding).** #168 ran the check only after an install. A stamped install that later lost its native binding therefore skipped the check, and the server crashed. Now the check runs on every start. If it fails, the stamp is deleted and `npm ci` runs again;
+  - **credential-bearing npm URLs are not passed to `npm ci`.** `registry`, `proxy` and `https_proxy` values like `scheme://user:pass@host` (pattern `://[^/]*@`) are skipped. A warning names the variable without printing its value. An `@` in a path or query still passes.
+- `WORK_LOG.md`: in the #168 entry, the preflight line now cites the CI `verify` job, and a rollback note was added. This entry was added.
+
+### Verification (Truthfulness Rule applies)
+Every run used a fresh `git archive` copy of `1e6207a` at a path containing a space, started from `cwd=/` under `/bin/bash` 3.2. Each used Node 22 (`DEV_NODE`, fnm v22.22.3), an empty `npm_config_cache`, and a poisoned environment (`RESEND_API_KEY`, `INQUIRY_WEBHOOK_URL`/`SECRET`, `npm_config__authToken`). An `npm` wrapper recorded the environment `npm ci` received. CAs were passed as a PEM via `NODE_EXTRA_CA_CERTS`, because Node can't read keychain trust settings in this sandbox.
+- **Credentialed URLs:** `npm_config_registry=https://fakeuser:fakepass@…` and `NPM_CONFIG_PROXY=http://fakeuser:fakepass@…` were exported:
+  - both were skipped with a warning, and `npm ci` received neither;
+  - the fake password appeared on 0 log lines;
+  - `npm_config_fetch_retries` still passed;
+  - `npm ci` added 174 packages and created `api/.env` (mode 600). Health returned 200, and Gmail, Resend, inquiry forward and auto-reply were all `false`.
+- **Stamped install whose native binding is gone** (`node_modules/better-sqlite3/build` moved away, stamp kept):
+  - previous version (`6a1c94c`): it skipped the install, and the server crashed with `Could not locate the bindings file`;
+  - new: it printed `better-sqlite3 does not load from the existing install; reinstalling`, ran `npm ci` (174 packages), and health returned 200.
+- **Plain restart (new):** no reinstall; health 200.
+- **Credential pattern under bash 3.2:** `https://u:p@reg.example/` and `http://user@proxy:8080` were skipped; `https://registry.npmjs.org/`, `http://proxy:8080`, `https://reg.example/@scope/` and `https://reg.example/x?a=b@c` passed.
+- `bash -n` (bash 3.2.57) OK. `node --check` on the 5 AGENTS.md files OK. `node tests/verify-security-fixes.test.js` 60/60 passed.
+- `scripts/preflight.sh`: not run locally; the PR's CI `verify` job runs it.
+
+### Security Notes
+`HTTP_PROXY`/`HTTPS_PROXY` (and lowercase forms) in the shared minimal environment are still passed to `npm ci` as-is, so a proxy URL with credentials in those variables reaches install scripts. That has been true since #167. It is left unchanged here because `npm ci` needs a working proxy behind one.
+
+### Remaining Risks
+- Each start now spends one extra Node process loading `better-sqlite3` (well under a second).
+- A credentialed registry or proxy set only in the environment is now ignored, so it has to move to `~/.npmrc`.
+
+### Rollback
+`git revert` the merge commit of this PR. Local dev only; nothing is deployed and no data changes.
+
+### Recommended Next Task
+Independent re-review on this PR, then Phil runs `scripts/pr-readiness.sh`.
+
+---
+
 ## 2026-11-27 — Claude (Node 24 production deploy of `d86831a`, run by Phil)
 
 ### Objective
