@@ -346,7 +346,9 @@ def main() -> int:
             unverified.append(f"{name} -- sha moved past {len(skipped.splitlines())} code commits with no body change ({old}->{new})")
 
     # (5) code citation line numbers
-    cite_re = re.compile(rf"`([\w./-]+\.(?:{CODE_EXT})|(?:[\w.-]+/)*(?:{CODE_NAMES}))(?::(\d+))?`")
+    # Extensionless names (Dockerfile, ...) count only with a directory or a :line, so a
+    # bare `Dockerfile` mentioned in prose is not read as a citation of a root file.
+    cite_re = re.compile(rf"`([\w./-]+\.(?:{CODE_EXT})|(?:[\w.-]+/)+(?:{CODE_NAMES})|(?:{CODE_NAMES})(?=:\d))(?::(\d+))?`")
     checked: set[tuple[str, str]] = set()
     for p in allmd:
         for path, line in cite_re.findall(p.read_text(encoding="utf-8")):
