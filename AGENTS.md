@@ -224,6 +224,8 @@ No step may be skipped. No agent may self-authorize a step beyond their role.
 
 Run in order. All must pass. Per Verification Truthfulness Rule: only report passing if these were actually run.
 
+Prerequisites: Node and `jq` (`scripts/preflight.sh` runs the `pr-readiness.sh` jq filter and stops with a clear message if `jq` is missing).
+
 ```bash
 cd api && npm ci
 node --check server.js
