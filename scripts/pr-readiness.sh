@@ -157,16 +157,23 @@ fi
 # ── 4. Review threads (GraphQL, needs auth) ─────────────────────────────────
 THREADS_QUERY='query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviewThreads(first:100){totalCount nodes{isResolved isOutdated path line comments(first:1){nodes{author{login} body}}}}}}}'
 owner="${REPO%%/*}"; name="${REPO##*/}"
-threads_json=""
-if command -v gh >/dev/null 2>&1 && threads_json="$(gh api graphql -f query="$THREADS_QUERY" -F owner="$owner" -F name="$name" -F n="$PR" 2>/dev/null)"; then
-  :
-elif [[ -n "${GITHUB_TOKEN:-}" ]]; then
-  body="$(jq -n --arg q "$THREADS_QUERY" --arg owner "$owner" --arg name "$name" --argjson n "$PR" \
-           '{query:$q, variables:{owner:$owner, name:$name, n:$n}}')"
-  threads_json="$(printf 'Authorization: Bearer %s\n' "$GITHUB_TOKEN" |
-                  curl -fsS --max-time 20 -H @- -H "Content-Type: application/json" \
-                    --data-binary "$body" https://api.github.com/graphql)" || threads_json=""
-fi
+# Prints the GraphQL response, or nothing when no auth is available or the call fails.
+fetch_threads() {
+  local out="" body
+  if command -v gh >/dev/null 2>&1 && out="$(gh api graphql -f query="$THREADS_QUERY" -F owner="$owner" -F name="$name" -F n="$PR" 2>/dev/null)"; then
+    :
+  elif [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    body="$(jq -n --arg q "$THREADS_QUERY" --arg owner "$owner" --arg name "$name" --argjson n "$PR" \
+             '{query:$q, variables:{owner:$owner, name:$name, n:$n}}')"
+    out="$(printf 'Authorization: Bearer %s\n' "$GITHUB_TOKEN" |
+           curl -fsS --max-time 20 -H @- -H "Content-Type: application/json" \
+             --data-binary "$body" https://api.github.com/graphql)" || out=""
+  else
+    out=""
+  fi
+  printf '%s' "$out"
+}
+threads_json="$(fetch_threads)"
 
 if [[ -z "$threads_json" ]] || ! jq -e '.data.repository.pullRequest.reviewThreads' >/dev/null 2>&1 <<<"$threads_json"; then
   block "review threads: UNKNOWN (needs an authenticated gh or GITHUB_TOKEN for GraphQL)"
@@ -212,7 +219,7 @@ fi
 # ── Re-read: the PR must not have moved while this ran ──────────────────────
 # Checks, threads and the VPS were read after the PR itself. A push, merge, close, draft
 # toggle or base change in between would leave this verdict describing a state that no
-# longer holds, so the PR and its check runs are read again and compared. Any read or
+# longer holds, so the PR, its check runs and its review threads are read again and compared. Any read or
 # parse failure blocks (never a set -e exit before the verdict).
 pr_fingerprint='[.head.sha, .state, .draft, .mergeable, .mergeable_state, .base.ref] | map(tostring) | join(" ")'
 first_fp="$(jq -r "$pr_fingerprint" <<<"$pr_json")"
@@ -235,6 +242,18 @@ if [[ -n "${runs_json:-}" ]]; then
     [[ "$a" == "$b" ]] || block "check runs changed on ${head_sha:0:7} during this run; run again"
   else
     block "could not re-read check runs for ${head_sha:0:7} at the end of the run"
+  fi
+fi
+
+# Review threads again: a new or re-opened thread after section 4. Only compared when the
+# first read worked; an UNKNOWN thread state already blocks.
+threads_fp='[.data.repository.pullRequest.reviewThreads.totalCount] + ([.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false and .isOutdated == false) | "\(.path):\(.line)"] | sort) | map(tostring) | join(" ")'
+if [[ -n "$threads_json" ]] && a="$(jq -er "$threads_fp" <<<"$threads_json" 2>/dev/null)"; then
+  final_threads="$(fetch_threads)"
+  if [[ -n "$final_threads" ]] && b="$(jq -er "$threads_fp" <<<"$final_threads" 2>/dev/null)"; then
+    [[ "$a" == "$b" ]] || block "review threads changed during this run; run again"
+  else
+    block "could not re-read review threads at the end of the run"
   fi
 fi
 
