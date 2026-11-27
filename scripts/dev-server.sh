@@ -2,10 +2,11 @@
 # Local dev server that works in any checkout, including fresh Claude Code worktrees.
 # Used by .claude/launch.json. Sets up what a fresh checkout is missing, then starts
 # api/server.js:
-#   1. picks Node 24, 22 or 20.9+ (DEV_NODE overrides). better-sqlite3 has prebuilt
+#   1. picks Node 24, 22 or 20.12+ (DEV_NODE overrides). better-sqlite3 has prebuilt
 #      binaries for these; on other majors npm falls back to a slow C++ build.
 #   2. runs `npm ci` with THAT Node's npm when api/node_modules is missing, or was
-#      installed for another Node ABI, platform/arch or package-lock.json.
+#      installed for another Node ABI, platform/arch or package-lock.json, and
+#      checks that better-sqlite3 loads before recording the install as done.
 #   3. creates a gitignored, mode-600 api/.env with random local-only secrets when
 #      none exists. An existing api/.env is never touched.
 #
@@ -22,12 +23,13 @@ cd "$ROOT"
 
 die() { echo "dev-server: $*" >&2; exit 1; }
 
-# Succeeds when $1 is an executable Node 24, 22 or 20.9+ (20.6 added --env-file;
-# the locked sharp release needs >=20.9).
+# Succeeds when $1 is an executable Node 24, 22 or 20.12+ (20.6 added --env-file,
+# the locked sharp release needs >=20.9, and 20.12 added util.parseEnv, which
+# reads api/.env below with the same rules as --env-file).
 node_ok() {
   [ -n "$1" ] && [ -x "$1" ] || return 1
   [ "$("$1" -p 'const [a, b] = process.versions.node.split(".").map(Number);
-    a === 24 || a === 22 || (a === 20 && b >= 9) ? "ok" : "no"' 2>/dev/null || true)" = ok ]
+    a === 24 || a === 22 || (a === 20 && b >= 12) ? "ok" : "no"' 2>/dev/null || true)" = ok ]
 }
 
 pick_node() {
@@ -49,10 +51,10 @@ pick_node() {
 }
 
 if [ -n "${DEV_NODE:-}" ]; then
-  node_ok "$DEV_NODE" || die "DEV_NODE=$DEV_NODE is not an executable Node 24, 22 or 20.9+."
+  node_ok "$DEV_NODE" || die "DEV_NODE=$DEV_NODE is not an executable Node 24, 22 or 20.12+."
   NODE="$DEV_NODE"
 else
-  NODE="$(pick_node)" || die "no Node 24, 22 or 20.9+ found. Install Node 24 LTS or set DEV_NODE=/path/to/node."
+  NODE="$(pick_node)" || die "no Node 24, 22 or 20.12+ found. Install Node 24 LTS or set DEV_NODE=/path/to/node."
 fi
 NODE_DIR="$(dirname "$NODE")"
 export PATH="$NODE_DIR:$PATH"
@@ -93,17 +95,30 @@ for v in TMPDIR USER LOGNAME SHELL TERM LANG LC_ALL TZ NO_COLOR FORCE_COLOR \
   [ -n "${!v:-}" ] && base_env+=("$v=${!v}")
 done
 
-# Install stamp: Node ABI + platform/arch + lockfile hash. Written only after a
-# successful `npm ci`, so a failed install is retried on the next start.
+# Install stamp: Node ABI + platform/arch + lockfile hash. Written only after
+# `npm ci` succeeds AND better-sqlite3 loads, so an incomplete install is
+# retried on the next start.
 STAMP="api/node_modules/.dev-install-stamp"
 WANT="$("$NODE" -p 'const c = require("crypto"), fs = require("fs");
   [process.versions.modules, process.platform, process.arch,
    c.createHash("sha256").update(fs.readFileSync("api/package-lock.json")).digest("hex").slice(0, 16)].join("-")')"
 if [ ! -d api/node_modules ] || [ "$(cat "$STAMP" 2>/dev/null || true)" != "$WANT" ]; then
   echo "dev-server: installing api dependencies (npm ci) for this Node and lockfile..."
-  npm_env=("${base_env[@]}")   # plus npm's own settings (registry, cache, auth)
-  for v in $(compgen -e | grep '^npm_config_' || true); do npm_env+=("$v=${!v}"); done
+  # Plus npm settings that carry no credentials, in either case npm accepts.
+  # Left out on purpose: auth (_auth*, *token*, *password*), because npm hands its
+  # environment to dependency install scripts, and install-changing flags such
+  # as ignore_scripts.
+  npm_env=("${base_env[@]}")
+  for k in registry cache cafile strict_ssl proxy https_proxy noproxy prefer_offline fetch_retries; do
+    for v in "npm_config_$k" "NPM_CONFIG_$(printf '%s' "$k" | tr '[:lower:]' '[:upper:]')"; do
+      if [ -n "${!v:-}" ]; then npm_env+=("$v=${!v}"); fi
+    done
+  done
   (cd api && env -i "${npm_env[@]}" "$NODE_DIR/npm" ci --no-audit --no-fund)
+  # `npm ci` can succeed without building better-sqlite3's native binding, for
+  # example with ignore-scripts set in ~/.npmrc. Record the install only once it loads.
+  (cd api && env -i "${base_env[@]}" "$NODE" -e "require('better-sqlite3')(':memory:').close()") ||
+    die "npm ci finished, but better-sqlite3 does not load with $NODE (was its native build skipped, e.g. ignore-scripts in your npm config?). Install not recorded; fix that and start again."
   echo "$WANT" > "$STAMP"
 fi
 
@@ -135,10 +150,16 @@ server_env=("${base_env[@]}" NODE_ENV=development DOTENV_CONFIG_QUIET=true)
 # Relative DATABASE_PATH / LISTINGS_ROOT in api/.env (api/.env.example ships
 # ./database/...) have always meant "from the repo root". The server now runs
 # from api/, so pass them as absolute paths; the environment wins over --env-file.
-for v in DATABASE_PATH LISTINGS_ROOT; do
-  val="$(sed -n "s/^[[:space:]]*$v[[:space:]]*=[[:space:]]*//p" api/.env | tail -n 1 |
-         sed -e 's/[[:space:]]*$//' -e "s/^[\"']//" -e "s/[\"']\$//")"
-  case "$val" in ""|/*) ;; *) server_env+=("$v=$ROOT/${val#./}") ;; esac
-done
+# util.parseEnv applies the same rules as --env-file (quotes, inline # comments).
+resolved="$("$NODE" -e '
+  const fs = require("fs"), path = require("path"), root = process.argv[1];
+  const env = require("util").parseEnv(fs.readFileSync("api/.env", "utf8"));
+  for (const k of ["DATABASE_PATH", "LISTINGS_ROOT"]) {
+    const v = env[k];
+    if (!v || path.isAbsolute(v)) continue;
+    if (/[\n\0]/.test(v)) { console.error("dev-server: " + k + " in api/.env has a line break"); process.exit(1); }
+    console.log(k + "=" + path.join(root, v));
+  }' "$ROOT")"
+while IFS= read -r kv; do if [ -n "$kv" ]; then server_env+=("$kv"); fi; done <<< "$resolved"
 cd api
 exec env -i "${server_env[@]}" "$NODE" --env-file=.env server.js
