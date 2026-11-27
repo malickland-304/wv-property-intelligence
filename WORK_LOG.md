@@ -12,10 +12,11 @@ The preview dev server kept failing in new Claude Code sessions. Each session ge
 
 ### Changes Made
 - `scripts/dev-server.sh` (new):
-  - picks Node 24, then 22, then 20.6+ (20.6 added `--env-file`). Candidates are `/usr/local/bin/node`, Homebrew `node@N` under `/opt/homebrew` and `/usr/local`, fnm, nvm, then `PATH`. An invalid `DEV_NODE` override is an error, not a silent fallback;
+  - picks Node 24, then 22, then 20.9+ (20.6 added `--env-file`; the locked `sharp` needs 20.9). Candidates are `/usr/local/bin/node`, Homebrew `node@N` under `/opt/homebrew` and `/usr/local`, fnm, nvm, then `PATH`. An invalid `DEV_NODE` override is an error, not a silent fallback;
   - runs `npm ci` with that Node's npm when `api/node_modules` is missing, or the stamp (`api/node_modules/.dev-install-stamp`: Node ABI, platform, arch and a `package-lock.json` hash) differs. The stamp is written only after a successful install;
-  - takes a per-checkout lock (in `$TMPDIR`) around setup, so two first starts don't run `npm ci` into the same folder;
+  - takes a per-checkout lock (in `$TMPDIR`) around setup, so two first starts don't run `npm ci` into the same folder. A stale lock is taken over under a second lock with a PID re-check, so two waiters can't both remove it;
   - creates a mode-600 `api/.env` with random local-only secrets when none exists. It writes a temp file, checks every value is non-empty, then renames it into place, so `api/.env` is never left half written. An existing `api/.env` is never touched;
+  - runs `npm ci` under `env -i` with a minimal environment, so dependency install scripts never see integration keys;
   - starts `api/server.js` from `api/` with `env -i` and an explicit minimal environment: PATH, HOME, PORT, locale and proxy basics, plus `NODE_ENV=development`. Integration keys exported in the launching shell, or a root `.env`, never reach the server: only `api/.env` configures it.
 - `.claude/launch.json`: runs `bash scripts/dev-server.sh` instead of a fixed Node path.
 

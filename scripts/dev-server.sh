@@ -2,14 +2,14 @@
 # Local dev server that works in any checkout, including fresh Claude Code worktrees.
 # Used by .claude/launch.json. Sets up what a fresh checkout is missing, then starts
 # api/server.js:
-#   1. picks Node 24, 22 or 20.6+ (DEV_NODE overrides). better-sqlite3 has prebuilt
+#   1. picks Node 24, 22 or 20.9+ (DEV_NODE overrides). better-sqlite3 has prebuilt
 #      binaries for these; on other majors npm falls back to a slow C++ build.
 #   2. runs `npm ci` with THAT Node's npm when api/node_modules is missing, or was
 #      installed for another Node ABI, platform/arch or package-lock.json.
 #   3. creates a gitignored, mode-600 api/.env with random local-only secrets when
 #      none exists. An existing api/.env is never touched.
 #
-# Configuration comes from api/.env only. The server starts with a minimal
+# Configuration comes from api/.env only. `npm ci` and the server both run with a minimal
 # environment (PATH, HOME, PORT and a few locale/proxy basics), so integration
 # keys exported in the launching shell (INQUIRY_WEBHOOK_*, RESEND_API_KEY,
 # GOOGLE_*, ...) never reach it. It runs from api/, so the app's own dotenv call
@@ -22,11 +22,12 @@ cd "$ROOT"
 
 die() { echo "dev-server: $*" >&2; exit 1; }
 
-# Succeeds when $1 is an executable Node 24, 22 or 20.6+ (20.6 added --env-file).
+# Succeeds when $1 is an executable Node 24, 22 or 20.9+ (20.6 added --env-file;
+# the locked sharp release needs >=20.9).
 node_ok() {
   [ -n "$1" ] && [ -x "$1" ] || return 1
   [ "$("$1" -p 'const [a, b] = process.versions.node.split(".").map(Number);
-    a === 24 || a === 22 || (a === 20 && b >= 6) ? "ok" : "no"' 2>/dev/null || true)" = ok ]
+    a === 24 || a === 22 || (a === 20 && b >= 9) ? "ok" : "no"' 2>/dev/null || true)" = ok ]
 }
 
 pick_node() {
@@ -48,10 +49,10 @@ pick_node() {
 }
 
 if [ -n "${DEV_NODE:-}" ]; then
-  node_ok "$DEV_NODE" || die "DEV_NODE=$DEV_NODE is not an executable Node 24, 22 or 20.6+."
+  node_ok "$DEV_NODE" || die "DEV_NODE=$DEV_NODE is not an executable Node 24, 22 or 20.9+."
   NODE="$DEV_NODE"
 else
-  NODE="$(pick_node)" || die "no Node 24, 22 or 20.6+ found. Install Node 24 LTS or set DEV_NODE=/path/to/node."
+  NODE="$(pick_node)" || die "no Node 24, 22 or 20.9+ found. Install Node 24 LTS or set DEV_NODE=/path/to/node."
 fi
 NODE_DIR="$(dirname "$NODE")"
 export PATH="$NODE_DIR:$PATH"
@@ -64,9 +65,16 @@ waited=0
 until mkdir "$LOCK" 2>/dev/null; do
   holder="$(cat "$LOCK/pid" 2>/dev/null || true)"
   if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then
-    rm -rf "$LOCK"; continue   # holder is gone: stale lock
+    # Stale lock (its holder is gone). Take it over under a second lock so two
+    # waiters can't both remove it, and re-check the PID so a lock that another
+    # waiter has just re-created is left alone.
+    if mkdir "$LOCK.takeover" 2>/dev/null; then
+      [ "$(cat "$LOCK/pid" 2>/dev/null || true)" = "$holder" ] && rm -rf "$LOCK"
+      rmdir "$LOCK.takeover"
+    fi
+    continue
   fi
-  [ "$waited" -ge 300 ] && die "another dev-server setup has held $LOCK for 5 minutes. If none is running, remove that folder."
+  [ "$waited" -ge 300 ] && die "another dev-server setup has held $LOCK for 5 minutes. If none is running, remove it (and $LOCK.takeover if present)."
   [ "$waited" -eq 0 ] && echo "dev-server: waiting for another dev-server setup in this checkout..."
   sleep 1; waited=$((waited + 1))
 done
@@ -74,6 +82,16 @@ echo $$ > "$LOCK/pid"
 ENV_TMP=""
 cleanup() { [ -n "$ENV_TMP" ] && rm -f "$ENV_TMP"; rm -rf "$LOCK"; }
 trap cleanup EXIT
+
+# Minimal, explicit environment for `npm ci` (whose dependency install scripts
+# run code) and for the server: integration keys in the launching shell reach
+# neither.
+base_env=(PATH="$PATH" HOME="$HOME")
+for v in TMPDIR USER LOGNAME SHELL TERM LANG LC_ALL TZ NO_COLOR FORCE_COLOR \
+         HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy \
+         NODE_EXTRA_CA_CERTS SSL_CERT_FILE SSL_CERT_DIR; do
+  [ -n "${!v:-}" ] && base_env+=("$v=${!v}")
+done
 
 # Install stamp: Node ABI + platform/arch + lockfile hash. Written only after a
 # successful `npm ci`, so a failed install is retried on the next start.
@@ -83,7 +101,7 @@ WANT="$("$NODE" -p 'const c = require("crypto"), fs = require("fs");
    c.createHash("sha256").update(fs.readFileSync("api/package-lock.json")).digest("hex").slice(0, 16)].join("-")')"
 if [ ! -d api/node_modules ] || [ "$(cat "$STAMP" 2>/dev/null || true)" != "$WANT" ]; then
   echo "dev-server: installing api dependencies (npm ci) for this Node and lockfile..."
-  (cd api && "$NODE_DIR/npm" ci --no-audit --no-fund)
+  (cd api && env -i "${base_env[@]}" "$NODE_DIR/npm" ci --no-audit --no-fund)
   echo "$WANT" > "$STAMP"
 fi
 
@@ -109,11 +127,8 @@ fi
 
 cleanup; trap - EXIT
 
-# Minimal, explicit environment: everything else comes from api/.env.
-keep=(PATH="$PATH" HOME="$HOME" NODE_ENV=development DOTENV_CONFIG_QUIET=true)
-for v in PORT TMPDIR USER LOGNAME SHELL TERM LANG LC_ALL TZ NO_COLOR FORCE_COLOR \
-         HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy NODE_EXTRA_CA_CERTS; do
-  [ -n "${!v:-}" ] && keep+=("$v=${!v}")
-done
+# Server: the same minimal environment plus PORT; everything else comes from api/.env.
+server_env=("${base_env[@]}" NODE_ENV=development DOTENV_CONFIG_QUIET=true)
+[ -n "${PORT:-}" ] && server_env+=("PORT=$PORT")
 cd api
-exec env -i "${keep[@]}" "$NODE" --env-file=.env server.js
+exec env -i "${server_env[@]}" "$NODE" --env-file=.env server.js
