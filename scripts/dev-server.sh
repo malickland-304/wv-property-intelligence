@@ -2,56 +2,118 @@
 # Local dev server that works in any checkout, including fresh Claude Code worktrees.
 # Used by .claude/launch.json. Sets up what a fresh checkout is missing, then starts
 # api/server.js:
-#   1. picks an LTS Node (24/22/20); better-sqlite3 has no prebuilt binary for newer
-#      majors and would try to compile from source;
-#   2. installs api/node_modules with THAT Node's npm when missing or built for a
-#      different Node (native modules are tied to one Node ABI);
-#   3. creates a gitignored api/.env with random local-only secrets when none exists.
-#      An existing api/.env is never touched.
-# Lead forwarding and email stay off unless api/.env configures them.
+#   1. picks Node 24, 22 or 20.6+ (DEV_NODE overrides). better-sqlite3 has prebuilt
+#      binaries for these; on other majors npm falls back to a slow C++ build.
+#   2. runs `npm ci` with THAT Node's npm when api/node_modules is missing, or was
+#      installed for another Node ABI, platform/arch or package-lock.json.
+#   3. creates a gitignored, mode-600 api/.env with random local-only secrets when
+#      none exists. An existing api/.env is never touched.
+#
+# Configuration comes from api/.env only. The server starts with a minimal
+# environment (PATH, HOME, PORT and a few locale/proxy basics), so integration
+# keys exported in the launching shell (INQUIRY_WEBHOOK_*, RESEND_API_KEY,
+# GOOGLE_*, ...) never reach it. It runs from api/, so the app's own dotenv call
+# re-reads api/.env rather than a root .env. NODE_ENV is always development.
+# Lead forwarding and email are therefore off unless api/.env itself sets them.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+die() { echo "dev-server: $*" >&2; exit 1; }
+
+# Succeeds when $1 is an executable Node 24, 22 or 20.6+ (20.6 added --env-file).
+node_ok() {
+  [ -n "$1" ] && [ -x "$1" ] || return 1
+  [ "$("$1" -p 'const [a, b] = process.versions.node.split(".").map(Number);
+    a === 24 || a === 22 || (a === 20 && b >= 6) ? "ok" : "no"' 2>/dev/null || true)" = ok ]
+}
+
 pick_node() {
-  local c major
-  for c in "${DEV_NODE:-}" /usr/local/bin/node \
-           /opt/homebrew/opt/node@24/bin/node /opt/homebrew/opt/node@22/bin/node /opt/homebrew/opt/node@20/bin/node \
-           "$HOME"/.local/share/fnm/node-versions/v2[024].*/installation/bin/node \
-           "$HOME"/.nvm/versions/node/v2[024].*/bin/node \
-           "$(command -v node 2>/dev/null || true)"; do
-    [ -n "$c" ] && [ -x "$c" ] || continue
-    major="$("$c" -p 'process.versions.node.split(".")[0]' 2>/dev/null || true)"
-    case "$major" in 20|22|24) echo "$c"; return 0 ;; esac
+  local c major prefix
+  node_ok /usr/local/bin/node && { echo /usr/local/bin/node; return 0; }
+  for major in 24 22 20; do
+    for prefix in /opt/homebrew /usr/local; do
+      c="$prefix/opt/node@$major/bin/node"; node_ok "$c" && { echo "$c"; return 0; }
+    done
+    # Unmatched globs stay literal and fail node_ok.
+    for c in "$HOME"/.local/share/fnm/node-versions/v"$major".*/installation/bin/node \
+             "$HOME"/.nvm/versions/node/v"$major".*/bin/node; do
+      node_ok "$c" && { echo "$c"; return 0; }
+    done
   done
+  c="$(command -v node 2>/dev/null || true)"
+  node_ok "$c" && { echo "$c"; return 0; }
   return 1
 }
 
-NODE="$(pick_node)" || { echo "dev-server: no Node 20/22/24 found. Install Node 24 LTS or set DEV_NODE=/path/to/node." >&2; exit 1; }
+if [ -n "${DEV_NODE:-}" ]; then
+  node_ok "$DEV_NODE" || die "DEV_NODE=$DEV_NODE is not an executable Node 24, 22 or 20.6+."
+  NODE="$DEV_NODE"
+else
+  NODE="$(pick_node)" || die "no Node 24, 22 or 20.6+ found. Install Node 24 LTS or set DEV_NODE=/path/to/node."
+fi
 NODE_DIR="$(dirname "$NODE")"
 export PATH="$NODE_DIR:$PATH"
-ABI="$("$NODE" -p 'process.versions.modules')"
-echo "dev-server: using $NODE ($("$NODE" -v), ABI $ABI)"
+echo "dev-server: using $NODE ($("$NODE" -v), ABI $("$NODE" -p 'process.versions.modules'))"
 
-STAMP="api/node_modules/.dev-node-abi"
-if [ ! -d api/node_modules ] || [ "$(cat "$STAMP" 2>/dev/null || true)" != "$ABI" ]; then
-  echo "dev-server: installing api dependencies for this Node..."
+# One setup at a time per checkout: two first starts must not run `npm ci` into
+# the same node_modules, or both write api/.env. Released before the server starts.
+LOCK="${TMPDIR:-/tmp}/wv-dev-server-$(printf '%s' "$ROOT" | cksum | cut -d' ' -f1).lock"
+waited=0
+until mkdir "$LOCK" 2>/dev/null; do
+  holder="$(cat "$LOCK/pid" 2>/dev/null || true)"
+  if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then
+    rm -rf "$LOCK"; continue   # holder is gone: stale lock
+  fi
+  [ "$waited" -ge 300 ] && die "another dev-server setup has held $LOCK for 5 minutes. If none is running, remove that folder."
+  [ "$waited" -eq 0 ] && echo "dev-server: waiting for another dev-server setup in this checkout..."
+  sleep 1; waited=$((waited + 1))
+done
+echo $$ > "$LOCK/pid"
+ENV_TMP=""
+cleanup() { [ -n "$ENV_TMP" ] && rm -f "$ENV_TMP"; rm -rf "$LOCK"; }
+trap cleanup EXIT
+
+# Install stamp: Node ABI + platform/arch + lockfile hash. Written only after a
+# successful `npm ci`, so a failed install is retried on the next start.
+STAMP="api/node_modules/.dev-install-stamp"
+WANT="$("$NODE" -p 'const c = require("crypto"), fs = require("fs");
+  [process.versions.modules, process.platform, process.arch,
+   c.createHash("sha256").update(fs.readFileSync("api/package-lock.json")).digest("hex").slice(0, 16)].join("-")')"
+if [ ! -d api/node_modules ] || [ "$(cat "$STAMP" 2>/dev/null || true)" != "$WANT" ]; then
+  echo "dev-server: installing api dependencies (npm ci) for this Node and lockfile..."
   (cd api && "$NODE_DIR/npm" ci --no-audit --no-fund)
-  echo "$ABI" > "$STAMP"
+  echo "$WANT" > "$STAMP"
 fi
 
 if [ ! -f api/.env ]; then
   echo "dev-server: no api/.env, creating one with random local-only secrets (gitignored)"
   rand() { "$NODE" -e "process.stdout.write(require('crypto').randomBytes($1).toString('hex'))"; }
+  # Plain assignments, so a failing rand stops the script (errexit) instead of
+  # writing an empty value.
+  session_secret="$(rand 32)"; admin_password="$(rand 12)"; api_key="$(rand 24)"
+  for v in "$session_secret" "$admin_password" "$api_key"; do
+    [ "${#v}" -ge 24 ] || die "could not generate local secrets; api/.env not created."
+  done
+  ENV_TMP="api/.env.tmp.$$"
   ( umask 077
-    { echo "# Local development only. Generated by scripts/dev-server.sh."
-      echo "SESSION_SECRET=$(rand 32)"
-      echo "ADMIN_PASSWORD=$(rand 12)"
-      echo "API_KEY=$(rand 24)"
-      echo "NODE_ENV=development"
-    } > api/.env )
-  echo "dev-server: admin password is in api/.env (ADMIN_PASSWORD)"
+    printf '%s\n' "# Local development only. Generated by scripts/dev-server.sh." \
+      "SESSION_SECRET=$session_secret" "ADMIN_PASSWORD=$admin_password" \
+      "API_KEY=$api_key" "NODE_ENV=development" > "$ENV_TMP" )
+  mv "$ENV_TMP" api/.env   # atomic rename: api/.env is either absent or complete
+  ENV_TMP=""
+  unset session_secret admin_password api_key
+  echo "dev-server: admin password (ADMIN_PASSWORD) and Bearer key for protected /api routes (API_KEY) are in api/.env"
 fi
 
-exec "$NODE" --env-file=api/.env api/server.js
+cleanup; trap - EXIT
+
+# Minimal, explicit environment: everything else comes from api/.env.
+keep=(PATH="$PATH" HOME="$HOME" NODE_ENV=development DOTENV_CONFIG_QUIET=true)
+for v in PORT TMPDIR USER LOGNAME SHELL TERM LANG LC_ALL TZ NO_COLOR FORCE_COLOR \
+         HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy NODE_EXTRA_CA_CERTS; do
+  [ -n "${!v:-}" ] && keep+=("$v=${!v}")
+done
+cd api
+exec env -i "${keep[@]}" "$NODE" --env-file=.env server.js
