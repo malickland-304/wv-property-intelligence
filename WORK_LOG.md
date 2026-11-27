@@ -1,7 +1,31 @@
 # WORK_LOG.md — Malickland 2.0 Coordination Ledger
 > All agents must append an entry here after any session that makes changes.
 > This is the memory layer between agents. Do not delete prior entries.
-> Format: ## YYYY-MM-DD — Agent Name
+> Format: ## 2026-11-26 — Claude (dev server that sets itself up in any checkout)
+
+### Objective
+The preview dev server kept failing in new Claude Code sessions. Each session gets a fresh worktree with no `api/node_modules` and no `api/.env` (gitignored), and Homebrew's Node is now 26, which has no prebuilt `better-sqlite3`.
+
+### Changes Made
+- `scripts/dev-server.sh` (new):
+  - picks an LTS Node (24/22/20), with a `DEV_NODE` override;
+  - runs `npm ci` with that Node's npm when `api/node_modules` is missing or was built for another ABI (stamp file `api/node_modules/.dev-node-abi`);
+  - creates a gitignored, mode-600 `api/.env` with random local-only secrets when there is none. An existing `api/.env` is never touched;
+  - then starts `node --env-file=api/.env api/server.js`.
+- `.claude/launch.json`: runs `bash scripts/dev-server.sh` instead of a fixed Node path.
+
+### Verification (Truthfulness Rule applies)
+- `bash -n` → OK.
+- **Fresh copy under a `.claude/worktrees/` path, Node 22 (`DEV_NODE`):** it installed, created `api/.env` (600), and `/api/health`, `/`, `/search`, `/37-advent`, `/start` and `/admin/login` all returned 200. Lead forwarding and email reported off.
+- **Second run:** no reinstall, `api/.env` unchanged (same checksum), health 200.
+- **With the default Node 24 (`/usr/local/bin/node`), inside the agent sandbox:** the `better-sqlite3` prebuilt download failed on the sandbox's keychain block ("failed to copy trust settings"), and the source-build fallback hit a sandbox write block on `~/Library/Caches`. Both are sandbox limits. NOT verified on Node 24 outside the sandbox: Phil, or the first preview start after merge, will show it.
+
+### Remaining Risks
+The first start in a fresh checkout needs network access for `npm ci`, and takes about 10–30 s.
+
+---
+
+## YYYY-MM-DD — Agent Name
 
 ---
 
