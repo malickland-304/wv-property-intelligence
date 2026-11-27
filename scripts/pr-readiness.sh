@@ -12,7 +12,7 @@
 # "Not checked:", never under "Verified:".
 # Exit code: 0 READY (everything checked), 1 NOT READY, 2 usage or tooling error,
 # 3 READY on the GitHub conditions only, with the VPS not checked (Phil confirms it).
-# At the end the PR, check runs, reviews, threads and (if checked) the VPS SHA are re-read;
+# At the end the PR, checks, statuses, reviews, threads and (if checked) the VPS SHA are re-read;
 # if any moved during the run, or a re-read fails, NOT READY.
 #
 # Needs curl and jq. Review-thread state comes from GitHub GraphQL, which needs
@@ -220,7 +220,7 @@ fi
 # ── Re-read: the PR must not have moved while this ran ──────────────────────
 # Checks, threads and the VPS were read after the PR itself. A push, merge, close, draft
 # toggle or base change in between would leave this verdict describing a state that no
-# longer holds, so the PR, its check runs, its reviews and threads, and the VPS SHA
+# longer holds, so the PR, its check runs and statuses, its reviews and threads, and the VPS SHA
 # (when checked) are read again and compared. Any read or parse failure blocks (never a
 # set -e exit before the verdict).
 pr_fingerprint='[.head.sha, .state, .draft, .mergeable, .mergeable_state, .base.ref] | map(tostring) | join(" ")'
@@ -244,6 +244,18 @@ if [[ -n "${runs_json:-}" ]]; then
     [[ "$a" == "$b" ]] || block "check runs changed on ${head_sha:0:7} during this run; run again"
   else
     block "could not re-read check runs for ${head_sha:0:7} at the end of the run"
+  fi
+fi
+
+# Legacy commit statuses again: a status context that turned failing after section 3.
+status_fp='[.state, .total_count] + ([.statuses[]? | "\(.context):\(.state)"] | sort) | map(tostring) | join(" ")'
+if [[ -n "${status_json:-}" ]]; then
+  if final_status="$(api "commits/$head_sha/status")" \
+     && a="$(jq -r "$status_fp" <<<"$status_json" 2>/dev/null)" \
+     && b="$(jq -r "$status_fp" <<<"$final_status" 2>/dev/null)"; then
+    [[ "$a" == "$b" ]] || block "commit statuses changed on ${head_sha:0:7} during this run; run again"
+  else
+    block "could not re-read commit statuses for ${head_sha:0:7} at the end of the run"
   fi
 fi
 
