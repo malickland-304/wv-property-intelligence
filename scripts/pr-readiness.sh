@@ -2,15 +2,24 @@
 # PR readiness gate: checks the READY conditions in AGENTS.md ("PR Readiness Gate")
 # against live GitHub state and prints a verdict in the gatekeeper response format.
 #
-#   bash scripts/pr-readiness.sh <pr-number> [expected-head-sha]
-#   EXPECT_VPS_SHA=<sha> bash scripts/pr-readiness.sh <pr-number> [expected-head-sha]
+#   bash scripts/pr-readiness.sh <pr-number> <expected-head-sha>
+#   EXPECT_VPS_SHA=<sha> bash scripts/pr-readiness.sh <pr-number> <expected-head-sha>
 #
-# Fails closed: anything it cannot verify is a blocking fact, never a pass.
-# Exit code: 0 READY, 1 NOT READY, 2 usage or tooling error.
+# Both SHAs must be full 40-character SHAs and are compared exactly.
+# Fails closed: anything on GitHub it cannot verify is a blocking fact, never a pass.
+# A missing expected-head-sha is a blocking fact. The VPS condition is checked only
+# with EXPECT_VPS_SHA (SSH is closed by default); without it the output lists it under
+# "Not checked:", never under "Verified:".
+# Exit code: 0 READY (everything checked), 1 NOT READY, 2 usage or tooling error,
+# 3 READY on the GitHub conditions only, with the VPS not checked (Phil confirms it).
 #
 # Needs curl and jq. Review-thread state comes from GitHub GraphQL, which needs
 # authentication: an authenticated `gh` CLI, or GITHUB_TOKEN in the environment.
 # Without either, threads are UNKNOWN and the verdict is NOT READY.
+#
+# Text that PR authors and commenters control (check-run names, branch name, review
+# comments, paths, logins) is stripped of control characters before it is printed, so
+# it cannot move the cursor or redraw the verdict in the operator's terminal.
 set -euo pipefail
 
 REPO="${REPO:-malickland-304/wv-property-intelligence}"
@@ -18,27 +27,55 @@ API="https://api.github.com/repos/$REPO"
 VPS_TARGET="${VPS_TARGET:-root@31.97.58.203}"
 VPS_SRC="${VPS_SRC:-/docker/wv-property-intelligence/src}"
 
-usage() { echo "usage: bash scripts/pr-readiness.sh <pr-number> [expected-head-sha]" >&2; exit 2; }
+usage() { echo "usage: bash scripts/pr-readiness.sh <pr-number> <expected-head-sha (full 40 chars)>" >&2; exit 2; }
 
 PR="${1:-}"
-EXPECTED="${2:-}"
+# SHAs are compared in lowercase; some UIs copy them in uppercase.
+EXPECTED="$(printf '%s' "${2:-}" | tr 'A-F' 'a-f')"
+EXPECT_VPS_SHA="$(printf '%s' "${EXPECT_VPS_SHA:-}" | tr 'A-F' 'a-f')"
 [[ "$PR" =~ ^[0-9]+$ ]] || usage
-[[ -z "$EXPECTED" || "$EXPECTED" =~ ^[0-9a-f]{7,40}$ ]] || { echo "expected-head-sha must be a hex commit sha" >&2; exit 2; }
-[[ -z "${EXPECT_VPS_SHA:-}" || "${EXPECT_VPS_SHA}" =~ ^[0-9a-f]{7,40}$ ]] || { echo "EXPECT_VPS_SHA must be a hex commit sha" >&2; exit 2; }
+[[ -z "$EXPECTED" || "$EXPECTED" =~ ^[0-9a-f]{40}$ ]] || { echo "expected-head-sha must be the full 40-character hex commit sha" >&2; exit 2; }
+[[ -z "${EXPECT_VPS_SHA:-}" || "${EXPECT_VPS_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "EXPECT_VPS_SHA must be the full 40-character hex commit sha" >&2; exit 2; }
 for bin in curl jq; do
   command -v "$bin" >/dev/null 2>&1 || { echo "missing required tool: $bin" >&2; exit 2; }
 done
 
 blockers=()
 verified=()
+unchecked=()
 block()  { blockers+=("$1"); }
 ok()     { verified+=("$1"); }
+skip()   { unchecked+=("$1"); }
 
-AUTH=()
-[[ -n "${GITHUB_TOKEN:-}" ]] && AUTH=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+# jq helper: replace C0/C1 control characters (ESC, CSI, BEL, CR, ...) with "?".
+# Works on codepoints, not a regex, so it does not depend on the regex engine's escapes.
+# Also replaces EVERY Unicode format (Cf), line-separator (Zl) and paragraph-separator
+# (Zp) character, because they reorder or hide text: bidi marks/embeddings/overrides/
+# isolates (incl. U+061C ARABIC LETTER MARK), zero-width chars, invisible operators,
+# BOM, interlinear annotations, and the tag block U+E0000-U+E007F (invisible text that
+# agents reading this output would still see). The ranges are the full Cf/Zl/Zp set as
+# of Unicode 16; tests/pr-readiness-clean.test.js checks them against Node's own
+# Unicode tables, so a gap fails CI instead of waiting for a reviewer to find it.
+JQ_CLEAN='def clean: tostring | explode | map(
+  if . < 32 or (. >= 127 and . < 160) or . == 173
+     or (. >= 1536 and . <= 1541) or . == 1564 or . == 1757 or . == 1807
+     or (. >= 2192 and . <= 2193) or . == 2274 or . == 6158
+     or (. >= 8203 and . <= 8207) or (. >= 8232 and . <= 8238)
+     or (. >= 8288 and . <= 8303) or . == 65279 or (. >= 65529 and . <= 65531)
+     or . == 69821 or . == 69837 or (. >= 78896 and . <= 78911)
+     or (. >= 113824 and . <= 113827) or (. >= 119155 and . <= 119162)
+     or (. >= 917504 and . <= 917631)
+  then 63 else . end) | implode;'
 
+# The token goes to curl on stdin (-H @-), not in argv, so `ps` cannot show it.
+# printf is a shell builtin, so the token is never in any process's arguments.
 api() {
-  curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" ${AUTH[@]+"${AUTH[@]}"} "$API/$1"
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    printf 'Authorization: Bearer %s\n' "$GITHUB_TOKEN" |
+      curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" -H @- "$API/$1"
+  else
+    curl -fsS --max-time 20 -H "Accept: application/vnd.github+json" "$API/$1"
+  fi
 }
 
 # ── 1. PR state and head SHA ─────────────────────────────────────────────────
@@ -57,8 +94,9 @@ state="$(jq -r '.state' <<<"$pr_json")"
 draft="$(jq -r '.draft' <<<"$pr_json")"
 merged="$(jq -r '.merged' <<<"$pr_json")"
 head_sha="$(jq -r '.head.sha' <<<"$pr_json")"
-head_ref="$(jq -r '.head.ref' <<<"$pr_json")"
-base_ref="$(jq -r '.base.ref' <<<"$pr_json")"
+head_ref="$(jq -r "$JQ_CLEAN"' .head.ref | clean' <<<"$pr_json")"
+base_ref="$(jq -r "$JQ_CLEAN"' .base.ref | clean' <<<"$pr_json")"
+[[ "$head_sha" =~ ^[0-9a-f]{40}$ ]] || { echo "GitHub returned an unexpected head SHA for PR #$PR" >&2; exit 2; }
 mergeable="$(jq -r '.mergeable' <<<"$pr_json")"
 merge_state="$(jq -r '.mergeable_state' <<<"$pr_json")"
 
@@ -67,14 +105,12 @@ if [[ "$state" != "open" ]]; then
 fi
 [[ "$draft" == "true" ]] && block "PR is a draft"
 
-if [[ -n "$EXPECTED" ]]; then
-  if [[ "$head_sha" == "$EXPECTED"* ]]; then
-    ok "head SHA: ${head_sha:0:7} matches expected ${EXPECTED:0:7} ($head_ref -> $base_ref)"
-  else
-    block "head SHA mismatch: PR head is ${head_sha:0:7}, expected ${EXPECTED:0:7}"
-  fi
+if [[ -z "$EXPECTED" ]]; then
+  block "head SHA: no expected SHA given; re-run with the full SHA you reviewed (PR head is $head_sha)"
+elif [[ "$head_sha" == "$EXPECTED" ]]; then
+  ok "head SHA: $head_sha matches expected ($head_ref -> $base_ref)"
 else
-  ok "head SHA: ${head_sha:0:7} ($head_ref -> $base_ref); no expected SHA given, so this run verifies that commit only"
+  block "head SHA mismatch: PR head is $head_sha, expected $EXPECTED"
 fi
 
 # ── 2. Merge state ───────────────────────────────────────────────────────────
@@ -89,8 +125,9 @@ fi
 # (Stricter than "required checks only": the list of required checks needs admin access.)
 if runs_json="$(api "commits/$head_sha/check-runs?per_page=100")"; then
   total="$(jq -r '.total_count' <<<"$runs_json")"
-  pending="$(jq -r '[.check_runs[] | select(.status != "completed") | .name] | join(", ")' <<<"$runs_json")"
-  failing="$(jq -r '[.check_runs[] | select(.status == "completed" and (.conclusion | IN("success","neutral","skipped") | not)) | "\(.name)=\(.conclusion)"] | join(", ")' <<<"$runs_json")"
+  # Check-run names come from workflow job names, which a PR's own workflow file controls.
+  pending="$(jq -r "$JQ_CLEAN"' [.check_runs[] | select(.status != "completed") | (.name | clean)] | join(", ")' <<<"$runs_json")"
+  failing="$(jq -r "$JQ_CLEAN"' [.check_runs[] | select(.status == "completed" and (.conclusion | IN("success","neutral","skipped") | not)) | "\(.name | clean)=\(.conclusion | clean)"] | join(", ")' <<<"$runs_json")"
   if [[ "$total" == "0" ]]; then
     block "checks: no check runs found on ${head_sha:0:7} (CI has not reported yet)"
   elif [[ "$total" -gt 100 ]]; then
@@ -125,8 +162,9 @@ if command -v gh >/dev/null 2>&1 && threads_json="$(gh api graphql -f query="$TH
 elif [[ -n "${GITHUB_TOKEN:-}" ]]; then
   body="$(jq -n --arg q "$THREADS_QUERY" --arg owner "$owner" --arg name "$name" --argjson n "$PR" \
            '{query:$q, variables:{owner:$owner, name:$name, n:$n}}')"
-  threads_json="$(curl -fsS --max-time 20 -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-                    -H "Content-Type: application/json" -d "$body" https://api.github.com/graphql)" || threads_json=""
+  threads_json="$(printf 'Authorization: Bearer %s\n' "$GITHUB_TOKEN" |
+                  curl -fsS --max-time 20 -H @- -H "Content-Type: application/json" \
+                    --data-binary "$body" https://api.github.com/graphql)" || threads_json=""
 fi
 
 if [[ -z "$threads_json" ]] || ! jq -e '.data.repository.pullRequest.reviewThreads' >/dev/null 2>&1 <<<"$threads_json"; then
@@ -142,42 +180,59 @@ else
     block "review threads: $open_count unresolved non-outdated (of $t_total)"
     while IFS= read -r line; do
       block "  - $line"
-    done < <(jq -r '.data.repository.pullRequest.reviewThreads.nodes[]
+    # Comment text is attacker-controlled: strip control characters (ESC etc.) first.
+    done < <(jq -r "$JQ_CLEAN"' .data.repository.pullRequest.reviewThreads.nodes[]
                     | select(.isResolved == false and .isOutdated == false)
-                    | "\(.path):\(.line // "?") \(.comments.nodes[0].author.login // "?"): \((.comments.nodes[0].body // "") | gsub("\\s+"; " ") | .[0:100])"' <<<"$threads_json")
+                    | "\(.path | clean):\(.line // "?") \(.comments.nodes[0].author.login // "?" | clean): \((.comments.nodes[0].body // "") | gsub("\\s+"; " ") | clean | .[0:100])"' <<<"$threads_json")
   fi
 fi
 
-# ── 5. VPS SHA (optional; SSH is closed by default) ─────────────────────────
-# Readiness to merge does not depend on production, so an unchecked VPS is reported,
-# not blocking. Set EXPECT_VPS_SHA when a deploy must be ruled out or confirmed.
+# ── 5. VPS SHA (only with EXPECT_VPS_SHA; SSH is closed by default) ─────────
+# Without EXPECT_VPS_SHA the "no unapproved deploy" condition is NOT verified by this
+# script: it is listed under "Not checked:" and Phil confirms it himself (deploys are
+# manual and his). Set EXPECT_VPS_SHA to have the script check it over SSH.
 if [[ -n "${EXPECT_VPS_SHA:-}" ]]; then
-  if vps_sha="$(ssh -o BatchMode=yes -o ConnectTimeout=10 "$VPS_TARGET" "git -C '$VPS_SRC' rev-parse HEAD" 2>/dev/null)"; then
-    if [[ "$vps_sha" == "$EXPECT_VPS_SHA"* ]]; then
-      ok "VPS SHA: ${vps_sha:0:7} matches expected ${EXPECT_VPS_SHA:0:7}"
+  remote_cmd="git -C $(printf '%q' "$VPS_SRC") rev-parse HEAD"
+  if vps_sha="$(ssh -o BatchMode=yes -o ConnectTimeout=10 "$VPS_TARGET" "$remote_cmd" 2>/dev/null)"; then
+    if [[ "$vps_sha" == "$EXPECT_VPS_SHA" ]]; then
+      ok "VPS SHA: $vps_sha matches expected"
+    elif [[ "$vps_sha" =~ ^[0-9a-f]{40}$ ]]; then
+      block "VPS SHA: live src is $vps_sha, expected $EXPECT_VPS_SHA (unapproved deploy, or stale expectation?)"
     else
-      block "VPS SHA: live src is ${vps_sha:0:7}, expected ${EXPECT_VPS_SHA:0:7} (unapproved deploy, or stale expectation?)"
+      block "VPS SHA: unexpected output from $VPS_TARGET (not a commit SHA)"
     fi
   else
     block "VPS SHA: could not reach $VPS_TARGET over SSH (port 22 is closed by default)"
   fi
 else
-  ok "VPS SHA: not checked (set EXPECT_VPS_SHA=<sha> to check over SSH)"
+  skip "VPS SHA (no unapproved deploy): set EXPECT_VPS_SHA=<full sha> to check over SSH, or Phil confirms it"
 fi
 
 # ── Verdict ─────────────────────────────────────────────────────────────────
-if ((${#blockers[@]} == 0)); then
-  echo "VERDICT: READY"
-else
+# A READY with anything unchecked is labelled on the first line and exits 3, so neither
+# a quoted first line nor `&& gh pr merge` can treat it as a full READY.
+status=1
+if ((${#blockers[@]} > 0)); then
   echo "VERDICT: NOT READY"
+elif ((${#unchecked[@]} > 0)); then
+  echo "VERDICT: READY (GitHub conditions only; see \"Not checked:\")"
+  status=3
+else
+  echo "VERDICT: READY"
+  status=0
 fi
 echo
 echo "PR: #$PR ($REPO) head ${head_sha:0:7}, checked $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo
 echo "Blocking facts:"
 if ((${#blockers[@]} == 0)); then echo "- none"; else printf -- '- %s\n' "${blockers[@]}" | sed 's/^-   - /  - /'; fi
+if ((${#unchecked[@]} > 0)); then
+  echo
+  echo "Not checked:"
+  printf -- '- %s\n' "${unchecked[@]}"
+fi
 echo
 echo "Verified:"
 if ((${#verified[@]} == 0)); then echo "- nothing"; else printf -- '- %s\n' "${verified[@]}"; fi
 
-((${#blockers[@]} == 0))
+exit "$status"
