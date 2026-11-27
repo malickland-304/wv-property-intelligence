@@ -1,6 +1,6 @@
 # PROJECT_STATE.md — Malickland 2.0
 
-> **Last verified:** production deploy of `12d255d` on 2026-11-13 is CLAIMED (Phil's SSH output + public smoke), not yet proven by `scripts/verify-vps-prod.sh`; GitHub-state rows below last verified 2026-06-19 (GitHub `origin/main` = `349034d` from #116; live prod was Hostinger VPS src @ `24ee74b` from #113 on 2026-06-19 (superseded: verified at `65a2b32d` on 2026-09-29 by read-only SSH; see the 2026-09-29 rows below); Railway twin deleted; WV license `WV0029577` verified vs WV REC roster)
+> **Last verified:** production deploy of `d86831a` on 2026-11-27 is **PROVEN**: `EXPECTED_SHA=d86831ad85e7b66aad7fca41bdbf3ea97d2a968b bash scripts/verify-vps-prod.sh` passed (DNS `31.97.58.203`, VPS src @ `d86831a`, container running healthy, production smoke passed), and `docker exec wv-property-intelligence node -v` → `v24.22.3`. Older GitHub-state rows below keep their own dates.
 > **Authority:** Product completeness, repo workspace truth, resolved facts, and open gates. Use `docs/CANONICAL_MAP.md` for repo/domain/stack disambiguation. Deployment runbooks and guardrails remain in `docs/agent-handoff.md`.
 
 ---
@@ -28,7 +28,9 @@ Agents must use `PROJECT_STATE.md`, GitHub PR state, and live production checks 
 | Close date | ✅ `2026-05-29` | Live DB row `advent-dr-hampshire-wv.sold_at='2026-05-29'` |
 | $299 broker admin fee wording | ✅ Approved and live | Homepage and `/37-advent` disclose the fee; broker approval was confirmed before deploy |
 | Brokerage disclosure | ✅ Live | Footer / public pages show `WV Real Estate Agency, LLC | Sheila Judy, Broker` |
-| Production deploy | ⚠️ Deployed by Phil 2026-11-13 — CLAIMED, unverified until `verify-vps-prod.sh` passes | Hostinger VPS `31.97.58.203`, src @ `12d255d` (#151 merge; includes #148). Before this deploy the VPS reported src @ `b22a119` (#144 merge). Proof is Phil's SSH session output (`git -C src rev-parse --short HEAD` → `12d255d`, container started) plus public smoke; `scripts/verify-vps-prod.sh` was NOT run. Earlier records: `65a2b32d` (2026-09-29), `24ee74b` (2026-06-18/19). Merge does not equal deploy. |
+| Production deploy | ✅ `d86831a` deployed by Phil 2026-11-27, PROVEN by `verify-vps-prod.sh` | Hostinger VPS `31.97.58.203`, src @ `d86831a` (#155 merge: Node 24 runtime + hardened backup script). Includes everything merged before it, among them #153, #154 and #156; #166 and #167 in it are dev tooling only. Not included: #164 and #165 (not merged) and #168 (merged after). Immediately before: `f17d187` (confirmed on the VPS on 2026-11-27 before deploying), and before that `12d255d` (2026-11-13). Rollback SHA recorded on the VPS in `/docker/wv-property-intelligence/rollback-sha-2026-11-27.txt` (`f17d187`). |
+| DB backups | ✅ Nightly on-host backup VERIFIED 2026-11-27; hardened script installed; off-host copy still open | `/etc/cron.d/wv-db-backup` (03:17 UTC) exists, and `/var/log/wv-db-backup.log` showed `backup ok` with `integrity ok` on 2026-11-25, -26 and -27. On 2026-11-27 the hardened `scripts/backup-db.sh` from `d86831a` was installed over the cron copy (`install -m 700 -o root`) and run by hand against the Node 24 container: `backup ok`, `integrity ok`, `backups/` is `drwx------`, new files `-rw-------`. The previous script is kept as `backup-db.sh.pre-d86831a`. Not done: off-server copy, failure alerting. See `DECISIONS.md`. |
+| Runtime Node version | ✅ Node 24 LTS live (`v24.22.3`) since the 2026-11-27 deploy | Node 20 reached end-of-life 2026-04-30. `api/Dockerfile` (`node:24-bookworm-slim`), Node CI and Preflight use Node 24 (supported to 2028-04-30). Before the 2026-11-27 deploy the VPS ran `v20.20.2` (checked in-container). The image build ran `npm ci --omit=dev` with "found 0 vulnerabilities". Watch: npm 11.19 warns that `better-sqlite3` install scripts are "not yet covered by allowScripts"; they still ran (DB-backed `/api/properties` returned 200). If a future npm blocks them, the Dockerfile needs an explicit approval. |
 | PRs #98, #100, #101, #102, #104, #106, #108, #109, #111, #112, #113 | ✅ Merged and deployed as applicable | Runtime deploy includes #113 squash `24ee74b`; later repo-safe commits on `origin/main` do not imply a runtime deploy unless the VPS source/container proof also advances |
 | `scripts/smoke-prod.sh` | ✅ Fixed | #102 merged; script respects `PUBLIC_LISTINGS_ENABLED` via `/api/config` |
 | Railway twin | ✅ Deleted | `railway service status` reports the linked old service is not found in the project; old GitHub deployment environments are gone; `railway.json`/`railway.toml` removed |
@@ -36,7 +38,7 @@ Agents must use `PROJECT_STATE.md`, GitHub PR state, and live production checks 
 | Content funnel pack | ✅ Finalized, publish-ready | `~/Documents/MalickLand_Content_Funnel_Pack_2026-06-17/`; footer disclosure aligned to the live broker block + `WV0029577` + Equal Housing; PDF text pypdf-verified |
 | `/start` buyer-guide funnel | ✅ Live on VPS | PR #109 merged and deployed; `/start` returns 200 and `/assets/MalickLand_WV_Buyers_Guide.pdf` returns 200 `application/pdf` on `malickland.net` |
 | `multer` DoS advisory | ✅ Patched live | PR #111 merged; VPS `api/package-lock.json` resolves `multer` to `2.2.0` |
-| Dependency advisories | ⚠️ Fix in PR #156, not merged or deployed | 2026-11-16 `npm audit` (`api/`, lockfile at `origin/main` `673bfbe`): 10 advisories (1 critical, 5 high, 4 moderate). PR #156 (`fix/dependency-advisories`) moves the **repo** versions (not deployed) to compression 1.8.2, multer 2.5.0, body-parser 2.4.0, proxy-addr 2.0.8, qs 6.17.1, ip-address 10.7.6, minimatch 10.2.6, brace-expansion 5.0.13, and, approved by Phil the same day, `sharp` pin `0.35.4` → `0.35.5` (GHSA-wq5f-xc86-pv6w). Re-audit: 2 moderate, 0 high, 0 critical; `--omit=dev`: 0. **Still open (dev-only):** `minimatch` via `nodemon` (GHSA-g3hv-75wg-m249): no `nodemon` 3.x takes the patched `minimatch` ≥11.0.1, and the Docker image installs with `--omit=dev`. Dependabot PR #150 (proxy-addr only) is covered by this change. Deployed/in-container versions are NOT checked (`12d255d` deploy is still CLAIMED). |
+| Dependency advisories | ✅ #156 merged and live (included in `d86831a`, deployed 2026-11-27) | The 2026-11-27 production image build reported `found 0 vulnerabilities` for `npm ci --omit=dev`. Full `npm audit` including dev dependencies was not re-run for this entry. |
 | Public assistant cost-control flag | ✅ Merged and deployed | PR #112 merged; VPS src @ `24ee74b`; `PUBLIC_ASSISTANT_ENABLED=false` returns fallback without provider calls |
 | Homepage dynamic HTML safety | ✅ Merged and deployed | PR #113 merged; VPS src @ `24ee74b`; homepage listing/property fields are escaped before insertion |
 | Repo-safe queue through #128 plus #116 | ✅ Merged; included in the claimed `12d255d` deploy (2026-11-13) | Runtime changes from #116 and #120–#128 are in `12d255d`; live proof pending `verify-vps-prod.sh` |
@@ -54,15 +56,17 @@ Agents must use `PROJECT_STATE.md`, GitHub PR state, and live production checks 
 | WV license number verification | `WV0029577` verified 2026-06-18 against the WV REC Active Salesperson Roster (cited in Resolved facts) |
 | `/start` funnel deploy + PDF asset | PR #109 merged, deployed to VPS, and live-smoked on 2026-06-18 |
 | `multer` high-severity DoS remediation | PR #111 merged and live-smoked on the VPS on 2026-06-18 |
+| Node 24 runtime deploy | `d86831a` deployed 2026-11-27: pre-deploy backup `wv_property-20261127T082252Z.db.gz` (`backup ok`), rollback SHA `f17d187` recorded, `verify-vps-prod.sh` passed, `node -v` → `v24.22.3` |
+| Deploy of #153 (customer auto-reply off, property leads to intake) | Included in `d86831a`, deployed and proven 2026-11-27 |
+| VPS SHA proof (`12d255d`) | Superseded: `d86831a` is now live and proven by `verify-vps-prod.sh` (2026-11-27) |
 
 ### Open gates — ask only these when needed
 
 | Gate | Owner | Needed evidence / action | Notes |
 |------|-------|--------------------------|-------|
 | Codex readiness gatekeeper unavailable | Phil | Phil reported Codex down indefinitely on 2026-11-16. Interim gate (`AGENTS.md` → "When Codex is unavailable", `DECISIONS.md` 2026-11-16): `bash scripts/pr-readiness.sh <n> <sha>` output posted on the PR, plus a review by a session that did not write the PR. Close this gate when Codex is back and has re-verified any PR merged under the interim gate. | The interim gate does not lower the READY conditions; it only changes who runs the check. |
-| Deploy of `main` @ `e253685` (#153: customer auto-reply off by default, property leads to intake) | Phil | Manual VPS deploy, then `EXPECTED_SHA=e2536850a090261a5278e297da3f5b19531056e1 bash scripts/verify-vps-prod.sh` (use the newer `main` SHA if more PRs merge first) | #153 merged 2026-11-16 (merge commit, not squash). Until deployed, the live site still emails customers from the property-lead forms if `RESEND_API_KEY` is set on the VPS. SSH timed out on 2026-11-16 (port 22 closed). |
-| VPS SHA proof for `12d255d` | Phil | Deploy itself done 2026-11-13 (includes #144). Remaining: `EXPECTED_SHA=12d255d924cbcc0ecf9d90d6c0d85cb017a19089 bash scripts/verify-vps-prod.sh` (needs SSH) and in-container versions (multer >= 2.4.0, sharp >= 0.35.4, morgan >= 1.12.0, ip-address >= 10.5.1) | Deploy stays manual; SSH is closed by default and opened per job. |
 | Production smoke residue + notification path | Phil | Delete test `contacts` row #5 (`test.deploy@example.com`) inside the container per `docs/SMOKE_CHECKLIST.md` §4; verify the lead notification email path or mark it not configured (startup log `[Startup] Resend configured:`) | Both need SSH; do at the next planned SSH window. |
+| Off-host backup copy + backup alerting | Phil | Choose an off-server destination (e.g. Google Drive, Cloudflare R2, S3) and approve credentials; then add a nightly copy of `backups/` and an alert on any `backup FAILED` line | On-host nightly backup and the hardened script are verified live (2026-11-27). Backups on the same server do not survive loss of the server. |
 | Welcome / nurture emails (funnel phase 2) | Phil | Approve enabling and sending the welcome sequence | Gated separately; emails are a hard pause-point. Not in PR #109 |
 | Optional alternate footer wording from Sheila | Sheila | Sheila-approved exact wording only if she wants something different from the current live-aligned block | Not blocking; the default form is already in the pack. The live fee/brokerage wording is closed |
 
@@ -79,10 +83,10 @@ Before asking Phil anything, identify the open gate in the table above. If no op
 | **Active repo** | `/Users/yhyh7/Projects/wv-property-intelligence` |
 | **Remote** | `https://github.com/malickland-304/wv-property-intelligence.git` |
 | **Production branch** | `origin/main`; verify current head with `git fetch origin --prune && git rev-parse origin/main` |
-| **Last runtime deploy** | 2026-11-13 by Phil (claimed, unverified): `12d255d` (#151 inquiry forward + #148 brokerage disclosure), from `b22a119`. Rollback SHA: `b22a119`. Previously recorded: `65a2b32d` (2026-09-29), #113 at `24ee74b`. |
+| **Last runtime deploy** | 2026-11-27 by Phil, PROVEN: `d86831a` (#155: Node 24 runtime + hardened backup script), from `f17d187`. Rollback SHA: `f17d187`. Previously: `12d255d` (2026-11-13), `65a2b32d` (2026-09-29), #113 at `24ee74b`. |
 | **Live deploy target** | **Hostinger VPS** `srv1716268` / `31.97.58.203` (Docker + Traefik); deploy is **manual** — merge ≠ deploy. Not Railway. See `docs/CANONICAL_MAP.md` |
 
-The live VPS runtime source checkout is reported as `12d255d` (deployed 2026-11-13, not yet proven by `verify-vps-prod.sh`; `b22a119` immediately before, `65a2b32d` on 2026-09-29, `24ee74b` in June). `origin/main` may advance with repo-safe work that has not been deployed to the VPS; merge still does not equal deploy. Compare future work against current `origin/main`, not a stale local `main`, and prove production with the VPS checkout/container/image state, not Railway deployment records.
+The live VPS runtime source checkout is `d86831a` (deployed 2026-11-27, proven by `verify-vps-prod.sh`; `f17d187` immediately before, `12d255d` on 2026-11-13, `65a2b32d` on 2026-09-29, `24ee74b` in June). `origin/main` may advance with repo-safe work that has not been deployed to the VPS; merge still does not equal deploy. Compare future work against current `origin/main`, not a stale local `main`, and prove production with the VPS checkout/container/image state, not Railway deployment records.
 
 ### Do not use as source of truth
 
@@ -168,7 +172,7 @@ Recent PRs through #128 and #116 are merged; `origin/main` is `349034d` at this 
 
 | Layer | Choice |
 |-------|--------|
-| **This repo** | Node.js 20 / **Express 5** monolith, **SQLite** (`better-sqlite3`), **vanilla HTML** in `app/` (no frontend build) |
+| **This repo** | Node.js 24 / **Express 5** monolith, **SQLite** (`better-sqlite3`), **vanilla HTML** in `app/` (no frontend build) |
 | **Deploy** | **Hostinger VPS** — Docker + Traefik (`api/Dockerfile`); **manual** deploy (merge ≠ deploy). Not Railway |
 | **Not this product** | The separate **malickland.net Next.js** tree under Documents — different codebase; do not conflate env or deploy |
 | **Not used** | **Supabase**, PostgreSQL, Vercel app router, etc. |
@@ -193,7 +197,7 @@ Merged into `main` @ `dc8cc53` via PR #76; live read-only production smoke passe
 
 | Layer | Choice |
 |-------|--------|
-| Runtime | Node.js 20 / Express 5 |
+| Runtime | Node.js 24 / Express 5 |
 | Database | SQLite via `better-sqlite3` |
 | Frontend | Vanilla HTML/JS/CSS (no build step) |
 | Auth | `express-session` (admin) + Bearer API key (REST) |

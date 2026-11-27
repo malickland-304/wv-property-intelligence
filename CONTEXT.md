@@ -26,7 +26,7 @@ A production real estate platform with:
 
 | Layer | Choice |
 |-------|--------|
-| Runtime | Node.js 20 LTS |
+| Runtime | Node.js 24 LTS |
 | Framework | Express 5 |
 | **Database** | **SQLite** via better-sqlite3 (NOT Google Sheets, NOT PostgreSQL) |
 | Session store | better-sqlite3-session-store |
