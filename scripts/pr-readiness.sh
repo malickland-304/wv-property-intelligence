@@ -12,7 +12,8 @@
 # "Not checked:", never under "Verified:".
 # Exit code: 0 READY (everything checked), 1 NOT READY, 2 usage or tooling error,
 # 3 READY on the GitHub conditions only, with the VPS not checked (Phil confirms it).
-# The PR is re-read at the end; if its head or state moved during the run, NOT READY.
+# At the end the PR, check runs, reviews, threads and (if checked) the VPS SHA are re-read;
+# if any moved during the run, or a re-read fails, NOT READY.
 #
 # Needs curl and jq. Review-thread state comes from GitHub GraphQL, which needs
 # authentication: an authenticated `gh` CLI, or GITHUB_TOKEN in the environment.
@@ -155,7 +156,7 @@ else
 fi
 
 # ── 4. Review threads (GraphQL, needs auth) ─────────────────────────────────
-THREADS_QUERY='query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviewThreads(first:100){totalCount nodes{isResolved isOutdated path line comments(first:1){nodes{author{login} body}}}}}}}'
+THREADS_QUERY='query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviews{totalCount} reviewThreads(first:100){totalCount nodes{isResolved isOutdated path line comments(first:1){nodes{author{login} body}}}}}}}'
 owner="${REPO%%/*}"; name="${REPO##*/}"
 # Prints the GraphQL response, or nothing when no auth is available or the call fails.
 fetch_threads() {
@@ -219,8 +220,9 @@ fi
 # ── Re-read: the PR must not have moved while this ran ──────────────────────
 # Checks, threads and the VPS were read after the PR itself. A push, merge, close, draft
 # toggle or base change in between would leave this verdict describing a state that no
-# longer holds, so the PR, its check runs and its review threads are read again and compared. Any read or
-# parse failure blocks (never a set -e exit before the verdict).
+# longer holds, so the PR, its check runs, its reviews and threads, and the VPS SHA
+# (when checked) are read again and compared. Any read or parse failure blocks (never a
+# set -e exit before the verdict).
 pr_fingerprint='[.head.sha, .state, .draft, .mergeable, .mergeable_state, .base.ref] | map(tostring) | join(" ")'
 first_fp="$(jq -r "$pr_fingerprint" <<<"$pr_json")"
 if final_json="$(api "pulls/$PR")" \
@@ -245,15 +247,26 @@ if [[ -n "${runs_json:-}" ]]; then
   fi
 fi
 
-# Review threads again: a new or re-opened thread after section 4. Only compared when the
+# Reviews and review threads again: a new review (even one with no inline comments) or a
+# new or re-opened thread after section 4. Only compared when the
 # first read worked; an UNKNOWN thread state already blocks.
-threads_fp='[.data.repository.pullRequest.reviewThreads.totalCount] + ([.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false and .isOutdated == false) | "\(.path):\(.line)"] | sort) | map(tostring) | join(" ")'
+threads_fp='[.data.repository.pullRequest.reviews.totalCount, .data.repository.pullRequest.reviewThreads.totalCount] + ([.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false and .isOutdated == false) | "\(.path):\(.line)"] | sort) | map(tostring) | join(" ")'
 if [[ -n "$threads_json" ]] && a="$(jq -er "$threads_fp" <<<"$threads_json" 2>/dev/null)"; then
   final_threads="$(fetch_threads)"
   if [[ -n "$final_threads" ]] && b="$(jq -er "$threads_fp" <<<"$final_threads" 2>/dev/null)"; then
-    [[ "$a" == "$b" ]] || block "review threads changed during this run; run again"
+    [[ "$a" == "$b" ]] || block "reviews or review threads changed during this run; run again"
   else
-    block "could not re-read review threads at the end of the run"
+    block "could not re-read reviews and review threads at the end of the run"
+  fi
+fi
+
+# VPS SHA again, last: a deploy during the GitHub re-reads above. Only when the first read
+# was a valid SHA; an unreachable or bad first read already blocks.
+if [[ -n "${EXPECT_VPS_SHA:-}" && "${vps_sha:-}" =~ ^[0-9a-f]{40}$ ]]; then
+  if final_vps="$(ssh -o BatchMode=yes -o ConnectTimeout=10 "$VPS_TARGET" "$remote_cmd" 2>/dev/null)"; then
+    [[ "$final_vps" == "$vps_sha" ]] || block "VPS SHA changed during this run; run again"
+  else
+    block "could not re-read the VPS SHA at the end of the run"
   fi
 fi
 

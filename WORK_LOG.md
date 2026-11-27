@@ -5,7 +5,7 @@
 
 ---
 
-## 2026-11-27 — Claude (#163: readiness script re-reads PR, checks and threads at the end of a run)
+## 2026-11-27 — Claude (#163: readiness script re-reads PR, checks, reviews, threads and VPS SHA at the end of a run)
 
 ### Objective
 Close the "stale PR state" gap (Sourcery on #158; Sourcery and Codex on #163): the readiness verdict must not describe a PR state that changed while the script ran.
@@ -14,13 +14,14 @@ Close the "stale PR state" gap (Sourcery on #158; Sourcery and Codex on #163): t
 - `scripts/pr-readiness.sh` — after the VPS step, re-read and compare:
   - the PR: head SHA, state, draft, mergeable, mergeable_state, base ref;
   - check runs on the head (id, status, conclusion);
-  - review threads (total plus every unresolved, non-outdated thread), via a new `fetch_threads()` used by both reads.
+  - reviews and review threads (review count, thread total, every unresolved non-outdated thread), via a new `fetch_threads()` used by both reads;
+  - the VPS SHA over SSH, last, when `EXPECT_VPS_SHA` is set and the first read was a valid SHA.
   Any change blocks with "… changed during this run; run again". A failed or malformed re-read blocks with "could not re-read …" (no `set -e` exit before the verdict). New text from GitHub goes through the `clean` filter.
 - `AGENTS.md` — the interim-gate sentence now lists what is re-read.
 
 ### Verification (Truthfulness Rule applies)
 - `bash -n` OK; `scripts/preflight.sh` PRE-FLIGHT PASSED.
-- Stand-in `curl`/`gh` with recorded JSON, each ending in NOT READY with the matching blocker: head moved, draft flipped, PR re-read returns junk, check run changed, new unresolved thread mid-run, thread re-read returns junk. Unchanged run adds no re-read blocker.
+- Stand-in `curl`/`gh` with recorded JSON, each ending in NOT READY with the matching blocker: head moved, draft flipped, PR re-read returns junk, check run changed, new unresolved thread mid-run, new review with no inline comments, thread re-read returns junk, VPS SHA moved, VPS re-read fails. Unchanged run with a matching VPS SHA → `READY`, exit 0. Unchanged run adds no re-read blocker.
 
 ### Remaining Risks
 The verdict still goes stale after the script exits; re-run it immediately before merge (AGENTS.md).
