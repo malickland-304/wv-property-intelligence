@@ -5,6 +5,66 @@
 
 ---
 
+## 2026-11-27 — Claude (Node 24 production deploy of `d86831a`, run by Phil)
+
+### Objective
+Deploy `main` @ `d86831a` (#155: Node 24 runtime and the hardened backup script) to the Hostinger VPS, with a pre-deploy DB backup, a recorded rollback SHA, and production proof. Phil approved the deploy in chat ("deploy d86831a to the VPS") and ran every command himself over SSH. The agent sandbox can't SSH, and the Hostinger API returned 401 "Unauthenticated".
+
+### Changes Made (on the VPS, by Phil)
+1. **Checked state before deploying:** src @ `f17d187`; container Node `v20.20.2`. `/etc/cron.d/wv-db-backup` and `backup-db.sh` exist, and `/var/log/wv-db-backup.log` showed nightly `backup ok` (`integrity ok`) on 2026-11-25, 26 and 27.
+2. **Rollback SHA and pre-deploy backup:**
+   - `f17d187` written to `rollback-sha-2026-11-27.txt`;
+   - the old script copied to `backup-db.sh.pre-d86831a`;
+   - `./backup-db.sh` → `backup ok file=wv_property-20261127T082252Z.db.gz` (`integrity ok`; properties 2, contacts 4, counties 55).
+3. **Deploy:** `git -C src fetch origin && git -C src checkout --detach d86831a…`, then `docker compose build && docker compose up -d`.
+   - The image built on `node:24-bookworm-slim`, and `npm ci --omit=dev` reported "found 0 vulnerabilities".
+   - The container came up `Up 20 seconds (healthy)`, and `node -v` → `v24.22.3`.
+4. **Backup script:** `install -m 700 -o root src/scripts/backup-db.sh backup-db.sh`, then `./backup-db.sh` → `backup ok file=wv_property-20261127T082555Z.db.gz` (`integrity ok`). `backups/` is `drwx------`, and the new `.db.gz` and `.sha256` files are `-rw-------`. This was the first run of the hardened script (exec as `1001:1001`) against the real container.
+
+### Changes Made (repo, this PR)
+- `PROJECT_STATE.md`:
+  - **Production deploy, DB backups, Runtime Node version and Dependency advisories rows:** updated to the proven state.
+  - **Closed gates:** the Node 24 runtime deploy, the #153 deploy, and the `12d255d` SHA-proof gate (superseded).
+  - **Backup gate:** narrowed to the off-host copy plus alerting.
+- `WORK_LOG.md`: this entry.
+
+### Verification (Truthfulness Rule applies)
+- `EXPECTED_SHA=d86831ad85e7b66aad7fca41bdbf3ea97d2a968b bash scripts/verify-vps-prod.sh`, run by Phil from his Mac → `VPS production verified`:
+  - `dns_ip=31.97.58.203`;
+  - `remote_sha=d86831a…`;
+  - `container=running healthy`;
+  - production smoke passed (listings disabled and gated).
+- **Public read-only smoke, run by Claude after the deploy:**
+  - `/api/health`, `/api/config`, `/api/properties?limit=2` (DB-backed, so `better-sqlite3` loads on Node 24), `/`, `/37-advent`, `/search` and `/start` → 200;
+  - `/admin` and `/listings` → 302;
+  - the brokerage disclosure (`Sheila Judy`) is present on `/`, `/37-advent`, `/search` and `/start`;
+  - `/privacy` → 404 (expected until #165).
+- **NOT run:** a `POST /api/contacts` test lead. It would reach the live intake sheet and need cleanup, and was skipped by choice. The notification path is still unverified (Resend domain not verified).
+
+### Security Notes
+- No secrets were printed. The deploy used SSH from Phil's Mac.
+- If port 22 was opened in the Hostinger firewall for this deploy, it should be closed again (`web-ssh-only` group).
+- Pre-existing backups made by the old script were `-rw-r--r--`, but `backups/` is now 700, so other accounts can't reach them.
+
+### Remaining Risks
+- **npm 11.19** warns that `better-sqlite3`'s install scripts are "not yet covered by allowScripts". They still ran this time. If a later npm blocks them by default, image builds would ship without the native driver, so the Dockerfile would then need an explicit approval.
+- **Off-host backup copy and backup failure alerting:** still open.
+- **Rollback:** rebuild `f17d187` (Node 20 Dockerfile) with `git -C src checkout --detach "$(cat rollback-sha-2026-11-27.txt)"` and then `docker compose build && docker compose up -d`.
+
+### Recommended Next Task
+Choose an off-host backup destination. Merge #164 (admin login hardening) after Phil's readiness run. Have Phil and Sheila approve the #165 privacy/terms wording.
+
+```
+Done: d86831a (Node 24 + hardened backup) live on the VPS, proven
+Verified by: verify-vps-prod.sh (Phil), node -v v24.22.3, public smoke, backup ok with the new script
+Remaining risk: off-host backups; npm allowScripts behaviour in future npm
+Next owner: Phil
+Next action: off-host backup destination; #164 readiness; #165 wording
+Approval needed: none for this docs PR beyond the normal merge
+```
+
+---
+
 ## 2026-11-27 — Claude (dev-server follow-ups to Codex threads on PR #167)
 
 ### Objective
